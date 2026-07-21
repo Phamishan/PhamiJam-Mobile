@@ -15,7 +15,6 @@ class GoogleAuthService {
   static final GoogleSignIn googleSignIn = GoogleSignIn(
     params: GoogleSignInParams(
       clientId: dotenv.env['CLIENT_ID'],
-      clientSecret: dotenv.env['CLIENT_SECRET'],
       scopes: [
         'openid',
         'profile',

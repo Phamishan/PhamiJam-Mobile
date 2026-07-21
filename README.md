@@ -8,7 +8,8 @@ to be done
 
 ## Version History
 
-- x.x.x - xx/xx/xxxx
+- 1.0.0 - 21/07/2026
+  - Initial Release
 
 ## Screenshots:
 

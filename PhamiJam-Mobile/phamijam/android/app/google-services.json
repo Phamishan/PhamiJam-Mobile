@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "186681716495-7s3jcbpi41kqe36s3uc3iqgp22og62au.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "phamishan.phamijam",
+            "certificate_hash": "8279b7f156867b52c321422850ee906e9b322feb"
+          }
+        },
+        {
           "client_id": "186681716495-fek96ukcs9g4ajopftgdp0bknup0146a.apps.googleusercontent.com",
           "client_type": 3
         }

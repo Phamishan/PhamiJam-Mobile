@@ -19,9 +19,17 @@ class NowPlayingPage extends StatefulWidget {
 }
 
 class _NowPlayingPageState extends State<NowPlayingPage> {
+  PlayerProvider? _player;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _player = context.read<PlayerProvider>();
+  }
+
   @override
   void dispose() {
-    context.read<PlayerProvider>().setVideoSurfaceHost(VideoSurfaceHost.none);
+    _player?.setVideoSurfaceHost(VideoSurfaceHost.none);
     super.dispose();
   }
 
@@ -50,7 +58,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
         final colorScheme = Theme.of(context).colorScheme;
         final showingVideo =
             player.videoSurfaceHost == VideoSurfaceHost.nowPlaying;
-        final controller = player.youtubeController;
 
         return SwipeBack(
           child: Scaffold(
@@ -113,7 +120,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
-                                      if (showingVideo && controller != null)
+                                      if (showingVideo)
                                         VideoSurface(player: player)
                                       else
                                         NetworkThumbnail(

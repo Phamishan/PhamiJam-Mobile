@@ -1,20 +1,45 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/widgets.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/listening_history_service.dart';
+import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/playback_state_service.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 enum PlayerRepeatMode { off, all, one }
 
 enum VideoSurfaceHost { none, nowPlaying, fullscreen }
 
 class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
-  PlayerProvider() {
+  PlayerProvider({required PhamiJamAudioHandler audioHandler})
+    : _audioHandler = audioHandler {
     WidgetsBinding.instance.addObserver(this);
+    _audioHandler.onPlayRequested = togglePlayPause;
+    _audioHandler.onPauseRequested = togglePlayPause;
+    _audioHandler.onNextRequested = next;
+    _audioHandler.onPreviousRequested = previous;
+    _audioHandler.onStopRequested = dismissPlayback;
+    _playerStateSub = _audioHandler.player.playerStateStream.listen(
+      _handlePlayerStateChange,
+    );
+    _positionSub = _audioHandler.player.positionStream.listen((_) {
+      notifyListeners();
+    });
+    _errorSub = _audioHandler.player.playbackEventStream.listen(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) =>
+          _handleStreamError(error),
+    );
     _restoreSession();
   }
+
+  final PhamiJamAudioHandler _audioHandler;
+  StreamSubscription<PlayerState>? _playerStateSub;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<PlaybackEvent>? _errorSub;
 
   Track? _currentTrack;
   List<Track> _queue = [];
@@ -23,21 +48,12 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _shuffle = false;
   PlayerRepeatMode _repeatMode = PlayerRepeatMode.off;
   double _volume = 0.8;
-
-  YoutubePlayerController? _controller;
   VideoSurfaceHost _videoSurfaceHost = VideoSurfaceHost.none;
-
-  bool _resyncing = false;
-
-  Duration _basePosition = Duration.zero;
-  DateTime? _basePositionAnchor;
-
+  bool _loaded = false;
+  Duration _pendingResumePosition = Duration.zero;
   bool _endHandled = false;
-
-  int _handledErrorCode = 0;
-
   DateTime? _lastAutoAdvanceAt;
-
+  DateTime? _lastStreamErrorAt;
   Track? _activePlayTrack;
   DateTime? _activePlayStartedAt;
 
@@ -53,8 +69,8 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       (m) => m.name == saved.repeatMode,
       orElse: () => PlayerRepeatMode.off,
     );
-    _basePosition = saved.position;
-    _basePositionAnchor = null;
+    _pendingResumePosition = Duration.zero;
+    _loaded = false;
     notifyListeners();
   }
 
@@ -106,130 +122,27 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     return false;
   }
 
-  Track? get currentTrack => _currentTrack;
-  bool get isPlaying => _controller?.value.isPlaying ?? false;
-  bool get shuffle => _shuffle;
-  PlayerRepeatMode get repeatMode => _repeatMode;
-  double get volume => _volume;
-  Duration get position {
-    final anchor = _basePositionAnchor;
-    if (anchor == null) return _basePosition;
-    return _basePosition + DateTime.now().difference(anchor);
-  }
-
-  List<Track> get queue => List.unmodifiable(_queue);
-  int get queueIndex => _queueIndex;
-  bool get hasTrack => _currentTrack != null;
-
-  YoutubePlayerController? get youtubeController => _controller;
-  VideoSurfaceHost get videoSurfaceHost => _videoSurfaceHost;
-
-  void setVideoSurfaceHost(VideoSurfaceHost host) {
-    if (_videoSurfaceHost == host) return;
-    _videoSurfaceHost = host;
-    notifyListeners();
-  }
-
-  void resyncVideoSurface() {
-    final controller = _controller;
-    final videoId = _currentTrack?.videoId;
-    if (controller == null || videoId == null || videoId.isEmpty) return;
-
-    final resumeAt = position;
-    _resyncing = true;
-    _basePosition = resumeAt;
-    _basePositionAnchor = DateTime.now();
-
-    controller.mute();
-    controller.load(videoId, startAt: resumeAt.inSeconds);
-
-    final expectedVideoId = videoId;
-    Future.delayed(const Duration(milliseconds: 350), () {
-      if (_controller == controller &&
-          _currentTrack?.videoId == expectedVideoId) {
-        controller.seekTo(position);
-      }
-    });
-
-    Future.delayed(const Duration(milliseconds: 800), () {
-      _resyncing = false;
-      if (_controller == controller &&
-          _currentTrack?.videoId == expectedVideoId) {
-        if (_volume > 0) controller.unMute();
-        controller.setVolume((_volume * 100).round());
-      }
-    });
-  }
-
-  void _resetPositionTracking() {
-    _basePosition = Duration.zero;
-    _basePositionAnchor = DateTime.now();
-  }
-
-  void _loadIntoController(String? videoId) {
-    if (videoId == null || videoId.isEmpty) return;
-    _finalizeActivePlay();
-    _beginActivePlay(_currentTrack);
-    _resetPositionTracking();
-    _resyncing = false;
-    _controller?.unMute();
-    _controller?.setVolume((_volume * 100).round());
-    if (_controller == null) {
-      _controller = YoutubePlayerController(
-        initialVideoId: videoId,
-        flags: const YoutubePlayerFlags(
-          autoPlay: true,
-          mute: false,
-          hideControls: true,
-          hideThumbnail: true,
-        ),
-      )..addListener(_handleControllerUpdate);
-    } else {
-      final controller = _controller!;
-      controller.load(videoId);
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (_controller == controller && _currentTrack?.videoId == videoId) {
-          controller.play();
-        }
-      });
-    }
-  }
-
-  void _updatePositionTracking(YoutubePlayerValue value) {
-    if (_resyncing) return;
-    if (_videoSurfaceHost != VideoSurfaceHost.none) {
-      _basePosition = value.position;
-      _basePositionAnchor = value.isPlaying ? DateTime.now() : null;
+  Future<void> _handleStreamError(Object error) async {
+    final track = _currentTrack;
+    if (track == null) return;
+    final last = _lastStreamErrorAt;
+    if (last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 2)) {
       return;
     }
-    if (value.isPlaying) {
-      _basePositionAnchor ??= DateTime.now();
-    } else if (_basePositionAnchor != null) {
-      _basePosition = position;
-      _basePositionAnchor = null;
-    }
-  }
-
-  void _handleControllerUpdate() {
-    notifyListeners();
-    final value = _controller?.value;
-    if (value == null) return;
-    _updatePositionTracking(value);
-
-    if (value.hasError) {
-      if (value.errorCode == _handledErrorCode) return;
-      _handledErrorCode = value.errorCode;
+    _lastStreamErrorAt = DateTime.now();
+    try {
+      await _audioHandler.reloadAfterStreamError(track);
+    } catch (_) {
       if (_autoAdvanceRateLimited()) return;
-      debugPrint(
-        'PlayerProvider: playback error ${value.errorCode} for '
-        '"${_currentTrack?.title}" — skipping to next track.',
-      );
       next();
-      return;
     }
-    _handledErrorCode = 0;
+  }
 
-    if (value.playerState == PlayerState.ended) {
+  void _handlePlayerStateChange(PlayerState state) {
+    notifyListeners();
+
+    if (state.processingState == ProcessingState.completed) {
       if (_endHandled) return;
       _endHandled = true;
       if (_autoAdvanceRateLimited()) return;
@@ -243,16 +156,52 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  void _replayCurrentTrack() {
+  Track? get currentTrack => _currentTrack;
+  bool get isPlaying => _audioHandler.player.playing;
+  bool get shuffle => _shuffle;
+  PlayerRepeatMode get repeatMode => _repeatMode;
+  double get volume => _volume;
+  Duration get position =>
+      _loaded ? _audioHandler.player.position : _pendingResumePosition;
+  List<Track> get queue => List.unmodifiable(_queue);
+  int get queueIndex => _queueIndex;
+  bool get hasTrack => _currentTrack != null;
+  VideoSurfaceHost get videoSurfaceHost => _videoSurfaceHost;
+
+  Future<Uri?> videoOnlyUrlForCurrentTrack() {
     final videoId = _currentTrack?.videoId;
-    if (videoId == null || videoId.isEmpty) return;
-    _finalizeActivePlay();
-    _beginActivePlay(_currentTrack);
-    _resetPositionTracking();
-    _controller?.load(videoId);
+    if (videoId == null || videoId.isEmpty) return Future.value(null);
+    return _audioHandler.videoOnlyUrlFor(videoId);
   }
 
-  void playQueue(List<Track> tracks, {int startIndex = 0}) {
+  void setVideoSurfaceHost(VideoSurfaceHost host) {
+    if (_videoSurfaceHost == host) return;
+    _videoSurfaceHost = host;
+    notifyListeners();
+  }
+
+  bool _notificationPermissionRequested = false;
+
+  void _requestNotificationPermissionOnce() {
+    if (_notificationPermissionRequested) return;
+    _notificationPermissionRequested = true;
+    Permission.notification.request();
+  }
+
+  Future<void> _startTrack(
+    Track track, {
+    Duration startAt = Duration.zero,
+  }) async {
+    _requestNotificationPermissionOnce();
+    _finalizeActivePlay();
+    _beginActivePlay(track);
+    _endHandled = false;
+    _loaded = true;
+    await _audioHandler.loadTrack(track, startAt: startAt);
+    await _audioHandler.player.setVolume(_volume);
+  }
+
+  Future<void> playQueue(List<Track> tracks, {int startIndex = 0}) async {
     if (tracks.isEmpty) return;
     _originalQueue = List<Track>.from(tracks);
     final clampedStart = startIndex.clamp(0, tracks.length - 1);
@@ -269,7 +218,8 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     _currentTrack = _queue[_queueIndex];
-    _loadIntoController(_currentTrack?.videoId);
+    notifyListeners();
+    await _startTrack(_currentTrack!);
     notifyListeners();
     _persistSession();
   }
@@ -281,35 +231,27 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     playQueue(tracks, startIndex: randomIndex);
   }
 
-  void togglePlayPause() {
-    final controller = _controller;
-    if (controller == null) {
-      _resumeRestoredTrack();
+  Future<void> togglePlayPause() async {
+    if (!_loaded) {
+      await _resumeRestoredTrack();
       return;
     }
-    if (controller.value.isPlaying) {
-      controller.pause();
+    if (_audioHandler.player.playing) {
+      await _audioHandler.player.pause();
     } else {
-      controller.play();
+      await _audioHandler.player.play();
     }
   }
 
-  void _resumeRestoredTrack() {
-    final videoId = _currentTrack?.videoId;
-    if (videoId == null || videoId.isEmpty) return;
-    final resumeAt = _basePosition;
-    _loadIntoController(videoId);
+  Future<void> _resumeRestoredTrack() async {
+    final track = _currentTrack;
+    if (track == null) return;
+    final resumeAt = _pendingResumePosition;
+    await _startTrack(track, startAt: resumeAt);
     notifyListeners();
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (_currentTrack?.videoId == videoId) {
-        _controller?.seekTo(resumeAt);
-        _basePosition = resumeAt;
-        _basePositionAnchor = DateTime.now();
-      }
-    });
   }
 
-  void next() {
+  Future<void> next() async {
     if (_queue.isEmpty) return;
     if (_queueIndex < _queue.length - 1) {
       _queueIndex++;
@@ -319,16 +261,18 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     _currentTrack = _queue[_queueIndex];
-    _loadIntoController(_currentTrack?.videoId);
+    notifyListeners();
+    await _startTrack(_currentTrack!);
     notifyListeners();
     _persistSession();
   }
 
-  void playFromQueue(int index) {
+  Future<void> playFromQueue(int index) async {
     if (index < 0 || index >= _queue.length) return;
     _queueIndex = index;
     _currentTrack = _queue[index];
-    _loadIntoController(_currentTrack?.videoId);
+    notifyListeners();
+    await _startTrack(_currentTrack!);
     notifyListeners();
     _persistSession();
   }
@@ -352,33 +296,37 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void previous() {
+  Future<void> previous() async {
     if (_queue.isEmpty) return;
     if (_queueIndex > 0) {
       _queueIndex--;
       _currentTrack = _queue[_queueIndex];
-      _loadIntoController(_currentTrack?.videoId);
+      notifyListeners();
+      await _startTrack(_currentTrack!);
       notifyListeners();
       _persistSession();
     }
   }
 
-  void dismissPlayback() {
+  Future<void> _replayCurrentTrack() async {
+    final track = _currentTrack;
+    if (track == null) return;
+    await _startTrack(track);
+  }
+
+  Future<void> dismissPlayback() async {
     _finalizeActivePlay();
-    _controller?.removeListener(_handleControllerUpdate);
-    _controller?.dispose();
-    _controller = null;
+    await _audioHandler.player.stop();
     _currentTrack = null;
     _queue = [];
     _originalQueue = [];
     _queueIndex = -1;
-    _basePosition = Duration.zero;
-    _basePositionAnchor = null;
+    _loaded = false;
+    _pendingResumePosition = Duration.zero;
     _endHandled = false;
-    _handledErrorCode = 0;
     _videoSurfaceHost = VideoSurfaceHost.none;
     notifyListeners();
-    PlaybackStateService.clear();
+    await PlaybackStateService.clear();
   }
 
   void toggleShuffle() {
@@ -409,22 +357,22 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void setVolume(double value) {
     _volume = value.clamp(0.0, 1.0);
-    _controller?.setVolume((_volume * 100).round());
+    _audioHandler.player.setVolume(_volume);
     notifyListeners();
   }
 
   void seek(Duration position) {
-    _controller?.seekTo(position);
-    _basePosition = position;
-    _basePositionAnchor = DateTime.now();
+    _audioHandler.player.seek(position);
+    if (!_loaded) _pendingResumePosition = position;
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _finalizeActivePlay();
-    _controller?.removeListener(_handleControllerUpdate);
-    _controller?.dispose();
+    _playerStateSub?.cancel();
+    _positionSub?.cancel();
+    _errorSub?.cancel();
     super.dispose();
   }
 }

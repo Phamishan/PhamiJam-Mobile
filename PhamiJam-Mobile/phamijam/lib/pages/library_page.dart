@@ -14,11 +14,7 @@ class LibraryPage extends StatefulWidget {
   State<LibraryPage> createState() => _LibraryPageState();
 }
 
-enum _LibraryFilter { all, liked }
-
 class _LibraryPageState extends State<LibraryPage> {
-  _LibraryFilter _filter = _LibraryFilter.all;
-
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
@@ -72,13 +68,6 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildContent(BuildContext context, LibraryProvider library) {
-    if (_filter == _LibraryFilter.liked) {
-      return _LikedSongsCard(
-        count: library.likedSongs.length,
-        onTap: () => widget.onOpenPlaylist(library.likedSongsPlaylist),
-      );
-    }
-
     final playlists = library.userPlaylists;
     if (playlists.isEmpty) {
       return _EmptyState(onRefresh: library.refresh);

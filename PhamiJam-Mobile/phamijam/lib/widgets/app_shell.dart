@@ -6,10 +6,8 @@ import 'package:phamijam/pages/playlist_detail_page.dart';
 import 'package:phamijam/pages/search_page.dart';
 import 'package:phamijam/pages/settings_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
-import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
 import 'package:phamijam/widgets/mini_player.dart';
-import 'package:phamijam/widgets/video_surface.dart';
 import 'package:provider/provider.dart';
 
 class AppShell extends StatefulWidget {
@@ -112,7 +110,6 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
           ),
-          const _PersistentPlayerSurface(),
         ],
       ),
       bottomNavigationBar: Column(
@@ -129,30 +126,6 @@ class _AppShellState extends State<AppShell> {
             onSearchClose: _exitSearch,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PersistentPlayerSurface extends StatelessWidget {
-  const _PersistentPlayerSurface();
-
-  @override
-  Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
-    final controller = player.youtubeController;
-    if (controller == null) return const SizedBox.shrink();
-
-    if (player.videoSurfaceHost != VideoSurfaceHost.none) {
-      return const SizedBox.shrink();
-    }
-
-    return Offstage(
-      offstage: true,
-      child: SizedBox(
-        width: 320,
-        height: 180,
-        child: VideoSurface(player: player),
       ),
     );
   }

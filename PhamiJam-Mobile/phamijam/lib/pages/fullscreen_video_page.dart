@@ -13,6 +13,8 @@ class FullscreenVideoPage extends StatefulWidget {
 }
 
 class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
+  PlayerProvider? _player;
+
   @override
   void initState() {
     super.initState();
@@ -27,6 +29,12 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _player = context.read<PlayerProvider>();
+  }
+
+  @override
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
@@ -36,23 +44,20 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
-    context.read<PlayerProvider>().setVideoSurfaceHost(
-      VideoSurfaceHost.nowPlaying,
-    );
+    _player?.setVideoSurfaceHost(VideoSurfaceHost.nowPlaying);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final player = context.watch<PlayerProvider>();
-    final controller = player.youtubeController;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Stack(
           children: [
-            if (controller != null)
+            if (player.currentTrack != null)
               Center(
                 child: AspectRatio(
                   aspectRatio: 16 / 9,

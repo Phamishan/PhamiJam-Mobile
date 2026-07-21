@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -9,6 +10,7 @@ import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
+import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/app_shell.dart';
 import 'package:provider/provider.dart';
@@ -25,16 +27,32 @@ void main() async {
   ]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await dotenv.load(fileName: '.env');
-  runApp(const MyApp());
+
+  final audioHandler = await AudioService.init(
+    builder: () => PhamiJamAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'phamishan.phamijam.audio',
+      androidNotificationChannelName: 'PhamiJam playback',
+      androidStopForegroundOnPause: false,
+      androidNotificationIcon: 'drawable/ic_launcher_foreground',
+    ),
+  );
+
+  runApp(MyApp(audioHandler: audioHandler));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, required this.audioHandler});
+
+  final PhamiJamAudioHandler audioHandler;
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => PlayerProvider()),
+        ChangeNotifierProvider(
+          create: (_) => PlayerProvider(audioHandler: audioHandler),
+        ),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
