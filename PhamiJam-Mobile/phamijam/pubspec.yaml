@@ -1,0 +1,76 @@
+name: phamijam
+description: "A new Flutter project."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  another_flushbar: ^2.2.4
+  audio_video_progress_bar: ^2.0.3
+  cached_network_image: ^3.4.1
+  cloud_firestore: ^6.0.0
+  firebase_auth: ^6.5.6
+  firebase_core: ^4.12.1
+  flutter:
+    sdk: flutter
+  flutter_dotenv: ^6.0.1
+  google_sign_in_all_platforms: ^2.0.3
+  http: ^1.4.0
+  marquee: ^2.3.0
+  provider: ^6.1.5+1
+  shared_preferences: ^2.3.3
+  youtube_player_flutter: ^9.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
+
+# google_sign_in_all_platforms pulls in flutter_inappwebview for its OAuth
+# webview flow. The 6.1.5 stable line's Android plugin uses a proguard API
+# AGP 9 rejects outright; the whole 6.2.0-beta.3 family targets AGP 9.
+# Remove once a stable fixed release ships.
+# https://github.com/pichillilorenzo/flutter_inappwebview/issues/2765
+#
+# cached_network_image -> flutter_cache_manager pulls in path_provider,
+# which at 2.3.x switched to an FFI/JNI implementation (package:jni,
+# bundling libdartjni.so). That native library isn't yet rebuilt for
+# 16KB-page-size Android images ("gphone16k" emulators, and some real
+# devices going forward) and fails to load there with "found... but could
+# not be loaded". Pin back to the last MethodChannel-based 2.2.x release
+# until upstream ships a 16KB-safe build.
+dependency_overrides:
+  flutter_inappwebview: 6.2.0-beta.3
+  path_provider_android: 2.2.17
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/p-trans.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#DBA43A"
+  adaptive_icon_foreground: "assets/images/p-trans.png"
+
+flutter_native_splash:
+  color: "#DBA43A"
+  image: "assets/images/p-trans.png"
+
+  fullscreen: true
+
+  android_12:
+    image: "assets/images/p-trans.png"
+    color: "#DBA43A"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - .env
+  fonts:
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/Lexend-Regular.ttf

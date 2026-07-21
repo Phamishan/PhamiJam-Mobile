@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "186681716495",
+    "project_id": "phamijam-mobile",
+    "storage_bucket": "phamijam-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:186681716495:android:3fc14847fc0ace429b587a",
+        "android_client_info": {
+          "package_name": "phamishan.phamijam"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "186681716495-4q1ln009avviaiifjvg5d5h09173pcrf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "phamishan.phamijam",
+            "certificate_hash": "865c4e0ccaf3a438632be92e17f5328372e4aa08"
+          }
+        },
+        {
+          "client_id": "186681716495-fek96ukcs9g4ajopftgdp0bknup0146a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHhNn6wmaWJfmo6aVcs1y7CDFVNT8QtxY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "186681716495-fek96ukcs9g4ajopftgdp0bknup0146a.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "186681716495-i61hogig92i8tvhcvar42s10assc2knq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "phamishan.phamijam"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
