@@ -15,11 +15,19 @@ import 'package:provider/provider.dart';
 
 class SearchPage extends StatefulWidget {
   final String query;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onQueryChanged;
+  final VoidCallback onClose;
   final ValueChanged<Playlist> onOpenPlaylist;
 
   const SearchPage({
     super.key,
     required this.query,
+    required this.controller,
+    required this.focusNode,
+    required this.onQueryChanged,
+    required this.onClose,
     required this.onOpenPlaylist,
   });
 
@@ -127,9 +135,115 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: child,
+    return Column(
+      children: [
+        _SearchBar(
+          controller: widget.controller,
+          focusNode: widget.focusNode,
+          onChanged: widget.onQueryChanged,
+          onClose: widget.onClose,
+        ),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClose;
+
+  const _SearchBar({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            icon: Icon(
+              Icons.arrow_back_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            onPressed: onClose,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 14),
+                  Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      onChanged: onChanged,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlignVertical: TextAlignVertical.center,
+                      decoration: const InputDecoration(
+                        isCollapsed: true,
+                        border: InputBorder.none,
+                        hintText: 'Search',
+                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (context, value, _) {
+                      if (value.text.isEmpty) return const SizedBox.shrink();
+                      return IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        splashRadius: 16,
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        onPressed: () {
+                          controller.clear();
+                          onChanged('');
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

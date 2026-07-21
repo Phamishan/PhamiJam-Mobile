@@ -55,6 +55,8 @@ flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/images/p-trans.png"
+  image_path_android: "assets/images/P.jpg"
+  image_path_ios: "assets/images/P.jpg"
   remove_alpha_ios: true
   adaptive_icon_background: "#DBA43A"
   adaptive_icon_foreground: "assets/images/p-trans.png"

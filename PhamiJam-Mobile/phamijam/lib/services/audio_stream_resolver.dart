@@ -75,7 +75,12 @@ class AudioStreamResolver {
     if (manifest.audioOnly.isEmpty) {
       throw StateError('No audio-only streams in manifest');
     }
-    final audio = manifest.audioOnly.withHighestBitrate();
+    final mp4AudioCandidates = manifest.audioOnly
+        .where((s) => s.container == StreamContainer.mp4)
+        .toList();
+    final audio = mp4AudioCandidates.isNotEmpty
+        ? mp4AudioCandidates.withHighestBitrate()
+        : manifest.audioOnly.withHighestBitrate();
 
     final videoCandidates = manifest.videoOnly
         .where((s) => s.videoResolution.height <= 480)

@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
@@ -180,19 +179,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  bool _notificationPermissionRequested = false;
-
-  void _requestNotificationPermissionOnce() {
-    if (_notificationPermissionRequested) return;
-    _notificationPermissionRequested = true;
-    Permission.notification.request();
-  }
-
   Future<void> _startTrack(
     Track track, {
     Duration startAt = Duration.zero,
   }) async {
-    _requestNotificationPermissionOnce();
     _finalizeActivePlay();
     _beginActivePlay(track);
     _endHandled = false;

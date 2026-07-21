@@ -19,7 +19,6 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _navIndex = 0;
-  bool _searchMode = false;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -51,10 +50,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _enterSearch() {
-    setState(() {
-      _searchMode = true;
-      _navIndex = 1;
-    });
+    setState(() => _navIndex = 1);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _searchFocusNode.requestFocus();
     });
@@ -62,7 +58,6 @@ class _AppShellState extends State<AppShell> {
 
   void _exitSearch() {
     setState(() {
-      _searchMode = false;
       _searchQuery = '';
       _navIndex = 0;
     });
@@ -71,18 +66,12 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _handleNavTap(int index) {
-    if (index == 0 && _searchMode) {
-      _exitSearch();
-      return;
-    }
     if (index == 1) {
       _enterSearch();
       return;
     }
-    setState(() {
-      _navIndex = index;
-      _searchMode = false;
-    });
+    _searchFocusNode.unfocus();
+    setState(() => _navIndex = index);
   }
 
   @override
@@ -103,6 +92,11 @@ class _AppShellState extends State<AppShell> {
                 ),
                 SearchPage(
                   query: _searchQuery,
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  onQueryChanged: (value) =>
+                      setState(() => _searchQuery = value),
+                  onClose: _exitSearch,
                   onOpenPlaylist: (p) => _openPlaylist(context, p),
                 ),
                 LibraryPage(onOpenPlaylist: (p) => _openPlaylist(context, p)),
@@ -116,15 +110,7 @@ class _AppShellState extends State<AppShell> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const MiniPlayer(),
-          AppBottomNavBar(
-            currentIndex: _navIndex,
-            onTap: _handleNavTap,
-            searchMode: _searchMode,
-            searchController: _searchController,
-            searchFocusNode: _searchFocusNode,
-            onSearchChanged: (value) => setState(() => _searchQuery = value),
-            onSearchClose: _exitSearch,
-          ),
+          AppBottomNavBar(currentIndex: _navIndex, onTap: _handleNavTap),
         ],
       ),
     );
