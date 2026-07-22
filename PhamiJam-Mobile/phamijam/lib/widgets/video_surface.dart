@@ -129,11 +129,6 @@ class _VideoSurfaceState extends State<VideoSurface> {
     if (controller == null || !controller.value.isInitialized) {
       return const SizedBox.shrink();
     }
-    // YouTube's video-only streams are often encoded with a few extra
-    // padding pixels along the right edge (codec block-alignment), which
-    // shows up as a thin line of garbage-colored pixels once BoxFit.cover
-    // stretches the raw texture. Scale up, anchored at the left edge so all
-    // the added width crops off the right (where the artifact is), and clip.
     return ClipRect(
       child: Transform.scale(
         scale: 1.06,

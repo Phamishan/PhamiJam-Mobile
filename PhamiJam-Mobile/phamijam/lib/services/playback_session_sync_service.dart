@@ -190,16 +190,19 @@ class PlaybackSessionSyncService {
   static Stream<List<RemoteCommand>> watchIncomingCommands() {
     final commands = _ownDoc?.collection('commands');
     if (commands == null) return const Stream.empty();
-    // Only emit newly-added docs (not the full list on every snapshot) so a
-    // command is never re-executed just because a sibling command was
-    // added/removed while its own delete round-trip was still in flight.
-    return commands.orderBy('createdAt').snapshots().map(
-      (snapshot) => snapshot.docChanges
-          .where((change) => change.type == DocumentChangeType.added)
-          .map((change) => RemoteCommand.fromDoc(change.doc.id, change.doc.data()!))
-          .whereType<RemoteCommand>()
-          .toList(),
-    );
+    return commands
+        .orderBy('createdAt')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docChanges
+              .where((change) => change.type == DocumentChangeType.added)
+              .map(
+                (change) =>
+                    RemoteCommand.fromDoc(change.doc.id, change.doc.data()!),
+              )
+              .whereType<RemoteCommand>()
+              .toList(),
+        );
   }
 
   static Future<void> ackCommand(String commandDocId) async {

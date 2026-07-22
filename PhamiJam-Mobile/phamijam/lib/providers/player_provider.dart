@@ -25,8 +25,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _playerStateSub = _audioHandler.player.playerStateStream.listen(
       _handlePlayerStateChange,
     );
-    _positionSub = _audioHandler.player.positionStream.listen((_) {
+    _positionSub = _audioHandler.player.positionStream.listen((pos) {
       notifyListeners();
+      _checkNearEndFallback(pos);
     });
     _errorSub = _audioHandler.player.playbackEventStream.listen(
       (_) {},
@@ -176,16 +177,31 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
 
     if (state.processingState == ProcessingState.completed) {
-      if (_endHandled) return;
-      _endHandled = true;
-      if (_autoAdvanceRateLimited()) return;
-      if (_repeatMode == PlayerRepeatMode.one) {
-        _replayCurrentTrack();
-      } else {
-        _localNext();
-      }
+      _handleTrackEnded();
     } else {
       _endHandled = false;
+    }
+  }
+
+  void _checkNearEndFallback(Duration pos) {
+    if (_isRemoteControlling || _endHandled) return;
+    final track = _currentTrack;
+    if (track == null) return;
+    final trackDuration = track.duration;
+    if (trackDuration <= Duration.zero) return;
+    if (!_loaded || !_audioHandler.player.playing) return;
+    if (pos < trackDuration - const Duration(milliseconds: 700)) return;
+    _handleTrackEnded();
+  }
+
+  void _handleTrackEnded() {
+    if (_endHandled) return;
+    _endHandled = true;
+    if (_autoAdvanceRateLimited()) return;
+    if (_repeatMode == PlayerRepeatMode.one) {
+      _replayCurrentTrack();
+    } else {
+      _localNext();
     }
   }
 
@@ -581,9 +597,6 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _localSetVolume(value);
   }
 
-  // Volume can be dragged continuously (e.g. a slider), which would otherwise
-  // fire one Firestore write per pixel of movement. Coalesce those into at
-  // most one outgoing command every 150ms, always flushing the latest value.
   void _sendVolumeCommandThrottled(double value) {
     _pendingVolumeCommandValue = value;
     if (_volumeCommandThrottle != null) return;
