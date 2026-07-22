@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
+import 'package:phamijam/pages/downloads_page.dart';
 import 'package:phamijam/pages/wrapphamied_page.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
 import 'package:provider/provider.dart';
 
@@ -188,6 +190,24 @@ class _SettingsPageState extends State<SettingsPage> {
             },
           ),
           const SizedBox(height: 28),
+          Text('Storage', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          Consumer<DownloadsProvider>(
+            builder: (context, downloads, _) {
+              return _SettingsTile(
+                icon: Icons.download_done_rounded,
+                title: 'Downloaded Songs',
+                subtitle:
+                    '${downloads.totalTracks} songs · '
+                    '${formatDownloadSize(downloads.totalSizeBytes)}',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DownloadsPage()),
+                ),
+                color: colorScheme.onSurface,
+              );
+            },
+          ),
+          const SizedBox(height: 28),
           Text('App', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
           _SettingsTile(
@@ -211,7 +231,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.0.0',
+            subtitle: 'Version 1.0.1',
             color: colorScheme.onSurface,
           ),
         ],

@@ -8,6 +8,7 @@ import 'package:phamijam/pages/settings_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
 import 'package:phamijam/widgets/mini_player.dart';
+import 'package:phamijam/widgets/remote_session_banner.dart';
 import 'package:provider/provider.dart';
 
 class AppShell extends StatefulWidget {
@@ -109,6 +110,7 @@ class _AppShellState extends State<AppShell> {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const RemoteSessionBanner(),
           const MiniPlayer(),
           AppBottomNavBar(currentIndex: _navIndex, onTap: _handleNavTap),
         ],

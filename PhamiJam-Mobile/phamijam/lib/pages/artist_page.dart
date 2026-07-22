@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
+import 'package:phamijam/components/download_action.dart';
+import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/models/channel.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
@@ -78,6 +82,8 @@ class _ArtistPageState extends State<ArtistPage> {
   @override
   Widget build(BuildContext context) {
     final player = context.watch<PlayerProvider>();
+    final library = context.watch<LibraryProvider>();
+    final downloads = context.watch<DownloadsProvider>();
     final colorScheme = Theme.of(context).colorScheme;
     final channel = _channel;
     final displayName = channel?.name ?? widget.artistName;
@@ -176,10 +182,40 @@ class _ArtistPageState extends State<ArtistPage> {
                           _error == null &&
                           _videos.isNotEmpty) ...[
                         const SizedBox(height: 20),
-                        _PlayButton(
-                          onTap: () => player.shuffle
-                              ? player.shufflePlay(_videos)
-                              : player.playQueue(_videos),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              onPressed: player.toggleShuffle,
+                              icon: Icon(
+                                Icons.shuffle_rounded,
+                                color: player.shuffle
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurfaceVariant,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            _PlayButton(
+                              onTap: () => player.shuffle
+                                  ? player.shufflePlay(_videos)
+                                  : player.playQueue(_videos),
+                            ),
+                            const SizedBox(width: 24),
+                            IconButton(
+                              onPressed: player.cycleRepeatMode,
+                              icon: Icon(
+                                player.repeatMode == PlayerRepeatMode.one
+                                    ? Icons.repeat_one_rounded
+                                    : Icons.repeat_rounded,
+                                color:
+                                    player.repeatMode == PlayerRepeatMode.off
+                                    ? colorScheme.onSurfaceVariant
+                                    : colorScheme.primary,
+                                size: 24,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
@@ -232,6 +268,22 @@ class _ArtistPageState extends State<ArtistPage> {
                             onPlayNext: () => player.playNext(track),
                             onMore: () =>
                                 showAddToPlaylistSheet(context, track),
+                            isLiked: library.isLiked(track),
+                            onToggleLike: () =>
+                                toggleTrackLike(context, track),
+                            isDownloaded: downloads.isDownloaded(
+                              track.videoId,
+                            ),
+                            downloadProgress: downloads.progressFor(
+                              track.videoId,
+                            ),
+                            onToggleDownload: () =>
+                                toggleTrackDownload(context, track),
+                            onCancelDownload: track.videoId == null
+                                ? null
+                                : () => downloads.cancelDownload(
+                                    track.videoId!,
+                                  ),
                           );
                         }),
                       ),

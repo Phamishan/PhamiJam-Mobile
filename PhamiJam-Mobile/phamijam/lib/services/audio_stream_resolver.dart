@@ -54,9 +54,9 @@ class AudioStreamResolver {
     Object? lastError;
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
-        final manifest = await _yt.videos.streams.getManifest(
+        final manifest = await _getMergedManifest(
           videoId,
-          ytClients: _ytClients,
+          requireWatchPage: attempt > 0,
         );
         final resolved = _pickStreams(manifest);
         _cache[videoId] = resolved;
@@ -71,6 +71,40 @@ class AudioStreamResolver {
     throw StreamResolutionException(videoId, lastError);
   }
 
+  Future<StreamManifest> _getMergedManifest(
+    String videoId, {
+    required bool requireWatchPage,
+  }) async {
+    final results = await Future.wait(
+      _ytClients.map(
+        (client) => _tryGetManifest(videoId, client, requireWatchPage),
+      ),
+    );
+    final manifests = results.whereType<StreamManifest>().toList();
+    if (manifests.isEmpty) {
+      throw StateError(
+        'No client could resolve a stream manifest for $videoId',
+      );
+    }
+    return StreamManifest([for (final m in manifests) ...m.streams]);
+  }
+
+  Future<StreamManifest?> _tryGetManifest(
+    String videoId,
+    YoutubeApiClient client,
+    bool requireWatchPage,
+  ) async {
+    try {
+      return await _yt.videos.streams.getManifest(
+        videoId,
+        ytClients: [client],
+        requireWatchPage: requireWatchPage,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   ResolvedStreams _pickStreams(StreamManifest manifest) {
     if (manifest.audioOnly.isEmpty) {
       throw StateError('No audio-only streams in manifest');
@@ -82,10 +116,18 @@ class AudioStreamResolver {
         ? mp4AudioCandidates.withHighestBitrate()
         : manifest.audioOnly.withHighestBitrate();
 
-    final videoCandidates = manifest.videoOnly
+    final mp4VideoCandidates = manifest.videoOnly
+        .where((s) => s.container == StreamContainer.mp4)
         .where((s) => s.videoResolution.height <= 480)
         .toList()
         .sortByBitrate();
+    final anyVideoCandidates = manifest.videoOnly
+        .where((s) => s.videoResolution.height <= 480)
+        .toList()
+        .sortByBitrate();
+    final videoCandidates = mp4VideoCandidates.isNotEmpty
+        ? mp4VideoCandidates
+        : anyVideoCandidates;
     final video = videoCandidates.isNotEmpty
         ? videoCandidates.first
         : (manifest.videoOnly.isNotEmpty

@@ -26,6 +26,17 @@ class PlaybackStateService {
   PlaybackStateService._();
 
   static const String _key = 'phamijam.playback_state';
+  static const String _volumeKey = 'phamijam.playback_volume';
+
+  static Future<void> saveVolume(double volume) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_volumeKey, volume);
+  }
+
+  static Future<double?> loadVolume() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_volumeKey);
+  }
 
   static Map<String, dynamic> _trackToJson(Track track) => {
     'id': track.id,

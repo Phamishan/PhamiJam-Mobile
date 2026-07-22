@@ -6,6 +6,7 @@ import 'package:phamijam/pages/queue_page.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/widgets/remote_control_badge.dart';
 import 'package:provider/provider.dart';
 
 class MiniPlayer extends StatelessWidget {
@@ -67,11 +68,31 @@ class MiniPlayer extends StatelessWidget {
                     child: Row(
                       children: [
                         const SizedBox(width: 4),
-                        NetworkThumbnail(
-                          url: track.thumbnailUrl,
+                        SizedBox(
                           width: 42,
                           height: 42,
-                          borderRadius: BorderRadius.circular(6),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              NetworkThumbnail(
+                                url: track.thumbnailUrl,
+                                width: 42,
+                                height: 42,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              if (player.isRemoteControlling)
+                                Positioned(
+                                  right: -4,
+                                  bottom: -4,
+                                  child: RemoteControlBadge(
+                                    deviceName:
+                                        player.remoteSession?.deviceName ??
+                                        'device',
+                                    size: 18,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -94,14 +115,26 @@ class MiniPlayer extends StatelessWidget {
                           onPressed: player.previous,
                           color: colorScheme.onSurface,
                         ),
-                        _MiniPlayerIconButton(
-                          icon: player.isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          onPressed: player.togglePlayPause,
-                          color: colorScheme.onSurface,
-                          size: 26,
-                        ),
+                        if (player.isLoadingTrack)
+                          const SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: Padding(
+                              padding: EdgeInsets.all(9),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                              ),
+                            ),
+                          )
+                        else
+                          _MiniPlayerIconButton(
+                            icon: player.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            onPressed: player.togglePlayPause,
+                            color: colorScheme.onSurface,
+                            size: 26,
+                          ),
                         _MiniPlayerIconButton(
                           icon: Icons.skip_next_rounded,
                           onPressed: player.next,

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
 import 'package:phamijam/components/app_flushbar.dart';
+import 'package:phamijam/components/download_action.dart';
 import 'package:phamijam/components/edit_playlist_sheet.dart';
+import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
@@ -96,6 +99,24 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   }
 
   Future<bool> _handleRemoveTrack(Track track) async {
+    if (!_playlist.isFromYoutube) {
+      try {
+        await context.read<LibraryProvider>().toggleLike(track);
+        if (!mounted) return false;
+        setState(
+          () => _playlist = _playlist.copyWith(
+            tracks: _playlist.tracks.where((t) => t.id != track.id).toList(),
+          ),
+        );
+        AppFlushbar.success(context, 'Removed from Liked Songs');
+        return true;
+      } catch (error) {
+        if (!mounted) return false;
+        AppFlushbar.error(context, "Couldn't remove track: $error");
+        return false;
+      }
+    }
+
     try {
       final updated = await context
           .read<LibraryProvider>()
@@ -137,6 +158,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   @override
   Widget build(BuildContext context) {
     final player = context.watch<PlayerProvider>();
+    final library = context.watch<LibraryProvider>();
+    final downloads = context.watch<DownloadsProvider>();
     final colorScheme = Theme.of(context).colorScheme;
     final playlist = _playlist;
     final songCount = playlist.tracks.isNotEmpty
@@ -193,40 +216,88 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                               ),
                             ),
                           ),
-                          PopupMenuButton<String>(
-                            icon: Icon(
-                              Icons.more_horiz_rounded,
-                              color: colorScheme.onSurface,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            onSelected: (value) {
-                              if (value == 'edit') {
-                                _handleEdit();
-                              } else if (value == 'delete') {
-                                _handleDelete();
-                              }
-                            },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.edit_rounded),
-                                  title: Text('Edit details'),
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.delete_rounded),
-                                  title: Text('Delete playlist'),
-                                ),
-                              ),
-                            ],
-                          ),
+                          if (playlist.isFromYoutube ||
+                              playlist.tracks.isNotEmpty)
+                            Builder(
+                              builder: (context) {
+                                final allDownloaded =
+                                    playlist.tracks.isNotEmpty &&
+                                    playlist.tracks.every(
+                                      (t) => downloads.isDownloaded(t.videoId),
+                                    );
+                                final anyDownloading = playlist.tracks.any(
+                                  (t) => downloads.isDownloading(t.videoId),
+                                );
+                                return PopupMenuButton<String>(
+                                  icon: Icon(
+                                    Icons.more_horiz_rounded,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  onSelected: (value) {
+                                    if (value == 'edit') {
+                                      _handleEdit();
+                                    } else if (value == 'delete') {
+                                      _handleDelete();
+                                    } else if (value == 'download_playlist') {
+                                      downloads.downloadPlaylist(
+                                        playlist.tracks,
+                                      );
+                                    } else if (value == 'stop_downloading') {
+                                      downloads.cancelAllDownloads();
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    if (playlist.isFromYoutube) ...const [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(Icons.edit_rounded),
+                                          title: Text('Edit details'),
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(Icons.delete_rounded),
+                                          title: Text('Delete playlist'),
+                                        ),
+                                      ),
+                                    ],
+                                    if (playlist.tracks.isNotEmpty)
+                                      PopupMenuItem(
+                                        value: anyDownloading
+                                            ? 'stop_downloading'
+                                            : 'download_playlist',
+                                        enabled: !allDownloaded,
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(
+                                            anyDownloading
+                                                ? Icons.stop_circle_rounded
+                                                : allDownloaded
+                                                ? Icons.download_done_rounded
+                                                : Icons.download_rounded,
+                                          ),
+                                          title: Text(
+                                            anyDownloading
+                                                ? 'Stop downloading'
+                                                : allDownloaded
+                                                ? 'Playlist downloaded'
+                                                : 'Download playlist',
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            )
+                          else
+                            const SizedBox(width: 48),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -380,7 +451,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                         padding: const EdgeInsets.symmetric(vertical: 40),
                         child: Center(
                           child: Text(
-                            'No videos in this playlist',
+                            playlist.isFromYoutube
+                                ? 'No videos in this playlist'
+                                : 'No liked songs yet. Tap the heart on any '
+                                      'track to add it here.',
+                            textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ),
@@ -412,6 +487,22 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                             onRemove: () => _handleRemoveTrack(track),
                             onMore: () =>
                                 showAddToPlaylistSheet(context, track),
+                            isLiked: library.isLiked(track),
+                            onToggleLike: () =>
+                                toggleTrackLike(context, track),
+                            isDownloaded: downloads.isDownloaded(
+                              track.videoId,
+                            ),
+                            downloadProgress: downloads.progressFor(
+                              track.videoId,
+                            ),
+                            onToggleDownload: () =>
+                                toggleTrackDownload(context, track),
+                            onCancelDownload: track.videoId == null
+                                ? null
+                                : () => downloads.cancelDownload(
+                                    track.videoId!,
+                                  ),
                             onArtistTap: openArtistPageCallback(
                               context,
                               channelId: track.channelId,

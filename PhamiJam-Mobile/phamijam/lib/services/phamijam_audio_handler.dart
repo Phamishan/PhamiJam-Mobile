@@ -19,6 +19,8 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
   FutureOr<void> Function()? onNextRequested;
   FutureOr<void> Function()? onPreviousRequested;
   FutureOr<void> Function()? onStopRequested;
+
+  String? Function(String videoId)? resolveLocalPath;
   StreamSubscription<PlayerState>? _playerStateSub;
   StreamSubscription<PlaybackEvent>? _eventSub;
   int _loadRequestId = 0;
@@ -86,6 +88,17 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       ),
     );
 
+    final localPath = resolveLocalPath?.call(videoId);
+    if (localPath != null) {
+      await player.setAudioSource(
+        AudioSource.uri(Uri.file(localPath)),
+        initialPosition: startAt,
+      );
+      if (requestId != _loadRequestId) return;
+      if (autoPlay) unawaited(player.play());
+      return;
+    }
+
     final resolved = await _resolver.resolve(videoId);
     if (requestId != _loadRequestId) return;
     await player.setAudioSource(
@@ -93,7 +106,7 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       initialPosition: startAt,
     );
     if (requestId != _loadRequestId) return;
-    if (autoPlay) await player.play();
+    if (autoPlay) unawaited(player.play());
   }
 
   Future<void> reloadAfterStreamError(Track track) async {
@@ -109,7 +122,13 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       initialPosition: resumeAt,
     );
     if (requestId != _loadRequestId) return;
-    await player.play();
+    unawaited(player.play());
+  }
+
+  Future<void> prefetch(String videoId) async {
+    try {
+      await _resolver.resolve(videoId);
+    } catch (_) {}
   }
 
   Future<Uri?> videoOnlyUrlFor(String videoId) =>

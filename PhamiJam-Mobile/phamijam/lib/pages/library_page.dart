@@ -55,7 +55,9 @@ class _LibraryPageState extends State<LibraryPage> {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   )
-                : library.errorMessage != null
+                : library.errorMessage != null &&
+                      library.userPlaylists.isEmpty &&
+                      library.likedSongs.isEmpty
                 ? _ErrorState(
                     message: library.errorMessage!,
                     onRetry: library.refresh,
@@ -69,13 +71,14 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _buildContent(BuildContext context, LibraryProvider library) {
     final playlists = library.userPlaylists;
-    if (playlists.isEmpty) {
+    if (playlists.isEmpty && library.likedSongs.isEmpty) {
       return _EmptyState(onRefresh: library.refresh);
     }
 
     return RefreshIndicator(
       onRefresh: library.refresh,
       color: Theme.of(context).colorScheme.primary,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: GridView.builder(
         padding: const EdgeInsets.only(bottom: 24),
         itemCount: playlists.length + 1,
@@ -223,12 +226,12 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'No YouTube playlists found',
+            'Your library is empty',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 6),
           Text(
-            'Playlists you create on YouTube will show up here.',
+            'Like a song or create a playlist on YouTube to see it here.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),

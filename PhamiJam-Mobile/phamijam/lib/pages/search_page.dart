@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
+import 'package:phamijam/components/download_action.dart';
+import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/playlist_card.dart';
 import 'package:phamijam/widgets/section_header.dart';
@@ -382,6 +385,8 @@ class _ResultsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final library = context.watch<LibraryProvider>();
+    final downloads = context.watch<DownloadsProvider>();
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       child: Column(
@@ -399,6 +404,15 @@ class _ResultsView extends StatelessWidget {
               onTap: () => player.playQueue(tracks, startIndex: index),
               onPlayNext: () => player.playNext(tracks[index]),
               onMore: () => showAddToPlaylistSheet(context, tracks[index]),
+              isLiked: library.isLiked(tracks[index]),
+              onToggleLike: () => toggleTrackLike(context, tracks[index]),
+              isDownloaded: downloads.isDownloaded(tracks[index].videoId),
+              downloadProgress: downloads.progressFor(tracks[index].videoId),
+              onToggleDownload: () =>
+                  toggleTrackDownload(context, tracks[index]),
+              onCancelDownload: tracks[index].videoId == null
+                  ? null
+                  : () => downloads.cancelDownload(tracks[index].videoId!),
               onArtistTap: openArtistPageCallback(
                 context,
                 channelId: tracks[index].channelId,

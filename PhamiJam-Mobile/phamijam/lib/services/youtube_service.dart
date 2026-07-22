@@ -347,6 +347,31 @@ class YoutubeService {
     );
   }
 
+  static Future<Map<String, Channel>> fetchChannelsInfo(
+    List<String> channelIds,
+  ) async {
+    if (channelIds.isEmpty) return {};
+    final data = await _get('channels', {
+      'part': 'snippet',
+      'id': channelIds.join(','),
+    });
+
+    final items = data['items'] as List? ?? [];
+    final result = <String, Channel>{};
+    for (final item in items) {
+      final map = item as Map<String, dynamic>;
+      final id = map['id'] as String?;
+      if (id == null) continue;
+      final snippet = map['snippet'] as Map<String, dynamic>?;
+      result[id] = Channel(
+        id: id,
+        name: snippet?['title'] as String? ?? 'Unknown artist',
+        thumbnailUrl: _bestThumbnail(snippet),
+      );
+    }
+    return result;
+  }
+
   static Future<String?> _fetchUploadsPlaylistId(String channelId) async {
     final data = await _get('channels', {
       'part': 'contentDetails',
@@ -375,7 +400,7 @@ class YoutubeService {
 
   static Future<List<Track>> fetchPlaylistTracks(
     String playlistId, {
-    int maxItems = 200,
+    int? maxItems,
   }) async {
     final rawItems = <_RawPlaylistItem>[];
     String? pageToken;
@@ -417,12 +442,14 @@ class YoutubeService {
         );
       }
 
-      pageToken = rawItems.length >= maxItems
+      pageToken = (maxItems != null && rawItems.length >= maxItems)
           ? null
           : data['nextPageToken'] as String?;
     } while (pageToken != null);
 
-    final bounded = rawItems.take(maxItems).toList();
+    final bounded = maxItems == null
+        ? rawItems
+        : rawItems.take(maxItems).toList();
     final durations = await _fetchDurations(
       bounded.map((e) => e.videoId).toList(),
     );

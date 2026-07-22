@@ -10,6 +10,8 @@ import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
+import 'package:phamijam/services/audio_stream_resolver.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/app_shell.dart';
@@ -28,8 +30,9 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await dotenv.load(fileName: '.env');
 
+  final sharedResolver = AudioStreamResolver();
   final audioHandler = await AudioService.init(
-    builder: () => PhamiJamAudioHandler(),
+    builder: () => PhamiJamAudioHandler(resolver: sharedResolver),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'phamishan.phamijam.audio',
       androidNotificationChannelName: 'PhamiJam playback',
@@ -37,14 +40,23 @@ void main() async {
       androidNotificationIcon: 'drawable/ic_launcher_foreground',
     ),
   );
+  final downloadsProvider = DownloadsProvider(resolver: sharedResolver);
+  audioHandler.resolveLocalPath = downloadsProvider.localPathFor;
 
-  runApp(MyApp(audioHandler: audioHandler));
+  runApp(
+    MyApp(audioHandler: audioHandler, downloadsProvider: downloadsProvider),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key, required this.audioHandler});
+  const MyApp({
+    super.key,
+    required this.audioHandler,
+    required this.downloadsProvider,
+  });
 
   final PhamiJamAudioHandler audioHandler;
+  final DownloadsProvider downloadsProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +68,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider.value(value: downloadsProvider),
       ],
       child: Builder(
         builder: (context) {

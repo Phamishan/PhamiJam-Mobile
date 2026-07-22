@@ -1,14 +1,16 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
+import 'package:phamijam/components/download_action.dart';
+import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/models/playlist.dart';
-import 'package:phamijam/models/track.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
-import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/widgets/playlist_card.dart';
+import 'package:phamijam/widgets/recent_artists_row.dart';
+import 'package:phamijam/widgets/recent_track_card.dart';
 import 'package:phamijam/widgets/section_header.dart';
-import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
 
 class HomePage extends StatelessWidget {
@@ -26,6 +28,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
+    final downloads = context.watch<DownloadsProvider>();
     final player = context.read<PlayerProvider>();
     final user = FirebaseAuth.instance.currentUser;
     final firstName = (user?.displayName ?? 'there').split(' ').first;
@@ -61,103 +64,49 @@ class HomePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
-            _QuickPicksGrid(
-              tracks: library.recentlyPlayed.take(6).toList(),
-              onTap: (index) =>
-                  player.playQueue(library.recentlyPlayed, startIndex: index),
-            ),
-            const SizedBox(height: 36),
+            if (library.recentlyPlayed.isNotEmpty) ...[
+              SectionHeader(title: 'Recently Played Artists'),
+              RecentArtistsRow(tracks: library.recentlyPlayed),
+              const SizedBox(height: 24),
+            ],
             SectionHeader(title: 'Your Playlists', onSeeAll: onOpenLibrary),
             _PlaylistRow(playlists: library.madeForYou, onOpen: onOpenPlaylist),
-            const SizedBox(height: 32),
-            SectionHeader(title: 'Recently Played'),
-            ...List.generate(
-              library.recentlyPlayed.length,
-              (index) => TrackTile(
-                index: index + 1,
-                track: library.recentlyPlayed[index],
-                onTap: () =>
-                    player.playQueue(library.recentlyPlayed, startIndex: index),
-                onPlayNext: () =>
-                    player.playNext(library.recentlyPlayed[index]),
-                onMore: () => showAddToPlaylistSheet(
-                  context,
-                  library.recentlyPlayed[index],
+            if (library.recentlyPlayed.isNotEmpty) ...[
+              const SizedBox(height: 32),
+              SectionHeader(title: 'Jump Back In'),
+              Selector<PlayerProvider, String?>(
+                selector: (_, player) => player.currentTrack?.id,
+                builder: (context, activeTrackId, _) => SizedBox(
+                  height: 210,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: library.recentlyPlayed.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final track = library.recentlyPlayed[index];
+                      return RecentTrackCard(
+                        track: track,
+                        isActive: track.id == activeTrackId,
+                        onTap: () => player.playQueue(
+                          library.recentlyPlayed,
+                          startIndex: index,
+                        ),
+                        onMore: () => showAddToPlaylistSheet(context, track),
+                        isLiked: library.isLiked(track),
+                        onToggleLike: () => toggleTrackLike(context, track),
+                        isDownloaded: downloads.isDownloaded(track.videoId),
+                        onToggleDownload: () =>
+                            toggleTrackDownload(context, track),
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
+            ],
             const SizedBox(height: 24),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _QuickPicksGrid extends StatelessWidget {
-  final List<Track> tracks;
-  final ValueChanged<int> onTap;
-
-  const _QuickPicksGrid({required this.tracks, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth > 700 ? 3 : 2;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: tracks.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 2.6,
-          ),
-          itemBuilder: (context, index) {
-            final track = tracks[index];
-            final colorScheme = Theme.of(context).colorScheme;
-            return Material(
-              color: colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => onTap(index),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      NetworkThumbnail(
-                        url: track.thumbnailUrl,
-                        width: 44,
-                        height: 44,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          track.title,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.titleMedium?.copyWith(fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }

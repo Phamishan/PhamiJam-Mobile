@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
+import 'package:phamijam/components/app_flushbar.dart';
+import 'package:phamijam/components/download_action.dart';
+import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/pages/now_playing_page.dart';
+import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/track_tile.dart';
@@ -15,6 +20,9 @@ class QueuePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    final library = context.watch<LibraryProvider>();
+    final downloads = context.watch<DownloadsProvider>();
 
     return SwipeBack(
       child: Scaffold(
@@ -101,10 +109,32 @@ class QueuePage extends StatelessWidget {
                                     onPlayNext: () => player.playNext(track),
                                     onRemove: () async {
                                       player.removeFromQueue(queueIndex);
+                                      if (context.mounted) {
+                                        AppFlushbar.success(
+                                          context,
+                                          'Removed from queue',
+                                        );
+                                      }
                                       return true;
                                     },
                                     onMore: () =>
                                         showAddToPlaylistSheet(context, track),
+                                    isLiked: library.isLiked(track),
+                                    onToggleLike: () =>
+                                        toggleTrackLike(context, track),
+                                    isDownloaded: downloads.isDownloaded(
+                                      track.videoId,
+                                    ),
+                                    downloadProgress: downloads.progressFor(
+                                      track.videoId,
+                                    ),
+                                    onToggleDownload: () =>
+                                        toggleTrackDownload(context, track),
+                                    onCancelDownload: track.videoId == null
+                                        ? null
+                                        : () => downloads.cancelDownload(
+                                            track.videoId!,
+                                          ),
                                     onArtistTap: openArtistPageCallback(
                                       context,
                                       channelId: track.channelId,

@@ -1,7 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/services/liked_songs_service.dart';
+import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
+
+const String kLikedSongsPlaylistId = 'liked-songs';
 
 class LibraryProvider extends ChangeNotifier {
   bool isLoading = false;
@@ -13,58 +17,132 @@ class LibraryProvider extends ChangeNotifier {
   List<Playlist> userPlaylists = [];
   List<Track> likedSongs = [];
 
-  String? _likedPlaylistId;
+  final Set<String> _likedVideoIds = {};
 
   Playlist get likedSongsPlaylist => Playlist(
-    id: _likedPlaylistId ?? 'liked-songs',
+    id: kLikedSongsPlaylistId,
     title: 'Liked Songs',
-    subtitle: '${likedSongs.length} liked videos',
+    subtitle: '${likedSongs.length} songs',
     thumbnailUrl: likedSongs.isNotEmpty ? likedSongs.first.thumbnailUrl : '',
     tracks: likedSongs,
+    isFromYoutube: false,
   );
+
+  bool isLiked(Track track) {
+    final videoId = track.videoId;
+    return videoId != null && _likedVideoIds.contains(videoId);
+  }
 
   Future<void> refresh() async {
     isLoading = true;
     errorMessage = null;
     notifyListeners();
 
-    try {
-      final results = await Future.wait([
-        YoutubeService.fetchMyPlaylists(),
-        _likedPlaylistId != null
-            ? Future.value(_likedPlaylistId)
-            : YoutubeService.fetchLikedVideosPlaylistId(),
-      ]);
-      final playlists = results[0] as List<Playlist>;
-      _likedPlaylistId = results[1] as String?;
-      final liked = _likedPlaylistId == null
-          ? <Track>[]
-          : await YoutubeService.fetchPlaylistTracks(_likedPlaylistId!);
-
-      userPlaylists = playlists;
-      _splitPlaylists();
-      likedSongs = liked;
-      recentlyPlayed = liked.take(10).toList();
-    } catch (error, stackTrace) {
-      debugPrint('LibraryProvider: refresh failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      errorMessage =
-          "Couldn't load your YouTube library. Pull to refresh to try again.";
-      userPlaylists = [];
-      madeForYou = [];
-      topMixes = [];
-      likedSongs = [];
-      recentlyPlayed = [];
-    }
+    await Future.wait([
+      _refreshYoutubePlaylists(),
+      _refreshLikedSongs(),
+      _refreshRecentlyPlayed(),
+    ]);
 
     isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _refreshYoutubePlaylists() async {
+    try {
+      userPlaylists = await YoutubeService.fetchMyPlaylists();
+      _splitPlaylists();
+    } catch (error, stackTrace) {
+      debugPrint('LibraryProvider: playlist refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      errorMessage =
+          "Couldn't load your YouTube playlists. Pull to refresh to try again.";
+      userPlaylists = [];
+      madeForYou = [];
+      topMixes = [];
+    }
+  }
+
+  Future<void> _refreshLikedSongs() async {
+    try {
+      final liked = await LikedSongsService.fetchAll();
+      likedSongs = liked;
+      _likedVideoIds
+        ..clear()
+        ..addAll(liked.map((t) => t.videoId).whereType<String>());
+    } catch (error, stackTrace) {
+      debugPrint('LibraryProvider: liked songs refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _refreshRecentlyPlayed() async {
+    try {
+      final since = DateTime.now().subtract(const Duration(days: 180));
+      final events = await ListeningHistoryService.eventsSince(since);
+      final seen = <String>{};
+      final tracks = <Track>[];
+      for (final event in events.reversed) {
+        if (!seen.add(event.videoId)) continue;
+        tracks.add(
+          Track(
+            id: 'yt-${event.videoId}',
+            title: event.title,
+            artist: event.artist,
+            thumbnailUrl: event.thumbnailUrl,
+            videoId: event.videoId,
+            channelId: event.channelId,
+          ),
+        );
+        if (tracks.length >= 15) break;
+      }
+      recentlyPlayed = tracks;
+    } catch (error, stackTrace) {
+      debugPrint('LibraryProvider: recently played refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   void _splitPlaylists() {
     final half = (userPlaylists.length / 2).ceil();
     madeForYou = userPlaylists.take(half).toList();
     topMixes = userPlaylists.skip(half).toList();
+  }
+
+  Future<void> toggleLike(Track track) async {
+    final videoId = track.videoId;
+    if (videoId == null || videoId.isEmpty) return;
+    final alreadyLiked = _likedVideoIds.contains(videoId);
+
+    _applyLikeState(videoId: videoId, track: track, liked: !alreadyLiked);
+    notifyListeners();
+
+    try {
+      if (alreadyLiked) {
+        await LikedSongsService.unlike(videoId);
+      } else {
+        await LikedSongsService.like(track);
+      }
+    } catch (error) {
+      _applyLikeState(videoId: videoId, track: track, liked: alreadyLiked);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  void _applyLikeState({
+    required String videoId,
+    required Track track,
+    required bool liked,
+  }) {
+    if (liked) {
+      _likedVideoIds.add(videoId);
+      if (likedSongs.any((t) => t.videoId == videoId)) return;
+      likedSongs = [track, ...likedSongs];
+    } else {
+      _likedVideoIds.remove(videoId);
+      likedSongs = likedSongs.where((t) => t.videoId != videoId).toList();
+    }
   }
 
   Future<Playlist> createPlaylist(

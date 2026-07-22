@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 
@@ -14,6 +15,14 @@ class TrackTile extends StatefulWidget {
 
   final Future<bool> Function()? onRemove;
 
+  final bool isLiked;
+  final VoidCallback? onToggleLike;
+
+  final bool isDownloaded;
+  final double? downloadProgress;
+  final VoidCallback? onToggleDownload;
+  final VoidCallback? onCancelDownload;
+
   const TrackTile({
     super.key,
     required this.track,
@@ -24,6 +33,12 @@ class TrackTile extends StatefulWidget {
     this.onArtistTap,
     this.onPlayNext,
     this.onRemove,
+    this.isLiked = false,
+    this.onToggleLike,
+    this.isDownloaded = false,
+    this.downloadProgress,
+    this.onToggleDownload,
+    this.onCancelDownload,
   });
 
   @override
@@ -43,7 +58,7 @@ class _TrackTileState extends State<TrackTile> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final activeColor = widget.isActive
-        ? colorScheme.primary
+        ? colorScheme.onSurfaceVariant
         : colorScheme.onSurface;
     final tile = MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -137,17 +152,109 @@ class _TrackTileState extends State<TrackTile> {
                 _formatDuration(widget.track.duration),
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              if (widget.onMore != null) ...[
-                const SizedBox(width: 8),
+              if (widget.onToggleLike != null) ...[
+                const SizedBox(width: 4),
                 IconButton(
-                  onPressed: widget.onMore,
+                  onPressed: widget.onToggleLike,
                   icon: Icon(
-                    Icons.more_horiz_rounded,
-                    color: colorScheme.onSurfaceVariant,
+                    widget.isLiked
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: widget.isLiked
+                        ? colorScheme.onSurface
+                        : colorScheme.onSurface,
                     size: 18,
                   ),
                   splashRadius: 18,
                 ),
+              ],
+              if (widget.onMore != null || widget.onToggleDownload != null) ...[
+                const SizedBox(width: 4),
+                if (widget.downloadProgress != null)
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: widget.onCancelDownload == null
+                        ? Padding(
+                            padding: const EdgeInsets.all(9),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              value: widget.downloadProgress! > 0
+                                  ? widget.downloadProgress
+                                  : null,
+                            ),
+                          )
+                        : IconButton(
+                            onPressed: widget.onCancelDownload,
+                            splashRadius: 18,
+                            padding: EdgeInsets.zero,
+                            tooltip: 'Stop download',
+                            icon: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  value: widget.downloadProgress! > 0
+                                      ? widget.downloadProgress
+                                      : null,
+                                ),
+                                Icon(
+                                  Icons.stop_rounded,
+                                  size: 14,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ],
+                            ),
+                          ),
+                  )
+                else
+                  PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_horiz_rounded,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 18,
+                    ),
+                    splashRadius: 18,
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    onSelected: (value) {
+                      if (value == 'add_to_playlist') {
+                        widget.onMore?.call();
+                      } else if (value == 'download') {
+                        widget.onToggleDownload?.call();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (widget.onMore != null)
+                        const PopupMenuItem(
+                          value: 'add_to_playlist',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.playlist_add_rounded),
+                            title: Text('Add to playlist'),
+                          ),
+                        ),
+                      if (widget.onToggleDownload != null)
+                        PopupMenuItem(
+                          value: 'download',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              widget.isDownloaded
+                                  ? Icons.download_done_rounded
+                                  : Icons.download_rounded,
+                            ),
+                            title: Text(
+                              widget.isDownloaded
+                                  ? 'Remove download'
+                                  : 'Download',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
               ],
             ],
           ),
@@ -176,6 +283,9 @@ class _TrackTileState extends State<TrackTile> {
       confirmDismiss: (dismissDirection) async {
         if (dismissDirection == DismissDirection.startToEnd) {
           widget.onPlayNext?.call();
+          if (context.mounted) {
+            AppFlushbar.success(context, 'Added to play next');
+          }
           return false;
         }
         if (dismissDirection == DismissDirection.endToStart) {

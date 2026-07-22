@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
+import 'package:phamijam/services/playback_session_sync_service.dart';
 import 'package:phamijam/services/playback_state_service.dart';
 
 enum PlayerRepeatMode { off, all, one }
@@ -32,6 +33,21 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       onError: (Object error, StackTrace stackTrace) =>
           _handleStreamError(error),
     );
+    _remoteSessionSub = PlaybackSessionSyncService.watchOtherSession().listen((
+      session,
+    ) {
+      _remoteSession = session;
+      if (_isRemoteControlling && session == null) {
+        _isRemoteControlling = false;
+      }
+      notifyListeners();
+    });
+    _incomingCommandsSub = PlaybackSessionSyncService.watchIncomingCommands()
+        .listen(_handleIncomingCommands);
+    _sessionHeartbeat = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (!_isRemoteControlling && isPlaying) _pushSessionIfHosting();
+    });
+    _restoreVolume();
     _restoreSession();
   }
 
@@ -39,6 +55,11 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription<PlayerState>? _playerStateSub;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<PlaybackEvent>? _errorSub;
+  StreamSubscription<RemoteSession?>? _remoteSessionSub;
+  StreamSubscription<List<RemoteCommand>>? _incomingCommandsSub;
+  Timer? _sessionHeartbeat;
+  Timer? _volumeCommandThrottle;
+  double? _pendingVolumeCommandValue;
 
   Track? _currentTrack;
   List<Track> _queue = [];
@@ -49,12 +70,25 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   double _volume = 0.8;
   VideoSurfaceHost _videoSurfaceHost = VideoSurfaceHost.none;
   bool _loaded = false;
+  bool _isLoadingTrack = false;
   Duration _pendingResumePosition = Duration.zero;
   bool _endHandled = false;
   DateTime? _lastAutoAdvanceAt;
   DateTime? _lastStreamErrorAt;
   Track? _activePlayTrack;
   DateTime? _activePlayStartedAt;
+
+  RemoteSession? _remoteSession;
+  bool _isRemoteControlling = false;
+  String? _dismissedRemoteKey;
+
+  Future<void> _restoreVolume() async {
+    final saved = await PlaybackStateService.loadVolume();
+    if (saved == null) return;
+    _volume = saved.clamp(0.0, 1.0);
+    await _audioHandler.player.setVolume(_volume);
+    notifyListeners();
+  }
 
   Future<void> _restoreSession() async {
     final saved = await PlaybackStateService.load();
@@ -134,7 +168,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       await _audioHandler.reloadAfterStreamError(track);
     } catch (_) {
       if (_autoAdvanceRateLimited()) return;
-      next();
+      _localNext();
     }
   }
 
@@ -148,23 +182,131 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_repeatMode == PlayerRepeatMode.one) {
         _replayCurrentTrack();
       } else {
-        next();
+        _localNext();
       }
     } else {
       _endHandled = false;
     }
   }
 
-  Track? get currentTrack => _currentTrack;
-  bool get isPlaying => _audioHandler.player.playing;
-  bool get shuffle => _shuffle;
-  PlayerRepeatMode get repeatMode => _repeatMode;
-  double get volume => _volume;
-  Duration get position =>
-      _loaded ? _audioHandler.player.position : _pendingResumePosition;
-  List<Track> get queue => List.unmodifiable(_queue);
-  int get queueIndex => _queueIndex;
-  bool get hasTrack => _currentTrack != null;
+  RemoteSession? get remoteSession => _remoteSession;
+  bool get isRemoteControlling => _isRemoteControlling;
+  bool get shouldShowRemoteBanner {
+    if (_isRemoteControlling) return false;
+    final session = _remoteSession;
+    if (session == null || !session.isLive) return false;
+    final key = session.currentTrack?.videoId;
+    return key != null && key != _dismissedRemoteKey;
+  }
+
+  void dismissRemoteBanner() {
+    _dismissedRemoteKey = _remoteSession?.currentTrack?.videoId;
+    notifyListeners();
+  }
+
+  Future<void> enterRemoteControl() async {
+    if (_remoteSession == null) return;
+    if (_currentTrack != null) {
+      await _audioHandler.player.pause();
+    }
+    _isRemoteControlling = true;
+    notifyListeners();
+  }
+
+  void _exitRemoteControl() {
+    if (!_isRemoteControlling) return;
+    _isRemoteControlling = false;
+    notifyListeners();
+  }
+
+  Future<void> resumeRemoteSessionLocally() async {
+    final session = _remoteSession;
+    final track = session?.currentTrack;
+    if (session == null || track == null) return;
+    _isRemoteControlling = false;
+    _originalQueue = List<Track>.from(session.queue);
+    _queue = List<Track>.from(session.queue);
+    _queueIndex = session.queueIndex;
+    _shuffle = session.shuffle;
+    _repeatMode = PlayerRepeatMode.values.firstWhere(
+      (m) => m.name == session.repeatMode,
+      orElse: () => PlayerRepeatMode.off,
+    );
+    _currentTrack = track;
+    notifyListeners();
+    await _tryStartTrack(track, startAt: session.position);
+    notifyListeners();
+    _persistSession();
+  }
+
+  void _pushSessionIfHosting() {
+    if (_isRemoteControlling) return;
+    final track = _currentTrack;
+    if (track == null || track.videoId == null) return;
+    PlaybackSessionSyncService.pushSession(
+      queue: _queue,
+      queueIndex: _queueIndex,
+      position: position,
+      isPlaying: isPlaying,
+      volume: _volume,
+      shuffle: _shuffle,
+      repeatMode: _repeatMode.name,
+    );
+  }
+
+  Future<void> _handleIncomingCommands(List<RemoteCommand> commands) async {
+    for (final command in commands) {
+      switch (command.type) {
+        case RemoteCommandType.play:
+          if (!_audioHandler.player.playing) await _localTogglePlayPause();
+          break;
+        case RemoteCommandType.pause:
+          if (_audioHandler.player.playing) await _localTogglePlayPause();
+          break;
+        case RemoteCommandType.next:
+          await _localNext();
+          break;
+        case RemoteCommandType.previous:
+          await _localPrevious();
+          break;
+        case RemoteCommandType.setVolume:
+          final value = command.value;
+          if (value != null) _localSetVolume(value);
+          break;
+      }
+      await PlaybackSessionSyncService.ackCommand(command.id);
+    }
+  }
+
+  Track? get currentTrack =>
+      _isRemoteControlling ? _remoteSession?.currentTrack : _currentTrack;
+  bool get isPlaying => _isRemoteControlling
+      ? (_remoteSession?.isPlaying ?? false)
+      : _audioHandler.player.playing;
+  bool get shuffle =>
+      _isRemoteControlling ? (_remoteSession?.shuffle ?? false) : _shuffle;
+  PlayerRepeatMode get repeatMode {
+    if (!_isRemoteControlling) return _repeatMode;
+    return PlayerRepeatMode.values.firstWhere(
+      (m) => m.name == _remoteSession?.repeatMode,
+      orElse: () => PlayerRepeatMode.off,
+    );
+  }
+
+  double get volume =>
+      _isRemoteControlling ? (_remoteSession?.volume ?? _volume) : _volume;
+  Duration get position => _isRemoteControlling
+      ? (_remoteSession?.position ?? Duration.zero)
+      : (_loaded ? _audioHandler.player.position : _pendingResumePosition);
+  List<Track> get queue => List.unmodifiable(
+    _isRemoteControlling ? (_remoteSession?.queue ?? const []) : _queue,
+  );
+  int get queueIndex =>
+      _isRemoteControlling ? (_remoteSession?.queueIndex ?? -1) : _queueIndex;
+  bool get hasTrack => _isRemoteControlling
+      ? _remoteSession?.currentTrack != null
+      : _currentTrack != null;
+  bool get isLoadingTrack => _isRemoteControlling ? false : _isLoadingTrack;
   VideoSurfaceHost get videoSurfaceHost => _videoSurfaceHost;
 
   Future<Uri?> videoOnlyUrlForCurrentTrack() {
@@ -187,12 +329,55 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _beginActivePlay(track);
     _endHandled = false;
     _loaded = true;
-    await _audioHandler.loadTrack(track, startAt: startAt);
-    await _audioHandler.player.setVolume(_volume);
+    _isLoadingTrack = true;
+    notifyListeners();
+    try {
+      await _audioHandler.loadTrack(track, startAt: startAt);
+      await _audioHandler.player.setVolume(_volume);
+      _prefetchUpcomingTracks();
+      _pushSessionIfHosting();
+    } finally {
+      _isLoadingTrack = false;
+      notifyListeners();
+    }
+  }
+
+  static const int _prefetchWindow = 5;
+  void _prefetchUpcomingTracks() {
+    if (_queue.isEmpty) return;
+    final seen = <int>{_queueIndex};
+    var index = _queueIndex;
+    for (var i = 0; i < _prefetchWindow; i++) {
+      if (index < _queue.length - 1) {
+        index++;
+      } else if (_repeatMode == PlayerRepeatMode.all) {
+        index = 0;
+      } else {
+        break;
+      }
+      if (!seen.add(index)) break;
+      final videoId = _queue[index].videoId;
+      if (videoId == null || videoId.isEmpty) continue;
+      _audioHandler.prefetch(videoId);
+    }
+  }
+
+  Future<bool> _tryStartTrack(
+    Track track, {
+    Duration startAt = Duration.zero,
+  }) async {
+    try {
+      await _startTrack(track, startAt: startAt);
+      return true;
+    } catch (error) {
+      debugPrint('PlayerProvider: failed to start "${track.title}": $error');
+      return false;
+    }
   }
 
   Future<void> playQueue(List<Track> tracks, {int startIndex = 0}) async {
     if (tracks.isEmpty) return;
+    _exitRemoteControl();
     _originalQueue = List<Track>.from(tracks);
     final clampedStart = startIndex.clamp(0, tracks.length - 1);
     final startTrack = tracks[clampedStart];
@@ -209,19 +394,30 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     _currentTrack = _queue[_queueIndex];
     notifyListeners();
-    await _startTrack(_currentTrack!);
+    await _tryStartTrack(_currentTrack!);
     notifyListeners();
     _persistSession();
   }
 
   void shufflePlay(List<Track> tracks) {
     if (tracks.isEmpty) return;
+    _exitRemoteControl();
     _shuffle = true;
     final randomIndex = Random().nextInt(tracks.length);
     playQueue(tracks, startIndex: randomIndex);
   }
 
   Future<void> togglePlayPause() async {
+    if (_isRemoteControlling) {
+      await PlaybackSessionSyncService.sendCommand(
+        isPlaying ? RemoteCommandType.pause : RemoteCommandType.play,
+      );
+      return;
+    }
+    await _localTogglePlayPause();
+  }
+
+  Future<void> _localTogglePlayPause() async {
     if (!_loaded) {
       await _resumeRestoredTrack();
       return;
@@ -229,19 +425,29 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_audioHandler.player.playing) {
       await _audioHandler.player.pause();
     } else {
-      await _audioHandler.player.play();
+      unawaited(_audioHandler.player.play());
     }
+    _pushSessionIfHosting();
   }
 
   Future<void> _resumeRestoredTrack() async {
     final track = _currentTrack;
     if (track == null) return;
     final resumeAt = _pendingResumePosition;
-    await _startTrack(track, startAt: resumeAt);
+    await _tryStartTrack(track, startAt: resumeAt);
     notifyListeners();
   }
 
-  Future<void> next() async {
+  Future<void> next({int skipAttempts = 0}) async {
+    if (_isRemoteControlling) {
+      if (skipAttempts > 0) return;
+      await PlaybackSessionSyncService.sendCommand(RemoteCommandType.next);
+      return;
+    }
+    await _localNext(skipAttempts: skipAttempts);
+  }
+
+  Future<void> _localNext({int skipAttempts = 0}) async {
     if (_queue.isEmpty) return;
     if (_queueIndex < _queue.length - 1) {
       _queueIndex++;
@@ -252,22 +458,27 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     _currentTrack = _queue[_queueIndex];
     notifyListeners();
-    await _startTrack(_currentTrack!);
+    final started = await _tryStartTrack(_currentTrack!);
     notifyListeners();
     _persistSession();
+    if (!started && skipAttempts < _queue.length) {
+      await _localNext(skipAttempts: skipAttempts + 1);
+    }
   }
 
   Future<void> playFromQueue(int index) async {
     if (index < 0 || index >= _queue.length) return;
+    _exitRemoteControl();
     _queueIndex = index;
     _currentTrack = _queue[index];
     notifyListeners();
-    await _startTrack(_currentTrack!);
+    await _tryStartTrack(_currentTrack!);
     notifyListeners();
     _persistSession();
   }
 
   void playNext(Track track) {
+    _exitRemoteControl();
     if (_currentTrack == null || _queue.isEmpty) {
       playQueue([track]);
       return;
@@ -275,6 +486,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     final insertAt = (_queueIndex + 1).clamp(0, _queue.length);
     _queue = List<Track>.from(_queue)..insert(insertAt, track);
     notifyListeners();
+    _prefetchUpcomingTracks();
   }
 
   void removeFromQueue(int index) {
@@ -284,15 +496,24 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       _queueIndex--;
     }
     notifyListeners();
+    _prefetchUpcomingTracks();
   }
 
   Future<void> previous() async {
+    if (_isRemoteControlling) {
+      await PlaybackSessionSyncService.sendCommand(RemoteCommandType.previous);
+      return;
+    }
+    await _localPrevious();
+  }
+
+  Future<void> _localPrevious() async {
     if (_queue.isEmpty) return;
     if (_queueIndex > 0) {
       _queueIndex--;
       _currentTrack = _queue[_queueIndex];
       notifyListeners();
-      await _startTrack(_currentTrack!);
+      await _tryStartTrack(_currentTrack!);
       notifyListeners();
       _persistSession();
     }
@@ -301,10 +522,12 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _replayCurrentTrack() async {
     final track = _currentTrack;
     if (track == null) return;
-    await _startTrack(track);
+    final started = await _tryStartTrack(track);
+    if (!started) await _localNext();
   }
 
   Future<void> dismissPlayback() async {
+    _exitRemoteControl();
     _finalizeActivePlay();
     await _audioHandler.player.stop();
     _currentTrack = null;
@@ -320,6 +543,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void toggleShuffle() {
+    if (_isRemoteControlling) return;
     _shuffle = !_shuffle;
 
     if (_currentTrack != null && _originalQueue.isNotEmpty) {
@@ -337,21 +561,56 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     notifyListeners();
+    _prefetchUpcomingTracks();
+    _pushSessionIfHosting();
   }
 
   void cycleRepeatMode() {
+    if (_isRemoteControlling) return;
     _repeatMode = PlayerRepeatMode
         .values[(_repeatMode.index + 1) % PlayerRepeatMode.values.length];
     notifyListeners();
+    _pushSessionIfHosting();
   }
 
   void setVolume(double value) {
+    if (_isRemoteControlling) {
+      _sendVolumeCommandThrottled(value.clamp(0.0, 1.0));
+      return;
+    }
+    _localSetVolume(value);
+  }
+
+  // Volume can be dragged continuously (e.g. a slider), which would otherwise
+  // fire one Firestore write per pixel of movement. Coalesce those into at
+  // most one outgoing command every 150ms, always flushing the latest value.
+  void _sendVolumeCommandThrottled(double value) {
+    _pendingVolumeCommandValue = value;
+    if (_volumeCommandThrottle != null) return;
+    PlaybackSessionSyncService.sendCommand(
+      RemoteCommandType.setVolume,
+      value: value,
+    );
+    _volumeCommandThrottle = Timer(const Duration(milliseconds: 150), () {
+      _volumeCommandThrottle = null;
+      final pending = _pendingVolumeCommandValue;
+      if (pending != null) {
+        _pendingVolumeCommandValue = null;
+        _sendVolumeCommandThrottled(pending);
+      }
+    });
+  }
+
+  void _localSetVolume(double value) {
     _volume = value.clamp(0.0, 1.0);
     _audioHandler.player.setVolume(_volume);
     notifyListeners();
+    PlaybackStateService.saveVolume(_volume);
+    _pushSessionIfHosting();
   }
 
   void seek(Duration position) {
+    if (_isRemoteControlling) return;
     _audioHandler.player.seek(position);
     if (!_loaded) _pendingResumePosition = position;
   }
@@ -363,6 +622,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _playerStateSub?.cancel();
     _positionSub?.cancel();
     _errorSub?.cancel();
+    _remoteSessionSub?.cancel();
+    _incomingCommandsSub?.cancel();
+    _sessionHeartbeat?.cancel();
+    _volumeCommandThrottle?.cancel();
     super.dispose();
   }
 }

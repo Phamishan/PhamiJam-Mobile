@@ -1,11 +1,16 @@
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
+import 'package:phamijam/components/add_to_playlist_sheet.dart';
+import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/pages/fullscreen_video_page.dart';
+import 'package:phamijam/pages/queue_page.dart';
+import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/pull_down_to_dismiss.dart';
+import 'package:phamijam/widgets/remote_control_badge.dart';
 import 'package:phamijam/widgets/scrim_icon_button.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/video_surface.dart';
@@ -56,8 +61,10 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     return Consumer<PlayerProvider>(
       builder: (context, player, _) {
         final track = player.currentTrack;
+        final library = context.watch<LibraryProvider>();
         final colorScheme = Theme.of(context).colorScheme;
         final showingVideo =
+            !player.isRemoteControlling &&
             player.videoSurfaceHost == VideoSurfaceHost.nowPlaying;
 
         return PullDownToDismiss(
@@ -88,16 +95,19 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                         : Column(
                             children: [
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  IconButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(),
-                                    icon: Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      size: 30,
-                                      color: colorScheme.onSurface,
+                                  Expanded(
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: IconButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
+                                        icon: Icon(
+                                          Icons.keyboard_arrow_down_rounded,
+                                          size: 30,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                   Text(
@@ -106,11 +116,17 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                       context,
                                     ).textTheme.bodyMedium,
                                   ),
-                                  IconButton(
-                                    onPressed: () => showVolumeSheet(context),
-                                    icon: Icon(
-                                      volumeIcon(player.volume),
-                                      color: colorScheme.onSurface,
+                                  Expanded(
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: IconButton(
+                                        onPressed: () =>
+                                            showVolumeSheet(context),
+                                        icon: Icon(
+                                          volumeIcon(player.volume),
+                                          color: colorScheme.onSurface,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -134,38 +150,92 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                             fit: BoxFit.cover,
                                             iconSize: 40,
                                           ),
-                                        Positioned(
-                                          right: 8,
-                                          bottom: 8,
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (showingVideo)
-                                                ScrimIconButton(
-                                                  icon:
-                                                      Icons.fullscreen_rounded,
-                                                  onTap: () =>
-                                                      _openFullscreen(context),
-                                                ),
-                                              if (showingVideo)
-                                                const SizedBox(width: 8),
-                                              ScrimIconButton(
-                                                icon: showingVideo
-                                                    ? Icons.image_rounded
-                                                    : Icons
-                                                          .smart_display_rounded,
-                                                onTap: () =>
-                                                    _toggleVideoMode(player),
-                                              ),
-                                            ],
+                                        if (player.isRemoteControlling)
+                                          Positioned(
+                                            left: 8,
+                                            bottom: 8,
+                                            child: RemoteControlBadge(
+                                              deviceName:
+                                                  player
+                                                      .remoteSession
+                                                      ?.deviceName ??
+                                                  'device',
+                                              size: 26,
+                                            ),
                                           ),
-                                        ),
+                                        if (!player.isRemoteControlling)
+                                          Positioned(
+                                            right: 8,
+                                            bottom: 8,
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (showingVideo)
+                                                  ScrimIconButton(
+                                                    icon: Icons
+                                                        .fullscreen_rounded,
+                                                    onTap: () =>
+                                                        _openFullscreen(
+                                                          context,
+                                                        ),
+                                                  ),
+                                                if (showingVideo)
+                                                  const SizedBox(width: 8),
+                                                ScrimIconButton(
+                                                  icon: showingVideo
+                                                      ? Icons.image_rounded
+                                                      : Icons
+                                                            .smart_display_rounded,
+                                                  onTap: () =>
+                                                      _toggleVideoMode(player),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ),
                                 ),
                               ),
                               const Spacer(),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  IconButton(
+                                    onPressed: () =>
+                                        toggleTrackLike(context, track),
+                                    icon: Icon(
+                                      library.isLiked(track)
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
+                                      color: library.isLiked(track)
+                                          ? colorScheme.onSurface
+                                          : colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () =>
+                                        showAddToPlaylistSheet(context, track),
+                                    icon: Icon(
+                                      Icons.playlist_add_rounded,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const QueuePage(),
+                                      ),
+                                    ),
+                                    icon: Icon(
+                                      Icons.queue_music_rounded,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
                               SizedBox(
                                 height: 30,
                                 child: LayoutBuilder(
@@ -270,13 +340,21 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                         shape: BoxShape.circle,
                                         color: colorScheme.primary,
                                       ),
-                                      child: Icon(
-                                        player.isPlaying
-                                            ? Icons.pause_rounded
-                                            : Icons.play_arrow_rounded,
-                                        color: colorScheme.onPrimary,
-                                        size: 34,
-                                      ),
+                                      child: player.isLoadingTrack
+                                          ? Padding(
+                                              padding: const EdgeInsets.all(18),
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2.6,
+                                                color: colorScheme.onPrimary,
+                                              ),
+                                            )
+                                          : Icon(
+                                              player.isPlaying
+                                                  ? Icons.pause_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              color: colorScheme.onPrimary,
+                                              size: 34,
+                                            ),
                                     ),
                                   ),
                                   IconButton(

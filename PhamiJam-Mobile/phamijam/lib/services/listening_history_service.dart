@@ -75,6 +75,7 @@ class ListeningHistoryService {
           title: track.title,
           artist: track.artist,
           thumbnailUrl: track.thumbnailUrl,
+          channelId: track.channelId,
           startedAt: startedAt,
           listenedMs: listenedMs,
         ),
@@ -107,17 +108,26 @@ class ListeningHistoryService {
     }
   }
 
-  static Future<List<PlayEvent>> eventsSince(DateTime since) async {
+  static Future<List<PlayEvent>> eventsSince(
+    DateTime since, {
+    DateTime? until,
+  }) async {
     await flushPending();
     final sinceMs = since.millisecondsSinceEpoch;
+    final untilMs = until?.millisecondsSinceEpoch;
     final events = <PlayEvent>[];
 
     final remote = _remotePlays;
     if (remote != null) {
       try {
-        final snapshot = await remote
-            .where('s', isGreaterThanOrEqualTo: sinceMs)
-            .get();
+        Query<Map<String, dynamic>> query = remote.where(
+          's',
+          isGreaterThanOrEqualTo: sinceMs,
+        );
+        if (untilMs != null) {
+          query = query.where('s', isLessThan: untilMs);
+        }
+        final snapshot = await query.get();
         for (final doc in snapshot.docs) {
           final event = PlayEvent.fromJson(doc.data());
           if (event != null) events.add(event);
@@ -129,12 +139,40 @@ class ListeningHistoryService {
 
     final seen = events.map((e) => e.docId).toSet();
     for (final event in await _loadPending()) {
-      if (event.startedAt.millisecondsSinceEpoch >= sinceMs &&
+      final ms = event.startedAt.millisecondsSinceEpoch;
+      if (ms >= sinceMs &&
+          (untilMs == null || ms < untilMs) &&
           seen.add(event.docId)) {
         events.add(event);
       }
     }
     events.sort((a, b) => a.startedAt.compareTo(b.startedAt));
     return events;
+  }
+
+  static Future<int> earliestEventYear() async {
+    await flushPending();
+    DateTime? earliest;
+
+    final remote = _remotePlays;
+    if (remote != null) {
+      try {
+        final snapshot = await remote.orderBy('s').limit(1).get();
+        if (snapshot.docs.isNotEmpty) {
+          final event = PlayEvent.fromJson(snapshot.docs.first.data());
+          if (event != null) earliest = event.startedAt;
+        }
+      } catch (error) {
+        debugPrint('ListeningHistoryService: earliest fetch failed: $error');
+      }
+    }
+
+    for (final event in await _loadPending()) {
+      if (earliest == null || event.startedAt.isBefore(earliest)) {
+        earliest = event.startedAt;
+      }
+    }
+
+    return (earliest ?? DateTime.now()).year;
   }
 }

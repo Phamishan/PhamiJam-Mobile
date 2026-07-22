@@ -1,7 +1,7 @@
 name: phamijam
 description: "A new Flutter project."
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.1+1
 
 environment:
   sdk: ^3.12.2
@@ -21,6 +21,7 @@ dependencies:
   http: ^1.4.0
   just_audio: ^0.10.6
   marquee: ^2.3.0
+  path_provider: ^2.1.5
   permission_handler: ^12.0.3
   provider: ^6.1.5+1
   shared_preferences: ^2.3.3
@@ -34,19 +35,6 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.8
 
-# google_sign_in_all_platforms pulls in flutter_inappwebview for its OAuth
-# webview flow. The 6.1.5 stable line's Android plugin uses a proguard API
-# AGP 9 rejects outright; the whole 6.2.0-beta.3 family targets AGP 9.
-# Remove once a stable fixed release ships.
-# https://github.com/pichillilorenzo/flutter_inappwebview/issues/2765
-#
-# cached_network_image -> flutter_cache_manager pulls in path_provider,
-# which at 2.3.x switched to an FFI/JNI implementation (package:jni,
-# bundling libdartjni.so). That native library isn't yet rebuilt for
-# 16KB-page-size Android images ("gphone16k" emulators, and some real
-# devices going forward) and fails to load there with "found... but could
-# not be loaded". Pin back to the last MethodChannel-based 2.2.x release
-# until upstream ships a 16KB-safe build.
 dependency_overrides:
   flutter_inappwebview: 6.2.0-beta.3
   path_provider_android: 2.2.17

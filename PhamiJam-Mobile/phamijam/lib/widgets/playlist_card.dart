@@ -60,19 +60,33 @@ class _PlaylistCardState extends State<PlaylistCard> {
                   AnimatedOpacity(
                     opacity: _hovering ? 1 : 0,
                     duration: const Duration(milliseconds: 150),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: GestureDetector(
-                        onTap: widget.onPlay,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary,
-                            shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(color: colorScheme.shadow.withValues(alpha: 0.45), blurRadius: 8)],
+                    child: IgnorePointer(
+                      ignoring: !_hovering,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: GestureDetector(
+                          onTap: widget.onPlay,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorScheme.shadow.withValues(
+                                    alpha: 0.45,
+                                  ),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: colorScheme.onPrimary,
+                              size: 24,
+                            ),
                           ),
-                          child: Icon(Icons.play_arrow_rounded, color: colorScheme.onPrimary, size: 24),
                         ),
                       ),
                     ),
