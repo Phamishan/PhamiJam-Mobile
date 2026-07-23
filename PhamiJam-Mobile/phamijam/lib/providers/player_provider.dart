@@ -3,11 +3,13 @@ import 'dart:math';
 
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/playback_session_sync_service.dart';
 import 'package:phamijam/services/playback_state_service.dart';
+import 'package:phamijam/services/skip_tracking_service.dart';
 
 enum PlayerRepeatMode { off, all, one }
 
@@ -66,6 +68,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   List<Track> _queue = [];
   List<Track> _originalQueue = [];
   int _queueIndex = -1;
+  Playlist? _currentSourcePlaylist;
+  Track? suggestedRemovalTrack;
+  Playlist? suggestedRemovalPlaylist;
   bool _shuffle = false;
   PlayerRepeatMode _repeatMode = PlayerRepeatMode.off;
   double _volume = 0.8;
@@ -197,11 +202,53 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   void _handleTrackEnded() {
     if (_endHandled) return;
     _endHandled = true;
+    final track = _currentTrack;
+    final playlist = _currentSourcePlaylist;
+    final videoId = track?.videoId;
+    if (playlist != null && videoId != null && videoId.isNotEmpty) {
+      SkipTrackingService.recordCompleted(playlist.id, videoId);
+    }
     if (_autoAdvanceRateLimited()) return;
     if (_repeatMode == PlayerRepeatMode.one) {
       _replayCurrentTrack();
     } else {
       _localNext();
+    }
+  }
+
+  Future<void> _recordPotentialSkip() async {
+    final track = _currentTrack;
+    final playlist = _currentSourcePlaylist;
+    final videoId = track?.videoId;
+    if (track == null ||
+        playlist == null ||
+        videoId == null ||
+        videoId.isEmpty) {
+      return;
+    }
+    final duration = track.duration;
+    if (duration <= Duration.zero) return;
+    final playedFraction = position.inMilliseconds / duration.inMilliseconds;
+    if (playedFraction >= SkipTrackingService.consideredSkippedBeforeFraction) {
+      return;
+    }
+    final count = await SkipTrackingService.recordSkip(playlist.id, videoId);
+    if (count >= SkipTrackingService.skipThreshold) {
+      suggestedRemovalTrack = track;
+      suggestedRemovalPlaylist = playlist;
+      notifyListeners();
+    }
+  }
+
+  Future<void> dismissSkipSuggestion() async {
+    final track = suggestedRemovalTrack;
+    final playlist = suggestedRemovalPlaylist;
+    suggestedRemovalTrack = null;
+    suggestedRemovalPlaylist = null;
+    notifyListeners();
+    final videoId = track?.videoId;
+    if (playlist != null && videoId != null && videoId.isNotEmpty) {
+      await SkipTrackingService.clearForTrack(playlist.id, videoId);
     }
   }
 
@@ -391,9 +438,15 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<void> playQueue(List<Track> tracks, {int startIndex = 0}) async {
+  Future<void> playQueue(
+    List<Track> tracks, {
+    int startIndex = 0,
+    Playlist? sourcePlaylist,
+  }) async {
     if (tracks.isEmpty) return;
+    if (!_isRemoteControlling) await _recordPotentialSkip();
     _exitRemoteControl();
+    _currentSourcePlaylist = sourcePlaylist;
     _originalQueue = List<Track>.from(tracks);
     final clampedStart = startIndex.clamp(0, tracks.length - 1);
     final startTrack = tracks[clampedStart];
@@ -415,12 +468,11 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistSession();
   }
 
-  void shufflePlay(List<Track> tracks) {
+  void shufflePlay(List<Track> tracks, {Playlist? sourcePlaylist}) {
     if (tracks.isEmpty) return;
-    _exitRemoteControl();
     _shuffle = true;
     final randomIndex = Random().nextInt(tracks.length);
-    playQueue(tracks, startIndex: randomIndex);
+    playQueue(tracks, startIndex: randomIndex, sourcePlaylist: sourcePlaylist);
   }
 
   Future<void> togglePlayPause() async {
@@ -460,6 +512,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.next);
       return;
     }
+    if (skipAttempts == 0) await _recordPotentialSkip();
     await _localNext(skipAttempts: skipAttempts);
   }
 
@@ -484,6 +537,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> playFromQueue(int index) async {
     if (index < 0 || index >= _queue.length) return;
+    if (!_isRemoteControlling) await _recordPotentialSkip();
     _exitRemoteControl();
     _queueIndex = index;
     _currentTrack = _queue[index];
@@ -520,6 +574,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.previous);
       return;
     }
+    await _recordPotentialSkip();
     await _localPrevious();
   }
 
@@ -550,6 +605,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _queue = [];
     _originalQueue = [];
     _queueIndex = -1;
+    _currentSourcePlaylist = null;
+    suggestedRemovalTrack = null;
+    suggestedRemovalPlaylist = null;
     _loaded = false;
     _pendingResumePosition = Duration.zero;
     _endHandled = false;

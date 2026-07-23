@@ -7,12 +7,16 @@ class PlaylistCard extends StatefulWidget {
   final double width;
   final VoidCallback onTap;
   final VoidCallback? onPlay;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onTogglePin;
 
   const PlaylistCard({
     super.key,
     required this.playlist,
     required this.onTap,
     this.onPlay,
+    this.onLongPress,
+    this.onTogglePin,
     this.width = 148,
   });
 
@@ -32,6 +36,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           width: widget.width,
@@ -57,6 +62,78 @@ class _PlaylistCardState extends State<PlaylistCard> {
                       ),
                     ),
                   ),
+                  if (widget.playlist.isPinned)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.shadow.withValues(
+                                alpha: 0.45,
+                              ),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.push_pin_rounded,
+                          color: colorScheme.onPrimary,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                  if (widget.onTogglePin != null)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        shape: const CircleBorder(),
+                        child: PopupMenuButton<String>(
+                          splashRadius: 16,
+                          borderRadius: BorderRadius.circular(16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          onSelected: (value) {
+                            if (value == 'toggle_pin') {
+                              widget.onTogglePin?.call();
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'toggle_pin',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  widget.playlist.isPinned
+                                      ? Icons.push_pin_outlined
+                                      : Icons.push_pin_rounded,
+                                ),
+                                title: Text(
+                                  widget.playlist.isPinned
+                                      ? 'Unpin playlist'
+                                      : 'Pin playlist',
+                                ),
+                              ),
+                            ),
+                          ],
+                          child: const Padding(
+                            padding: EdgeInsets.all(7),
+                            child: Icon(
+                              Icons.more_vert_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   AnimatedOpacity(
                     opacity: _hovering ? 1 : 0,
                     duration: const Duration(milliseconds: 150),

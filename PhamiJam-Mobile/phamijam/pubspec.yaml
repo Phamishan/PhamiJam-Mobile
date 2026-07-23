@@ -1,7 +1,7 @@
 name: phamijam
 description: "A new Flutter project."
 publish_to: "none"
-version: 1.0.1+1
+version: 1.0.2+1
 
 environment:
   sdk: ^3.12.2
@@ -27,6 +27,7 @@ dependencies:
   shared_preferences: ^2.3.3
   video_player: ^2.13.0
   youtube_explode_dart: ^3.1.0
+  ytmusicapi_dart: ^2.3.0
 
 dev_dependencies:
   flutter_test:

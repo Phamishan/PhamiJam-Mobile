@@ -23,7 +23,14 @@
   - Added dark-mode app icon
   - Redesigned the Now Playing screen
   - Fixed the mini-player loading
+- 1.0.2 - 23/07/2026
+  - Added playlist pinning
+  - Added a skip feature
+  - Redesigned artist page
+  - Redesigned search page
+  - Updated readme
 
 ## Screenshots:
 
-to be done
+![PhamiJam - Store art](/PhamiJam-Mobile/phamijam/assets/images/phamijam%20mobile/18.png)
+<sup>PhamiJam - Store art</sup>

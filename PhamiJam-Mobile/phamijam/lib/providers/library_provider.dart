@@ -4,20 +4,23 @@ import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/liked_songs_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const String kLikedSongsPlaylistId = 'liked-songs';
+const String _pinnedPlaylistsPrefsKey = 'phamijam.pinned_playlists';
 
 class LibraryProvider extends ChangeNotifier {
   bool isLoading = false;
   String? errorMessage;
-
   List<Playlist> madeForYou = [];
   List<Playlist> topMixes = [];
   List<Track> recentlyPlayed = [];
   List<Playlist> userPlaylists = [];
   List<Track> likedSongs = [];
-
   final Set<String> _likedVideoIds = {};
+  List<String> _pinnedOrder = [];
+  Set<String> get _pinnedIds => _pinnedOrder.toSet();
+  bool isPinned(String playlistId) => _pinnedIds.contains(playlistId);
 
   Playlist get likedSongsPlaylist => Playlist(
     id: kLikedSongsPlaylistId,
@@ -38,6 +41,7 @@ class LibraryProvider extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
 
+    await _loadPinnedOrder();
     await Future.wait([
       _refreshYoutubePlaylists(),
       _refreshLikedSongs(),
@@ -48,9 +52,48 @@ class LibraryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _loadPinnedOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    _pinnedOrder = prefs.getStringList(_pinnedPlaylistsPrefsKey) ?? [];
+  }
+
+  Future<void> _persistPinnedOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_pinnedPlaylistsPrefsKey, _pinnedOrder);
+  }
+
+  List<Playlist> _applyPinState(List<Playlist> playlists) {
+    final pinnedIds = _pinnedIds;
+    final pinnedIndex = {
+      for (var i = 0; i < _pinnedOrder.length; i++) _pinnedOrder[i]: i,
+    };
+    final withFlags = playlists
+        .map((p) => p.copyWith(isPinned: pinnedIds.contains(p.id)))
+        .toList();
+    final pinned = withFlags.where((p) => p.isPinned).toList()
+      ..sort(
+        (a, b) => (pinnedIndex[a.id] ?? 0).compareTo(pinnedIndex[b.id] ?? 0),
+      );
+    final rest = withFlags.where((p) => !p.isPinned).toList();
+    return [...pinned, ...rest];
+  }
+
+  Future<void> togglePin(Playlist playlist) async {
+    final pinning = !isPinned(playlist.id);
+    if (pinning) {
+      _pinnedOrder = [playlist.id, ..._pinnedOrder];
+    } else {
+      _pinnedOrder = _pinnedOrder.where((id) => id != playlist.id).toList();
+    }
+    userPlaylists = _applyPinState(userPlaylists);
+    _splitPlaylists();
+    notifyListeners();
+    await _persistPinnedOrder();
+  }
+
   Future<void> _refreshYoutubePlaylists() async {
     try {
-      userPlaylists = await YoutubeService.fetchMyPlaylists();
+      userPlaylists = _applyPinState(await YoutubeService.fetchMyPlaylists());
       _splitPlaylists();
     } catch (error, stackTrace) {
       debugPrint('LibraryProvider: playlist refresh failed: $error');
@@ -237,7 +280,9 @@ class LibraryProvider extends ChangeNotifier {
     await YoutubeService.deletePlaylist(playlist.id);
     userPlaylists = userPlaylists.where((p) => p.id != playlist.id).toList();
     _splitPlaylists();
+    final wasPinned = _pinnedOrder.remove(playlist.id);
     notifyListeners();
+    if (wasPinned) await _persistPinnedOrder();
   }
 
   void _replacePlaylist(Playlist updated) {

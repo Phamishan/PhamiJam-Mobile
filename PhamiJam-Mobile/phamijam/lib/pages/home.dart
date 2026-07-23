@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
 import 'package:phamijam/components/download_action.dart';
 import 'package:phamijam/components/like_action.dart';
+import 'package:phamijam/components/playlist_pin_action.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
@@ -130,8 +131,12 @@ class _PlaylistRow extends StatelessWidget {
           return PlaylistCard(
             playlist: playlist,
             onTap: () => onOpen(playlist),
-            onPlay: () =>
-                context.read<PlayerProvider>().playQueue(playlist.tracks),
+            onPlay: () => context.read<PlayerProvider>().playQueue(
+              playlist.tracks,
+              sourcePlaylist: playlist,
+            ),
+            onLongPress: () => togglePlaylistPin(context, playlist),
+            onTogglePin: () => togglePlaylistPin(context, playlist),
           );
         },
       ),

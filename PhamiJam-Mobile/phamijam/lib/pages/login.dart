@@ -55,8 +55,7 @@ class _LoginState extends State<Login> {
         if (kDebugMode) {
           AppFlushbar.info(
             context,
-            'Google sign-in returned no credentials. Cancelled, or check '
-            'the debug console / adb logcat for the real error.',
+            'Google sign-in was canceled. Please try again.',
           );
         }
         return;

@@ -4,6 +4,7 @@ import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/components/download_action.dart';
 import 'package:phamijam/components/edit_playlist_sheet.dart';
 import 'package:phamijam/components/like_action.dart';
+import 'package:phamijam/components/playlist_pin_action.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/pages/artist_page.dart';
@@ -57,6 +58,13 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     if (updated != null && mounted) {
       setState(() => _playlist = updated);
     }
+  }
+
+  Future<void> _handleTogglePin() async {
+    await togglePlaylistPin(context, _playlist);
+    if (!mounted) return;
+    final isPinned = context.read<LibraryProvider>().isPinned(_playlist.id);
+    setState(() => _playlist = _playlist.copyWith(isPinned: isPinned));
   }
 
   Future<void> _handleDelete() async {
@@ -239,6 +247,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                   onSelected: (value) {
                                     if (value == 'edit') {
                                       _handleEdit();
+                                    } else if (value == 'pin') {
+                                      _handleTogglePin();
                                     } else if (value == 'delete') {
                                       _handleDelete();
                                     } else if (value == 'download_playlist') {
@@ -250,8 +260,25 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                     }
                                   },
                                   itemBuilder: (context) => [
-                                    if (playlist.isFromYoutube) ...const [
+                                    if (playlist.isFromYoutube) ...[
                                       PopupMenuItem(
+                                        value: 'pin',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(
+                                            playlist.isPinned
+                                                ? Icons
+                                                      .push_pin_outlined
+                                                : Icons.push_pin_rounded,
+                                          ),
+                                          title: Text(
+                                            playlist.isPinned
+                                                ? 'Unpin playlist'
+                                                : 'Pin playlist',
+                                          ),
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
                                         value: 'edit',
                                         child: ListTile(
                                           contentPadding: EdgeInsets.zero,
@@ -259,7 +286,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                           title: Text('Edit details'),
                                         ),
                                       ),
-                                      PopupMenuItem(
+                                      const PopupMenuItem(
                                         value: 'delete',
                                         child: ListTile(
                                           contentPadding: EdgeInsets.zero,
@@ -362,8 +389,14 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                             onTap: playlist.tracks.isEmpty
                                 ? null
                                 : () => player.shuffle
-                                      ? player.shufflePlay(playlist.tracks)
-                                      : player.playQueue(playlist.tracks),
+                                      ? player.shufflePlay(
+                                          playlist.tracks,
+                                          sourcePlaylist: playlist,
+                                        )
+                                      : player.playQueue(
+                                          playlist.tracks,
+                                          sourcePlaylist: playlist,
+                                        ),
                           ),
                           const SizedBox(width: 24),
                           IconButton(
@@ -432,18 +465,22 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                     : _loadError != null
                     ? Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Column(
-                          children: [
-                            Text(
-                              _loadError!,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 12),
-                            OutlinedButton(
-                              onPressed: _loadTracks,
-                              child: const Text('Try again'),
-                            ),
-                          ],
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _loadError!,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton(
+                                onPressed: _loadTracks,
+                                child: const Text('Try again'),
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : playlist.tracks.isEmpty
@@ -482,6 +519,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                             onTap: () => player.playQueue(
                               playlist.tracks,
                               startIndex: originalIndex,
+                              sourcePlaylist: playlist,
                             ),
                             onPlayNext: () => player.playNext(track),
                             onRemove: () => _handleRemoveTrack(track),

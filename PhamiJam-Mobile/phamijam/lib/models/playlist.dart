@@ -7,6 +7,7 @@ class Playlist {
   final String thumbnailUrl;
   final List<Track> tracks;
   final bool isFromYoutube;
+  final bool isPinned;
 
   final int itemCount;
 
@@ -17,6 +18,7 @@ class Playlist {
     required this.thumbnailUrl,
     this.tracks = const [],
     this.isFromYoutube = true,
+    this.isPinned = false,
     int? itemCount,
   }) : itemCount = itemCount ?? tracks.length;
 
@@ -25,6 +27,7 @@ class Playlist {
     String? subtitle,
     List<Track>? tracks,
     int? itemCount,
+    bool? isPinned,
   }) => Playlist(
     id: id,
     title: title ?? this.title,
@@ -32,6 +35,7 @@ class Playlist {
     thumbnailUrl: thumbnailUrl,
     tracks: tracks ?? this.tracks,
     isFromYoutube: isFromYoutube,
+    isPinned: isPinned ?? this.isPinned,
     itemCount: itemCount ?? this.itemCount,
   );
 }

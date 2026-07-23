@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/create_playlist_sheet.dart';
+import 'package:phamijam/components/playlist_pin_action.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
@@ -37,7 +38,6 @@ class _LibraryPageState extends State<LibraryPage> {
                 children: [
                   _ActionIconButton(
                     icon: Icons.playlist_add_rounded,
-                    tooltip: 'New Playlist',
                     onTap: () async {
                       final playlist = await showCreatePlaylistSheet(context);
                       if (playlist != null) widget.onOpenPlaylist(playlist);
@@ -99,6 +99,8 @@ class _LibraryPageState extends State<LibraryPage> {
           return _LibraryPlaylistTile(
             playlist: playlist,
             onTap: () => widget.onOpenPlaylist(playlist),
+            onLongPress: () => togglePlaylistPin(context, playlist),
+            onTogglePin: () => togglePlaylistPin(context, playlist),
           );
         },
       ),
@@ -109,8 +111,15 @@ class _LibraryPageState extends State<LibraryPage> {
 class _LibraryPlaylistTile extends StatelessWidget {
   final Playlist playlist;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onTogglePin;
 
-  const _LibraryPlaylistTile({required this.playlist, required this.onTap});
+  const _LibraryPlaylistTile({
+    required this.playlist,
+    required this.onTap,
+    this.onLongPress,
+    this.onTogglePin,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -121,18 +130,95 @@ class _LibraryPlaylistTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: NetworkThumbnail(
-                  url: playlist.thumbnailUrl,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  borderRadius: BorderRadius.circular(8),
-                  iconSize: 32,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: NetworkThumbnail(
+                        url: playlist.thumbnailUrl,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(8),
+                        iconSize: 32,
+                      ),
+                    ),
+                    if (playlist.isPinned)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: colorScheme.shadow.withValues(
+                                  alpha: 0.45,
+                                ),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.push_pin_rounded,
+                            color: colorScheme.onPrimary,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    if (onTogglePin != null)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Material(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          shape: const CircleBorder(),
+                          child: PopupMenuButton<String>(
+                            splashRadius: 16,
+                            borderRadius: BorderRadius.circular(16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            onSelected: (value) {
+                              if (value == 'toggle_pin') onTogglePin?.call();
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'toggle_pin',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(
+                                    playlist.isPinned
+                                        ? Icons.push_pin_outlined
+                                        : Icons.push_pin_rounded,
+                                  ),
+                                  title: Text(
+                                    playlist.isPinned
+                                        ? 'Unpin playlist'
+                                        : 'Pin playlist',
+                                  ),
+                                ),
+                              ),
+                            ],
+                            child: const Padding(
+                              padding: EdgeInsets.all(7),
+                              child: Icon(
+                                Icons.more_vert_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 10),
@@ -280,14 +366,9 @@ class _ErrorState extends StatelessWidget {
 
 class _ActionIconButton extends StatelessWidget {
   final IconData icon;
-  final String tooltip;
   final VoidCallback onTap;
 
-  const _ActionIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
+  const _ActionIconButton({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -298,12 +379,9 @@ class _ActionIconButton extends StatelessWidget {
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
-        child: Tooltip(
-          message: tooltip,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(icon, size: 20, color: colorScheme.onSurface),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 20, color: colorScheme.onSurface),
         ),
       ),
     );

@@ -189,6 +189,20 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
+          const SizedBox(height: 10),
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return _SettingsSwitchTile(
+                icon: Icons.playlist_remove_rounded,
+                title: 'Suggest removing skipped songs',
+                subtitle:
+                    "Get asked to remove a playlist song you've skipped early "
+                    'several times',
+                value: settings.suggestRemovingSkippedSongs,
+                onChanged: settings.setSuggestRemovingSkippedSongs,
+              );
+            },
+          ),
           const SizedBox(height: 28),
           Text('Storage', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
@@ -231,7 +245,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.0.1',
+            subtitle: 'Version 1.0.2',
             color: colorScheme.onSurface,
           ),
         ],

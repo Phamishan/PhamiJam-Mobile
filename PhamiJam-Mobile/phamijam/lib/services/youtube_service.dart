@@ -372,6 +372,36 @@ class YoutubeService {
     return result;
   }
 
+  static Future<Map<String, int>> fetchChannelSubscriberCounts(
+    List<String> channelIds,
+  ) async {
+    if (channelIds.isEmpty) return {};
+    final result = <String, int>{};
+    for (var i = 0; i < channelIds.length; i += 50) {
+      final chunk = channelIds.skip(i).take(50).toList();
+      final data = await _get('channels', {
+        'part': 'statistics',
+        'id': chunk.join(','),
+      });
+
+      final items = data['items'] as List? ?? [];
+      for (final item in items) {
+        final map = item as Map<String, dynamic>;
+        final id = map['id'] as String?;
+        if (id == null) continue;
+        final statistics = map['statistics'] as Map<String, dynamic>?;
+        final hidden = statistics?['hiddenSubscriberCount'] == true;
+        result[id] = hidden
+            ? 0
+            : int.tryParse(
+                    (statistics?['subscriberCount'] as String?) ?? '',
+                  ) ??
+                  0;
+      }
+    }
+    return result;
+  }
+
   static Future<String?> _fetchUploadsPlaylistId(String channelId) async {
     final data = await _get('channels', {
       'part': 'contentDetails',

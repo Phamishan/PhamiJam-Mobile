@@ -188,7 +188,6 @@ class _TrackTileState extends State<TrackTile> {
                             onPressed: widget.onCancelDownload,
                             splashRadius: 18,
                             padding: EdgeInsets.zero,
-                            tooltip: 'Stop download',
                             icon: Stack(
                               alignment: Alignment.center,
                               children: [

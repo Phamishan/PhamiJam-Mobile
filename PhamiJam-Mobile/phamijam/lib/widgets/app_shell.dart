@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/playlist.dart';
+import 'package:phamijam/models/track.dart';
 import 'package:phamijam/pages/home.dart';
 import 'package:phamijam/pages/library_page.dart';
 import 'package:phamijam/pages/playlist_detail_page.dart';
 import 'package:phamijam/pages/search_page.dart';
 import 'package:phamijam/pages/settings_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
+import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/remote_session_banner.dart';
@@ -23,6 +27,8 @@ class _AppShellState extends State<AppShell> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  bool _showingSkipSuggestion = false;
+  late final PlayerProvider _player;
 
   @override
   void initState() {
@@ -30,13 +36,72 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<LibraryProvider>().refresh();
     });
+    _player = context.read<PlayerProvider>();
+    _player.addListener(_handlePlayerChanged);
   }
 
   @override
   void dispose() {
+    _player.removeListener(_handlePlayerChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handlePlayerChanged() {
+    final track = _player.suggestedRemovalTrack;
+    final playlist = _player.suggestedRemovalPlaylist;
+    if (track == null || playlist == null || _showingSkipSuggestion) return;
+    if (!context.read<SettingsProvider>().suggestRemovingSkippedSongs) {
+      _player.dismissSkipSuggestion();
+      return;
+    }
+    _showingSkipSuggestion = true;
+    _showSkipSuggestionDialog(track, playlist).whenComplete(() {
+      _showingSkipSuggestion = false;
+    });
+  }
+
+  Future<void> _showSkipSuggestionDialog(Track track, Playlist playlist) async {
+    final remove = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Skipping this a lot?'),
+        content: Text(
+          'You\'ve skipped "${track.title}" early several times in '
+          '"${playlist.title}". Remove it from the playlist?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep it'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    await _player.dismissSkipSuggestion();
+    if (remove != true || !mounted) return;
+
+    final library = context.read<LibraryProvider>();
+    try {
+      if (playlist.isFromYoutube) {
+        await library.removeTrackFromPlaylist(playlist, track);
+      } else {
+        await library.toggleLike(track);
+      }
+      if (mounted) AppFlushbar.success(context, 'Removed "${track.title}"');
+    } catch (error) {
+      if (mounted) {
+        AppFlushbar.error(context, "Couldn't remove track: $error");
+      }
+    }
   }
 
   void _openPlaylist(BuildContext context, Playlist playlist) {

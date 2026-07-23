@@ -6,15 +6,20 @@ import 'package:phamijam/components/download_action.dart';
 import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/pages/album_details_page.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
-import 'package:phamijam/widgets/playlist_card.dart';
+import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/widgets/recent_track_card.dart';
 import 'package:phamijam/widgets/section_header.dart';
 import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
+import 'package:ytmusicapi_dart/navigation.dart';
+import 'package:ytmusicapi_dart/parsers/browsing.dart';
+import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
 
 class SearchPage extends StatefulWidget {
   final String query;
@@ -100,18 +105,12 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final library = context.watch<LibraryProvider>();
     final player = context.read<PlayerProvider>();
     final colorScheme = Theme.of(context).colorScheme;
 
     Widget child;
     if (widget.query.isEmpty) {
-      child = _BrowseView(
-        key: const ValueKey('browse'),
-        library: library,
-        player: player,
-        onOpenPlaylist: widget.onOpenPlaylist,
-      );
+      child = _BrowseView(key: const ValueKey('browse'), player: player);
     } else if (_loading) {
       child = const Center(
         key: ValueKey('loading'),
@@ -251,20 +250,308 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-class _BrowseView extends StatelessWidget {
-  final LibraryProvider library;
+class _BrowseView extends StatefulWidget {
   final PlayerProvider player;
-  final ValueChanged<Playlist> onOpenPlaylist;
 
-  const _BrowseView({
-    super.key,
-    required this.library,
-    required this.player,
-    required this.onOpenPlaylist,
-  });
+  const _BrowseView({super.key, required this.player});
+
+  @override
+  State<_BrowseView> createState() => _BrowseViewState();
+}
+
+class _BrowseViewState extends State<_BrowseView> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _newReleases = const [];
+  List<Track> _forYou = const [];
+  Map<String, int> _artistSubscriberCounts = const {};
+  late final LibraryProvider _library;
+  bool _personalizedSignalApplied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _library = context.read<LibraryProvider>();
+    _library.addListener(_handleLibraryChanged);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _library.removeListener(_handleLibraryChanged);
+    super.dispose();
+  }
+
+  void _handleLibraryChanged() {
+    if (_personalizedSignalApplied) return;
+    if (_library.likedSongs.isEmpty && _library.recentlyPlayed.isEmpty) {
+      return;
+    }
+    _personalizedSignalApplied = true;
+    _load();
+  }
+
+  List<Map<String, dynamic>> _asMapList(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  List<String> _rankedArtistIds() {
+    final counts = <String, int>{};
+    void tally(Iterable<Track> tracks) {
+      for (final track in tracks) {
+        final id = track.channelId;
+        if (id == null || id.isEmpty) continue;
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+    }
+
+    tally(_library.recentlyPlayed);
+    tally(_library.likedSongs);
+    final ids = counts.keys.toList()
+      ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+    return ids;
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final ytmusic = await YTMusic.create();
+      final seedArtistIds = _rankedArtistIds();
+      final excludeVideoIds = <String>{
+        for (final track in _library.recentlyPlayed)
+          if (track.videoId != null) track.videoId!,
+        for (final track in _library.likedSongs)
+          if (track.videoId != null) track.videoId!,
+      };
+
+      List<Map<String, dynamic>> newReleases = const [];
+      List<Track> forYou = const [];
+      Object? firstError;
+
+      await Future.wait([
+        _fetchNewReleases(
+          ytmusic,
+        ).then((value) => newReleases = value).catchError((error) {
+          firstError ??= error;
+          return const <Map<String, dynamic>>[];
+        }),
+        _fetchForYou(
+          ytmusic,
+          seedArtistIds,
+          excludeVideoIds,
+        ).then((value) => forYou = value).catchError((error) {
+          firstError ??= error;
+          return const <Track>[];
+        }),
+      ]);
+
+      if (!mounted) return;
+      if (newReleases.isEmpty && forYou.isEmpty && firstError != null) {
+        setState(() {
+          _loading = false;
+          _error = "Couldn't load new music right now.";
+        });
+        return;
+      }
+
+      Map<String, int> subscriberCounts = const {};
+      if (newReleases.isNotEmpty) {
+        try {
+          final artistIds = <String>{
+            for (final album in newReleases)
+              if (album['artists'] is List)
+                for (final artist in album['artists'] as List)
+                  if (artist is Map && readYtString(artist['id']).isNotEmpty)
+                    readYtString(artist['id']),
+          }.toList();
+          subscriberCounts = await YoutubeService.fetchChannelSubscriberCounts(
+            artistIds,
+          );
+        } catch (_) {}
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _newReleases = newReleases;
+        _forYou = forYou;
+        _artistSubscriberCounts = subscriberCounts;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = "Couldn't load new music right now.";
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchNewReleases(YTMusic ytmusic) async {
+    final response = await ytmusic.sendRequest('browse', <String, dynamic>{
+      'browseId': 'FEmusic_explore',
+    });
+    final results = nav(response, [...SINGLE_COLUMN_TAB, ...SECTION_LIST]);
+
+    final newReleases = <Map<String, dynamic>>[];
+    for (final result in results as Iterable) {
+      final browseId =
+          nav(result, [
+                ...CAROUSEL,
+                ...CAROUSEL_TITLE,
+                ...NAVIGATION_BROWSE_ID,
+              ], nullIfAbsent: true)
+              as String?;
+      if (browseId != 'FEmusic_new_releases_albums') continue;
+      for (final item in nav(result, CAROUSEL_CONTENTS) as List) {
+        newReleases.add(parseAlbum(Map<String, dynamic>.from(item as Map)));
+      }
+      break;
+    }
+    return newReleases;
+  }
+
+  Future<List<Track>> _fetchForYou(
+    YTMusic ytmusic,
+    List<String> seedArtistIds,
+    Set<String> excludeVideoIds,
+  ) async {
+    final forYou = <Track>[];
+    final seenVideoIds = <String>{...excludeVideoIds};
+
+    for (final artistId in seedArtistIds.take(5)) {
+      if (forYou.length >= 15) break;
+      try {
+        final artist = Map<String, dynamic>.from(
+          await ytmusic.getArtist(artistId),
+        );
+        final songsSection = artist['songs'];
+        final songs = _asMapList(
+          songsSection is Map ? songsSection['results'] : null,
+        );
+        for (final item in songs.take(4)) {
+          final videoId = readYtString(item['videoId']);
+          if (videoId.isEmpty || !seenVideoIds.add(videoId)) continue;
+          forYou.add(
+            ytSongToTrack(
+              item,
+              fallbackArtistName: 'Unknown artist',
+              fallbackArtistId: artistId,
+            ),
+          );
+          if (forYou.length >= 15) break;
+        }
+      } catch (_) {}
+    }
+
+    if (forYou.length >= 8) return forYou;
+
+    final home = List<dynamic>.from(await ytmusic.getHome(limit: 3));
+    outer:
+    for (final row in home) {
+      if (row is! Map) continue;
+      for (final item in _asMapList(row['contents'])) {
+        final videoId = readYtString(item['videoId']);
+        if (videoId.isEmpty || !seenVideoIds.add(videoId)) continue;
+        forYou.add(
+          ytSongToTrack(
+            item,
+            fallbackArtistName: 'Unknown artist',
+            fallbackArtistId: '',
+          ),
+        );
+        if (forYou.length >= 15) break outer;
+      }
+    }
+    return forYou;
+  }
+
+  void _openAlbum(Map<String, dynamic> album) {
+    final browseId = readYtString(album['browseId']);
+    if (browseId.isEmpty) return;
+    final title = readYtString(album['title'], 'Album');
+    final artists = album['artists'];
+    final firstArtist = (artists is List && artists.isNotEmpty)
+        ? artists.first
+        : null;
+    final artistName = firstArtist is Map
+        ? readYtString(firstArtist['name'], 'Unknown artist')
+        : 'Unknown artist';
+    final artistId = firstArtist is Map ? readYtString(firstArtist['id']) : '';
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AlbumDetailsPage(
+          albumId: browseId,
+          albumTitle: title,
+          artistId: artistId,
+          artistName: artistName,
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _rankByRelevance(Set<String> knownArtistIds) {
+    final matches = <Map<String, dynamic>>[];
+    final rest = <Map<String, dynamic>>[];
+    for (final album in _newReleases) {
+      final artists = album['artists'];
+      final isMatch =
+          knownArtistIds.isNotEmpty &&
+          artists is List &&
+          artists.any(
+            (artist) =>
+                artist is Map &&
+                knownArtistIds.contains(readYtString(artist['id'])),
+          );
+      (isMatch ? matches : rest).add(album);
+    }
+    return [
+      ..._stableSortByPopularityDesc(matches),
+      ..._stableSortByPopularityDesc(rest),
+    ];
+  }
+
+  int _popularityOf(Map<String, dynamic> album) {
+    final artists = album['artists'];
+    if (artists is! List) return 0;
+    var best = 0;
+    for (final artist in artists) {
+      if (artist is! Map) continue;
+      final count = _artistSubscriberCounts[readYtString(artist['id'])] ?? 0;
+      if (count > best) best = count;
+    }
+    return best;
+  }
+
+  List<Map<String, dynamic>> _stableSortByPopularityDesc(
+    List<Map<String, dynamic>> albums,
+  ) {
+    final indexed = albums.asMap().entries.toList()
+      ..sort((a, b) {
+        final popularityCompare = _popularityOf(
+          b.value,
+        ).compareTo(_popularityOf(a.value));
+        return popularityCompare != 0
+            ? popularityCompare
+            : a.key.compareTo(b.key);
+      });
+    return [for (final entry in indexed) entry.value];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final library = context.watch<LibraryProvider>();
+    final downloads = context.watch<DownloadsProvider>();
+    final newReleases = _rankByRelevance(_rankedArtistIds().toSet());
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       child: Column(
@@ -273,28 +560,143 @@ class _BrowseView extends StatelessWidget {
           Text('Search', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 6),
           Text(
-            'Search all of YouTube, or browse your playlists below.',
+            'Search all of YouTube, or discover something new below.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 28),
-          SectionHeader(title: 'Browse Your Playlists'),
-          SizedBox(
-            height: 240,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: library.userPlaylists.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 14),
-              itemBuilder: (context, index) {
-                final playlist = library.userPlaylists[index];
-                return PlaylistCard(
-                  playlist: playlist,
-                  onTap: () => onOpenPlaylist(playlist),
-                  onPlay: () => player.playQueue(playlist.tracks),
-                );
-              },
-            ),
-          ),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: _load,
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else ...[
+            if (newReleases.isNotEmpty) ...[
+              SectionHeader(title: 'New Music'),
+              SizedBox(
+                height: 210,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: newReleases.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 14),
+                  itemBuilder: (context, index) {
+                    final album = newReleases[index];
+                    return _NewReleaseCard(
+                      album: album,
+                      onTap: () => _openAlbum(album),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 28),
+            ],
+            if (_forYou.isNotEmpty) ...[
+              SectionHeader(title: 'For You'),
+              SizedBox(
+                height: 210,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _forYou.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 14),
+                  itemBuilder: (context, index) {
+                    final track = _forYou[index];
+                    return RecentTrackCard(
+                      track: track,
+                      isActive: widget.player.currentTrack?.id == track.id,
+                      onTap: () =>
+                          widget.player.playQueue(_forYou, startIndex: index),
+                      onMore: () => showAddToPlaylistSheet(context, track),
+                      isLiked: library.isLiked(track),
+                      onToggleLike: () => toggleTrackLike(context, track),
+                      isDownloaded: downloads.isDownloaded(track.videoId),
+                      onToggleDownload: () =>
+                          toggleTrackDownload(context, track),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _NewReleaseCard extends StatelessWidget {
+  final Map<String, dynamic> album;
+  final VoidCallback onTap;
+
+  const _NewReleaseCard({required this.album, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = readYtString(album['title'], 'Unknown album');
+    final year = readYtString(album['year']);
+    final artists = album['artists'];
+    final firstArtist = (artists is List && artists.isNotEmpty)
+        ? artists.first
+        : null;
+    final artistName = firstArtist is Map
+        ? readYtString(firstArtist['name'], 'Unknown artist')
+        : 'Unknown artist';
+    final subtitle = [artistName, if (year.isNotEmpty) year].join(' · ');
+    final thumbnailUrl = ytThumbnailUrl(album);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 140,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: NetworkThumbnail(
+                  url: thumbnailUrl,
+                  fit: BoxFit.cover,
+                  iconSize: 32,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
       ),
     );
   }
