@@ -189,11 +189,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       child: Scaffold(
         backgroundColor: colorScheme.surface,
         bottomNavigationBar: const SafeArea(top: false, child: MiniPlayer()),
-        body: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
+        body: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Container(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -267,8 +266,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                           contentPadding: EdgeInsets.zero,
                                           leading: Icon(
                                             playlist.isPinned
-                                                ? Icons
-                                                      .push_pin_outlined
+                                                ? Icons.push_pin_outlined
                                                 : Icons.push_pin_rounded,
                                           ),
                                           title: Text(
@@ -417,10 +415,12 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                   ),
                 ),
               ),
-              if (!_loadingTracks &&
-                  _loadError == null &&
-                  playlist.tracks.isNotEmpty)
-                Padding(
+            ),
+            if (!_loadingTracks &&
+                _loadError == null &&
+                playlist.tracks.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                   child: TextField(
                     controller: _searchController,
@@ -455,103 +455,105 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                     ),
                   ),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                child: _loadingTracks
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 40),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    : _loadError != null
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _loadError!,
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 12),
-                              OutlinedButton(
-                                onPressed: _loadTracks,
-                                child: const Text('Try again'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : playlist.tracks.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 40),
-                        child: Center(
-                          child: Text(
-                            playlist.isFromYoutube
-                                ? 'No videos in this playlist'
-                                : 'No liked songs yet. Tap the heart on any '
-                                      'track to add it here.',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                      )
-                    : filteredTracks.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 40),
-                        child: Center(
-                          child: Text(
-                            'No songs match "${_searchQuery.trim()}"',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                      )
-                    : Column(
-                        children: List.generate(filteredTracks.length, (i) {
-                          final track = filteredTracks[i];
-                          final originalIndex = playlist.tracks.indexOf(track);
-                          return TrackTile(
-                            index: i + 1,
-                            track: track,
-                            isActive: player.currentTrack?.id == track.id,
-                            onTap: () => player.playQueue(
-                              playlist.tracks,
-                              startIndex: originalIndex,
-                              sourcePlaylist: playlist,
-                            ),
-                            onPlayNext: () => player.playNext(track),
-                            onRemove: () => _handleRemoveTrack(track),
-                            onMore: () =>
-                                showAddToPlaylistSheet(context, track),
-                            isLiked: library.isLiked(track),
-                            onToggleLike: () =>
-                                toggleTrackLike(context, track),
-                            isDownloaded: downloads.isDownloaded(
-                              track.videoId,
-                            ),
-                            downloadProgress: downloads.progressFor(
-                              track.videoId,
-                            ),
-                            onToggleDownload: () =>
-                                toggleTrackDownload(context, track),
-                            onCancelDownload: track.videoId == null
-                                ? null
-                                : () => downloads.cancelDownload(
-                                    track.videoId!,
-                                  ),
-                            onArtistTap: openArtistPageCallback(
-                              context,
-                              channelId: track.channelId,
-                              artistName: track.artist,
-                            ),
-                          );
-                        }),
-                      ),
               ),
-            ],
-          ),
+            if (_loadingTracks || _loadError != null || filteredTracks.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                  child: _loadingTracks
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : _loadError != null
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _loadError!,
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                const SizedBox(height: 12),
+                                OutlinedButton(
+                                  onPressed: _loadTracks,
+                                  child: const Text('Try again'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : playlist.tracks.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: Text(
+                              playlist.isFromYoutube
+                                  ? 'No videos in this playlist'
+                                  : 'No liked songs yet. Tap the heart on any '
+                                        'track to add it here.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        )
+                      : filteredTracks.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: Text(
+                              'No songs match "${_searchQuery.trim()}"',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            if (!_loadingTracks &&
+                _loadError == null &&
+                filteredTracks.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, i) {
+                    final track = filteredTracks[i];
+                    final originalIndex = playlist.tracks.indexOf(track);
+                    return TrackTile(
+                      index: i + 1,
+                      track: track,
+                      isActive: player.currentTrack?.id == track.id,
+                      onTap: () => player.playQueue(
+                        playlist.tracks,
+                        startIndex: originalIndex,
+                        sourcePlaylist: playlist,
+                      ),
+                      onPlayNext: () => player.playNext(track),
+                      onRemove: () => _handleRemoveTrack(track),
+                      onMore: () => showAddToPlaylistSheet(context, track),
+                      isLiked: library.isLiked(track),
+                      onToggleLike: () => toggleTrackLike(context, track),
+                      isDownloaded: downloads.isDownloaded(track.videoId),
+                      downloadProgress: downloads.progressFor(track.videoId),
+                      onToggleDownload: () =>
+                          toggleTrackDownload(context, track),
+                      onCancelDownload: track.videoId == null
+                          ? null
+                          : () => downloads.cancelDownload(track.videoId!),
+                      onArtistTap: openArtistPageCallback(
+                        context,
+                        channelId: track.channelId,
+                        artistName: track.artist,
+                      ),
+                    );
+                  }, childCount: filteredTracks.length),
+                ),
+              ),
+          ],
         ),
       ),
     );

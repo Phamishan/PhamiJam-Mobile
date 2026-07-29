@@ -29,6 +29,10 @@
   - Redesigned artist page
   - Redesigned search page
   - Updated readme
+- 1.0.3 - 30/07/2026
+  - Fixed search page auto popup
+  - Fixed scrolling in playlists
+  - Fixed the artist page play button
 
 ## Screenshots:
 

@@ -3,11 +3,10 @@ import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/liked_songs_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
+import 'package:phamijam/services/playlist_pin_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 const String kLikedSongsPlaylistId = 'liked-songs';
-const String _pinnedPlaylistsPrefsKey = 'phamijam.pinned_playlists';
 
 class LibraryProvider extends ChangeNotifier {
   bool isLoading = false;
@@ -53,13 +52,12 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<void> _loadPinnedOrder() async {
-    final prefs = await SharedPreferences.getInstance();
-    _pinnedOrder = prefs.getStringList(_pinnedPlaylistsPrefsKey) ?? [];
-  }
-
-  Future<void> _persistPinnedOrder() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_pinnedPlaylistsPrefsKey, _pinnedOrder);
+    try {
+      _pinnedOrder = await PlaylistPinService.fetchAll();
+    } catch (error, stackTrace) {
+      debugPrint('LibraryProvider: pinned playlists refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   List<Playlist> _applyPinState(List<Playlist> playlists) {
@@ -88,7 +86,24 @@ class LibraryProvider extends ChangeNotifier {
     userPlaylists = _applyPinState(userPlaylists);
     _splitPlaylists();
     notifyListeners();
-    await _persistPinnedOrder();
+
+    try {
+      if (pinning) {
+        await PlaylistPinService.pin(playlist.id);
+      } else {
+        await PlaylistPinService.unpin(playlist.id);
+      }
+    } catch (error) {
+      if (pinning) {
+        _pinnedOrder = _pinnedOrder.where((id) => id != playlist.id).toList();
+      } else {
+        _pinnedOrder = [playlist.id, ..._pinnedOrder];
+      }
+      userPlaylists = _applyPinState(userPlaylists);
+      _splitPlaylists();
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> _refreshYoutubePlaylists() async {
@@ -282,7 +297,13 @@ class LibraryProvider extends ChangeNotifier {
     _splitPlaylists();
     final wasPinned = _pinnedOrder.remove(playlist.id);
     notifyListeners();
-    if (wasPinned) await _persistPinnedOrder();
+    if (wasPinned) {
+      try {
+        await PlaylistPinService.unpin(playlist.id);
+      } catch (error) {
+        debugPrint('LibraryProvider: unpin on delete failed: $error');
+      }
+    }
   }
 
   void _replacePlaylist(Playlist updated) {

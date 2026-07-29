@@ -117,6 +117,8 @@ class ArtistPage extends StatefulWidget {
 }
 
 class _ArtistPageState extends State<ArtistPage> {
+  static const int displaySongsLimit = 5;
+
   Map<String, dynamic>? _artist;
   List<Track> _songs = const [];
   List<Map<String, dynamic>> _albums = const [];
@@ -150,7 +152,7 @@ class _ArtistPageState extends State<ArtistPage> {
         await ytmusic.getArtist(widget.channelId),
       );
 
-      const topSongsLimit = 5;
+      const playableSongsLimit = 50;
       final songsSection = artist['songs'];
       final songsBrowseId = songsSection is Map
           ? readYtString(songsSection['browseId'])
@@ -159,7 +161,7 @@ class _ArtistPageState extends State<ArtistPage> {
       if (songsBrowseId.isNotEmpty) {
         try {
           final playlist = Map<String, dynamic>.from(
-            await ytmusic.getPlaylist(songsBrowseId, limit: topSongsLimit),
+            await ytmusic.getPlaylist(songsBrowseId, limit: playableSongsLimit),
           );
           songResults = _asMapList(playlist['tracks']);
         } catch (_) {
@@ -172,7 +174,6 @@ class _ArtistPageState extends State<ArtistPage> {
           songsSection is Map ? songsSection['results'] : null,
         );
       }
-      songResults = songResults.take(topSongsLimit).toList();
 
       final albumsSection = artist['albums'];
       final singlesSection = artist['singles'];
@@ -535,35 +536,40 @@ class _ArtistPageState extends State<ArtistPage> {
                         children: [
                           if (_songs.isNotEmpty) ...[
                             _buildSectionTitle('Most streamed songs'),
-                            ...List.generate(_songs.length, (i) {
-                              final track = _songs[i];
-                              return TrackTile(
-                                index: i + 1,
-                                track: track,
-                                isActive: player.currentTrack?.id == track.id,
-                                onTap: () =>
-                                    player.playQueue(_songs, startIndex: i),
-                                onPlayNext: () => player.playNext(track),
-                                onMore: () =>
-                                    showAddToPlaylistSheet(context, track),
-                                isLiked: library.isLiked(track),
-                                onToggleLike: () =>
-                                    toggleTrackLike(context, track),
-                                isDownloaded: downloads.isDownloaded(
-                                  track.videoId,
-                                ),
-                                downloadProgress: downloads.progressFor(
-                                  track.videoId,
-                                ),
-                                onToggleDownload: () =>
-                                    toggleTrackDownload(context, track),
-                                onCancelDownload: track.videoId == null
-                                    ? null
-                                    : () => downloads.cancelDownload(
-                                        track.videoId!,
-                                      ),
-                              );
-                            }),
+                            ...List.generate(
+                              _songs.length < displaySongsLimit
+                                  ? _songs.length
+                                  : displaySongsLimit,
+                              (i) {
+                                final track = _songs[i];
+                                return TrackTile(
+                                  index: i + 1,
+                                  track: track,
+                                  isActive: player.currentTrack?.id == track.id,
+                                  onTap: () =>
+                                      player.playQueue(_songs, startIndex: i),
+                                  onPlayNext: () => player.playNext(track),
+                                  onMore: () =>
+                                      showAddToPlaylistSheet(context, track),
+                                  isLiked: library.isLiked(track),
+                                  onToggleLike: () =>
+                                      toggleTrackLike(context, track),
+                                  isDownloaded: downloads.isDownloaded(
+                                    track.videoId,
+                                  ),
+                                  downloadProgress: downloads.progressFor(
+                                    track.videoId,
+                                  ),
+                                  onToggleDownload: () =>
+                                      toggleTrackDownload(context, track),
+                                  onCancelDownload: track.videoId == null
+                                      ? null
+                                      : () => downloads.cancelDownload(
+                                          track.videoId!,
+                                        ),
+                                );
+                              },
+                            ),
                           ],
                           if (_albums.isNotEmpty) ...[
                             _buildSectionTitle('Albums'),

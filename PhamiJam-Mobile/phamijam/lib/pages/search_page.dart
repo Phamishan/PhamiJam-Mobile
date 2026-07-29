@@ -137,18 +137,44 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
-    return Column(
+    return Stack(
       children: [
-        _SearchBar(
-          controller: widget.controller,
-          focusNode: widget.focusNode,
-          onChanged: widget.onQueryChanged,
-          onClose: widget.onClose,
+        Column(
+          children: [
+            _SearchBar(
+              controller: widget.controller,
+              focusNode: widget.focusNode,
+              onChanged: widget.onQueryChanged,
+              onClose: widget.onClose,
+            ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: child,
+              ),
+            ),
+          ],
         ),
-        Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: child,
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: ListenableBuilder(
+            listenable: widget.focusNode,
+            builder: (context, _) {
+              final hasFocus = widget.focusNode.hasFocus;
+              return IgnorePointer(
+                ignoring: hasFocus,
+                child: AnimatedOpacity(
+                  opacity: hasFocus ? 0 : 1,
+                  duration: const Duration(milliseconds: 150),
+                  child: FloatingActionButton.small(
+                    heroTag: 'search-page-fab',
+                    onPressed: widget.focusNode.requestFocus,
+                    child: const Icon(Icons.search_rounded),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],

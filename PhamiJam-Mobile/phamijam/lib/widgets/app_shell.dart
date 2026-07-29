@@ -117,9 +117,6 @@ class _AppShellState extends State<AppShell> {
 
   void _enterSearch() {
     setState(() => _navIndex = 1);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _searchFocusNode.requestFocus();
-    });
   }
 
   void _exitSearch() {
