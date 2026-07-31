@@ -33,6 +33,11 @@
   - Fixed search page auto popup
   - Fixed scrolling in playlists
   - Fixed the artist page play button
+- 1.0.4 - 31/07/2026
+  - Added synced lyrics
+  - Added a YouTube Music/YouTube search engine toggle
+  - Added a clear queue button
+  - Redesigned artist page
 
 ## Screenshots:
 

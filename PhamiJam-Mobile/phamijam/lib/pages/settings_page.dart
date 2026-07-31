@@ -176,6 +176,45 @@ class _SettingsPageState extends State<SettingsPage> {
             },
           ),
           const SizedBox(height: 28),
+          Text(
+            'Search & Artists',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Choose search results from YouTube Music or YouTube',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return SegmentedButton<SearchEngine>(
+                segments: const [
+                  ButtonSegment(
+                    value: SearchEngine.youtubeMusic,
+                    label: Text('YouTube Music'),
+                    icon: Icon(Icons.music_note_rounded),
+                  ),
+                  ButtonSegment(
+                    value: SearchEngine.youtube,
+                    label: Text('YouTube'),
+                    icon: Icon(Icons.smart_display_rounded),
+                  ),
+                ],
+                selected: {settings.searchEngine},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) =>
+                    settings.setSearchEngine(selection.first),
+                style: SegmentedButton.styleFrom(
+                  backgroundColor: colorScheme.surfaceContainer,
+                  foregroundColor: colorScheme.onSurfaceVariant,
+                  selectedBackgroundColor: colorScheme.primary,
+                  selectedForegroundColor: colorScheme.onPrimary,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 28),
           Text('Player', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
           Consumer<SettingsProvider>(
@@ -245,7 +284,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.0.3',
+            subtitle: 'Version 1.0.4',
             color: colorScheme.onSurface,
           ),
         ],

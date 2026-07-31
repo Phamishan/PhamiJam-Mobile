@@ -444,7 +444,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     Playlist? sourcePlaylist,
   }) async {
     if (tracks.isEmpty) return;
-    if (!_isRemoteControlling) await _recordPotentialSkip();
+    if (!_isRemoteControlling) unawaited(_recordPotentialSkip());
     _exitRemoteControl();
     _currentSourcePlaylist = sourcePlaylist;
     _originalQueue = List<Track>.from(tracks);
@@ -512,7 +512,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.next);
       return;
     }
-    if (skipAttempts == 0) await _recordPotentialSkip();
+    if (skipAttempts == 0) unawaited(_recordPotentialSkip());
     await _localNext(skipAttempts: skipAttempts);
   }
 
@@ -537,7 +537,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> playFromQueue(int index) async {
     if (index < 0 || index >= _queue.length) return;
-    if (!_isRemoteControlling) await _recordPotentialSkip();
+    if (!_isRemoteControlling) unawaited(_recordPotentialSkip());
     _exitRemoteControl();
     _queueIndex = index;
     _currentTrack = _queue[index];
@@ -569,12 +569,22 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _prefetchUpcomingTracks();
   }
 
+  void clearQueue() {
+    final current = _currentTrack;
+    if (current == null) return;
+    _queue = [current];
+    _originalQueue = [current];
+    _queueIndex = 0;
+    notifyListeners();
+    _persistSession();
+  }
+
   Future<void> previous() async {
     if (_isRemoteControlling) {
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.previous);
       return;
     }
-    await _recordPotentialSkip();
+    unawaited(_recordPotentialSkip());
     await _localPrevious();
   }
 

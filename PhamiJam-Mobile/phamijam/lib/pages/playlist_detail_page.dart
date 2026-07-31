@@ -184,6 +184,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                     t.artist.toLowerCase().contains(query),
               )
               .toList();
+    final isThisPlaylistPlaying =
+        player.isPlaying &&
+        player.currentTrack != null &&
+        playlist.tracks.any((t) => t.id == player.currentTrack!.id);
 
     return SwipeBack(
       child: Scaffold(
@@ -384,9 +388,12 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                           ),
                           const SizedBox(width: 24),
                           _PlayButton(
+                            isPlaying: isThisPlaylistPlaying,
                             onTap: playlist.tracks.isEmpty
                                 ? null
-                                : () => player.shuffle
+                                : () => isThisPlaylistPlaying
+                                      ? player.togglePlayPause()
+                                      : player.shuffle
                                       ? player.shufflePlay(
                                           playlist.tracks,
                                           sourcePlaylist: playlist,
@@ -562,7 +569,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
 
 class _PlayButton extends StatelessWidget {
   final VoidCallback? onTap;
-  const _PlayButton({required this.onTap});
+  final bool isPlaying;
+  const _PlayButton({required this.onTap, this.isPlaying = false});
 
   @override
   Widget build(BuildContext context) {
@@ -578,7 +586,7 @@ class _PlayButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Icon(
-            Icons.play_arrow_rounded,
+            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
             color: onTap == null
                 ? colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
                 : colorScheme.onPrimary,

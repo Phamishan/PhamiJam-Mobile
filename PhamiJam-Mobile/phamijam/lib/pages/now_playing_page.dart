@@ -5,6 +5,7 @@ import 'package:phamijam/components/add_to_playlist_sheet.dart';
 import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/pages/fullscreen_video_page.dart';
+import 'package:phamijam/pages/lyrics_page.dart';
 import 'package:phamijam/pages/queue_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
@@ -219,6 +220,17 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                         showAddToPlaylistSheet(context, track),
                                     icon: Icon(
                                       Icons.playlist_add_rounded,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const LyricsPage(),
+                                      ),
+                                    ),
+                                    icon: Icon(
+                                      Icons.lyrics_outlined,
                                       color: colorScheme.onSurface,
                                     ),
                                   ),

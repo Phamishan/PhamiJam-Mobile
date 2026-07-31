@@ -75,18 +75,28 @@ class AudioStreamResolver {
     String videoId, {
     required bool requireWatchPage,
   }) async {
-    final results = await Future.wait(
-      _ytClients.map(
-        (client) => _tryGetManifest(videoId, client, requireWatchPage),
-      ),
-    );
-    final manifests = results.whereType<StreamManifest>().toList();
-    if (manifests.isEmpty) {
+    final completer = Completer<StreamManifest?>();
+    var remaining = _ytClients.length;
+    for (final client in _ytClients) {
+      unawaited(
+        _tryGetManifest(videoId, client, requireWatchPage).then((manifest) {
+          remaining--;
+          if (completer.isCompleted) return;
+          if (manifest != null) {
+            completer.complete(manifest);
+          } else if (remaining == 0) {
+            completer.complete(null);
+          }
+        }),
+      );
+    }
+    final manifest = await completer.future;
+    if (manifest == null) {
       throw StateError(
         'No client could resolve a stream manifest for $videoId',
       );
     }
-    return StreamManifest([for (final m in manifests) ...m.streams]);
+    return manifest;
   }
 
   Future<StreamManifest?> _tryGetManifest(

@@ -51,10 +51,24 @@ class QueuePage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          'Queue',
-                          style: Theme.of(context).textTheme.headlineMedium,
+                        Expanded(
+                          child: Text(
+                            'Queue',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
                         ),
+                        if (upNext.isNotEmpty)
+                          TextButton.icon(
+                            onPressed: () {
+                              player.clearQueue();
+                              AppFlushbar.success(context, 'Queue cleared');
+                            },
+                            icon: const Icon(
+                              Icons.playlist_remove_rounded,
+                              size: 18,
+                            ),
+                            label: const Text('Clear'),
+                          ),
                       ],
                     ),
                   ),

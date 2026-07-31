@@ -4,8 +4,10 @@ import 'package:phamijam/components/download_action.dart';
 import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/pages/album_details_page.dart';
+import 'package:phamijam/pages/youtube_channel_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
@@ -20,11 +22,16 @@ VoidCallback? openArtistPageCallback(
   required String artistName,
 }) {
   if (channelId == null || channelId.isEmpty) return null;
-  return () => Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => ArtistPage(channelId: channelId, artistName: artistName),
-    ),
-  );
+  return () {
+    final engine = context.read<SettingsProvider>().searchEngine;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => engine == SearchEngine.youtube
+            ? YoutubeChannelPage(channelId: channelId, channelName: artistName)
+            : ArtistPage(channelId: channelId, artistName: artistName),
+      ),
+    );
+  };
 }
 
 String readYtString(dynamic value, [String fallback = '']) {
@@ -350,6 +357,10 @@ class _ArtistPageState extends State<ArtistPage> {
     final thumbnailUrl = artist != null ? ytThumbnailUrl(artist) : '';
     final hasReleases =
         _songs.isNotEmpty || _albums.isNotEmpty || _singles.isNotEmpty;
+    final isThisArtistPlaying =
+        player.isPlaying &&
+        player.currentTrack != null &&
+        _songs.any((t) => t.id == player.currentTrack!.id);
 
     return SwipeBack(
       child: Scaffold(
@@ -469,9 +480,10 @@ class _ArtistPageState extends State<ArtistPage> {
                             ),
                             const SizedBox(width: 24),
                             _PlayButton(
-                              onTap: () => player.shuffle
-                                  ? player.shufflePlay(_songs)
-                                  : player.playQueue(_songs),
+                              isPlaying: isThisArtistPlaying,
+                              onTap: () => isThisArtistPlaying
+                                  ? player.togglePlayPause()
+                                  : player.shufflePlay(_songs),
                             ),
                             const SizedBox(width: 24),
                             IconButton(
@@ -487,6 +499,48 @@ class _ArtistPageState extends State<ArtistPage> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 16),
+                        Consumer<SettingsProvider>(
+                          builder: (context, settings, _) {
+                            return SegmentedButton<SearchEngine>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: SearchEngine.youtubeMusic,
+                                  label: Text('YouTube Music'),
+                                  icon: Icon(Icons.music_note_rounded),
+                                ),
+                                ButtonSegment(
+                                  value: SearchEngine.youtube,
+                                  label: Text('YouTube'),
+                                  icon: Icon(Icons.smart_display_rounded),
+                                ),
+                              ],
+                              selected: {settings.searchEngine},
+                              showSelectedIcon: false,
+                              style: SegmentedButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                backgroundColor: colorScheme.surfaceContainer,
+                                foregroundColor: colorScheme.onSurfaceVariant,
+                                selectedBackgroundColor: colorScheme.primary,
+                                selectedForegroundColor: colorScheme.onPrimary,
+                              ),
+                              onSelectionChanged: (selection) {
+                                final engine = selection.first;
+                                settings.setSearchEngine(engine);
+                                if (engine == SearchEngine.youtube) {
+                                  Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute(
+                                      builder: (_) => YoutubeChannelPage(
+                                        channelId: widget.channelId,
+                                        channelName: widget.artistName,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            );
+                          },
                         ),
                       ],
                     ],
@@ -592,7 +646,8 @@ class _ArtistPageState extends State<ArtistPage> {
 
 class _PlayButton extends StatelessWidget {
   final VoidCallback? onTap;
-  const _PlayButton({required this.onTap});
+  final bool isPlaying;
+  const _PlayButton({required this.onTap, this.isPlaying = false});
 
   @override
   Widget build(BuildContext context) {
@@ -608,7 +663,7 @@ class _PlayButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Icon(
-            Icons.play_arrow_rounded,
+            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
             color: onTap == null
                 ? colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
                 : colorScheme.onPrimary,

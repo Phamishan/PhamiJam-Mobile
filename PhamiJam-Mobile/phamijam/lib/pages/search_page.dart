@@ -10,6 +10,7 @@ import 'package:phamijam/pages/album_details_page.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
@@ -17,6 +18,7 @@ import 'package:phamijam/widgets/recent_track_card.dart';
 import 'package:phamijam/widgets/section_header.dart';
 import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
+import 'package:ytmusicapi_dart/enums.dart';
 import 'package:ytmusicapi_dart/navigation.dart';
 import 'package:ytmusicapi_dart/parsers/browsing.dart';
 import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
@@ -47,6 +49,9 @@ class _SearchPageState extends State<SearchPage> {
   Timer? _debounce;
   String _searchedQuery = '';
   List<Track> _results = [];
+  List<Track> _ytmSongs = [];
+  List<Map<String, dynamic>> _ytmArtists = [];
+  List<Map<String, dynamic>> _ytmAlbums = [];
   bool _loading = false;
   String? _error;
 
@@ -69,6 +74,9 @@ class _SearchPageState extends State<SearchPage> {
     if (query.trim().isEmpty) {
       setState(() {
         _results = [];
+        _ytmSongs = [];
+        _ytmArtists = [];
+        _ytmAlbums = [];
         _loading = false;
         _error = null;
         _searchedQuery = '';
@@ -81,24 +89,71 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  bool get _hasResults =>
+      context.read<SettingsProvider>().searchEngine == SearchEngine.youtube
+      ? _results.isNotEmpty
+      : (_ytmSongs.isNotEmpty ||
+            _ytmArtists.isNotEmpty ||
+            _ytmAlbums.isNotEmpty);
+
   Future<void> _runSearch(String query) async {
     setState(() {
       _loading = true;
       _error = null;
     });
+    final engine = context.read<SettingsProvider>().searchEngine;
     try {
-      final results = await YoutubeService.searchVideos(query);
-      if (!mounted || query != widget.query) return;
-      setState(() {
-        _results = results;
-        _loading = false;
-        _searchedQuery = query;
-      });
+      if (engine == SearchEngine.youtube) {
+        final results = await YoutubeService.searchVideos(query);
+        if (!mounted || query != widget.query) return;
+        setState(() {
+          _results = results;
+          _ytmSongs = [];
+          _ytmArtists = [];
+          _ytmAlbums = [];
+          _loading = false;
+          _searchedQuery = query;
+        });
+      } else {
+        final ytmusic = await YTMusic.create();
+        final lists = await Future.wait([
+          ytmusic.search(query, filter: SearchFilter.songs, limit: 12),
+          ytmusic.search(query, filter: SearchFilter.artists, limit: 6),
+          ytmusic.search(query, filter: SearchFilter.albums, limit: 6),
+        ]);
+        if (!mounted || query != widget.query) return;
+        final songs = lists[0]
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .where((item) => readYtString(item['videoId']).isNotEmpty)
+            .map(
+              (item) => ytSongToTrack(
+                item,
+                fallbackArtistName: 'Unknown artist',
+                fallbackArtistId: '',
+              ),
+            )
+            .toList();
+        setState(() {
+          _ytmSongs = songs;
+          _ytmArtists = lists[1]
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          _ytmAlbums = lists[2]
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          _results = [];
+          _loading = false;
+          _searchedQuery = query;
+        });
+      }
     } catch (error) {
       if (!mounted || query != widget.query) return;
       setState(() {
         _loading = false;
-        _error = "Couldn't search YouTube. Try again.";
+        _error = "Couldn't search right now. Try again.";
       });
     }
   }
@@ -107,6 +162,7 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     final player = context.read<PlayerProvider>();
     final colorScheme = Theme.of(context).colorScheme;
+    final engine = context.watch<SettingsProvider>().searchEngine;
 
     Widget child;
     if (widget.query.isEmpty) {
@@ -122,17 +178,26 @@ class _SearchPageState extends State<SearchPage> {
         message: _error!,
         onRetry: () => _runSearch(widget.query),
       );
-    } else if (_results.isEmpty && _searchedQuery == widget.query) {
+    } else if (!_hasResults && _searchedQuery == widget.query) {
       child = _EmptyResults(
         key: const ValueKey('empty'),
         query: widget.query,
         colorScheme: colorScheme,
       );
-    } else {
+    } else if (engine == SearchEngine.youtube) {
       child = _ResultsView(
         key: const ValueKey('results'),
         query: widget.query,
         tracks: _results,
+        player: player,
+      );
+    } else {
+      child = _YTMusicResultsView(
+        key: const ValueKey('ytm-results'),
+        query: widget.query,
+        songs: _ytmSongs,
+        artists: _ytmArtists,
+        albums: _ytmAlbums,
         player: player,
       );
     }
@@ -146,6 +211,45 @@ class _SearchPageState extends State<SearchPage> {
               focusNode: widget.focusNode,
               onChanged: widget.onQueryChanged,
               onClose: widget.onClose,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Align(
+                alignment: Alignment.center,
+                child: Consumer<SettingsProvider>(
+                  builder: (context, settings, _) {
+                    return SegmentedButton<SearchEngine>(
+                      segments: const [
+                        ButtonSegment(
+                          value: SearchEngine.youtubeMusic,
+                          label: Text('YouTube Music'),
+                          icon: Icon(Icons.music_note_rounded),
+                        ),
+                        ButtonSegment(
+                          value: SearchEngine.youtube,
+                          label: Text('YouTube'),
+                          icon: Icon(Icons.smart_display_rounded),
+                        ),
+                      ],
+                      selected: {settings.searchEngine},
+                      showSelectedIcon: false,
+                      style: SegmentedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: colorScheme.surfaceContainer,
+                        foregroundColor: colorScheme.onSurfaceVariant,
+                        selectedBackgroundColor: colorScheme.primary,
+                        selectedForegroundColor: colorScheme.onPrimary,
+                      ),
+                      onSelectionChanged: (selection) {
+                        settings.setSearchEngine(selection.first);
+                        if (widget.query.trim().isNotEmpty) {
+                          _runSearch(widget.query);
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
             ),
             Expanded(
               child: AnimatedSwitcher(
@@ -849,6 +953,174 @@ class _ResultsView extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _YTMusicResultsView extends StatelessWidget {
+  final String query;
+  final List<Track> songs;
+  final List<Map<String, dynamic>> artists;
+  final List<Map<String, dynamic>> albums;
+  final PlayerProvider player;
+
+  const _YTMusicResultsView({
+    super.key,
+    required this.query,
+    required this.songs,
+    required this.artists,
+    required this.albums,
+    required this.player,
+  });
+
+  void _openAlbum(BuildContext context, Map<String, dynamic> album) {
+    final browseId = readYtString(album['browseId']);
+    if (browseId.isEmpty) return;
+    final title = readYtString(album['title'], 'Album');
+    final albumArtists = album['artists'];
+    final firstArtist = (albumArtists is List && albumArtists.isNotEmpty)
+        ? albumArtists.first
+        : null;
+    final artistName = firstArtist is Map
+        ? readYtString(firstArtist['name'], 'Unknown artist')
+        : 'Unknown artist';
+    final artistId = firstArtist is Map ? readYtString(firstArtist['id']) : '';
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AlbumDetailsPage(
+          albumId: browseId,
+          albumTitle: title,
+          artistId: artistId,
+          artistName: artistName,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final library = context.watch<LibraryProvider>();
+    final downloads = context.watch<DownloadsProvider>();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Results for "$query"',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 16),
+          if (artists.isNotEmpty) ...[
+            SectionHeader(title: 'Artists'),
+            SizedBox(
+              height: 118,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: artists.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 16),
+                itemBuilder: (context, index) =>
+                    _ArtistResultTile(artist: artists[index]),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (albums.isNotEmpty) ...[
+            SectionHeader(title: 'Albums'),
+            SizedBox(
+              height: 210,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: albums.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (context, index) {
+                  final album = albums[index];
+                  return _NewReleaseCard(
+                    album: album,
+                    onTap: () => _openAlbum(context, album),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (songs.isNotEmpty) ...[
+            SectionHeader(title: 'Songs'),
+            const SizedBox(height: 8),
+            ...List.generate(songs.length, (index) {
+              final track = songs[index];
+              return TrackTile(
+                index: index + 1,
+                track: track,
+                isActive: player.currentTrack?.id == track.id,
+                onTap: () => player.playQueue(songs, startIndex: index),
+                onPlayNext: () => player.playNext(track),
+                onMore: () => showAddToPlaylistSheet(context, track),
+                isLiked: library.isLiked(track),
+                onToggleLike: () => toggleTrackLike(context, track),
+                isDownloaded: downloads.isDownloaded(track.videoId),
+                downloadProgress: downloads.progressFor(track.videoId),
+                onToggleDownload: () => toggleTrackDownload(context, track),
+                onCancelDownload: track.videoId == null
+                    ? null
+                    : () => downloads.cancelDownload(track.videoId!),
+                onArtistTap: openArtistPageCallback(
+                  context,
+                  channelId: track.channelId,
+                  artistName: track.artist,
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ArtistResultTile extends StatelessWidget {
+  final Map<String, dynamic> artist;
+
+  const _ArtistResultTile({required this.artist});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = readYtString(artist['artist'], 'Unknown artist');
+    final channelId = readYtString(artist['browseId']);
+    final thumbnailUrl = ytThumbnailUrl(artist);
+    final onTap = openArtistPageCallback(
+      context,
+      channelId: channelId,
+      artistName: name,
+    );
+
+    return SizedBox(
+      width: 88,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Column(
+          children: [
+            NetworkThumbnail(
+              url: thumbnailUrl,
+              width: 80,
+              height: 80,
+              borderRadius: BorderRadius.circular(999),
+              iconSize: 30,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
       ),
     );
   }
