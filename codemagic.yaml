@@ -18,8 +18,9 @@ workflows:
         - phamijam_env
 
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: phamishan.phamijam
+        provisioning_profiles:
+          - PhamiJam App Store
+          - PhamiJam - Widget
 
     scripts:
       - name: Write .env

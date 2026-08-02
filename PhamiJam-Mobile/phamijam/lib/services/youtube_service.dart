@@ -503,6 +503,12 @@ class YoutubeService {
     await _delete('playlistItems', {'id': playlistItemId});
   }
 
+  static Future<Duration> fetchDuration(String videoId) async {
+    if (videoId.isEmpty) return Duration.zero;
+    final durations = await _fetchDurations([videoId]);
+    return durations[videoId] ?? Duration.zero;
+  }
+
   static Future<Map<String, Duration>> _fetchDurations(
     List<String> videoIds,
   ) async {

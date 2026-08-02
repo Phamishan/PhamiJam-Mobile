@@ -49,6 +49,28 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".MinutesWidgetSmallProvider"
+            android:exported="false"
+            android:label="Wrapphamied Minutes (Small)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/minutes_widget_small_info" />
+        </receiver>
+
+        <receiver android:name=".MinutesWidgetLargeProvider"
+            android:exported="false"
+            android:label="Wrapphamied Minutes (Large)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/minutes_widget_large_info" />
+        </receiver>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

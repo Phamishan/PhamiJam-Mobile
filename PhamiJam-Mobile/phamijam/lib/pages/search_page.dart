@@ -117,9 +117,9 @@ class _SearchPageState extends State<SearchPage> {
       } else {
         final ytmusic = await YTMusic.create();
         final lists = await Future.wait([
-          ytmusic.search(query, filter: SearchFilter.songs, limit: 12),
-          ytmusic.search(query, filter: SearchFilter.artists, limit: 6),
-          ytmusic.search(query, filter: SearchFilter.albums, limit: 6),
+          ytmusic.search(query, filter: SearchFilterType.songs, limit: 12),
+          ytmusic.search(query, filter: SearchFilterType.artists, limit: 6),
+          ytmusic.search(query, filter: SearchFilterType.albums, limit: 6),
         ]);
         if (!mounted || query != widget.query) return;
         final songs = lists[0]

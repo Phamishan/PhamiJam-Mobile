@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
+import 'package:phamijam/components/edit_track_dialog.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 
@@ -47,6 +48,9 @@ class TrackTile extends StatefulWidget {
 
 class _TrackTileState extends State<TrackTile> {
   bool _hovering = false;
+
+  bool get _canEdit =>
+      widget.track.videoId != null && widget.track.videoId!.isNotEmpty;
 
   String _formatDuration(Duration d) {
     final minutes = d.inMinutes.remainder(60).toString();
@@ -168,7 +172,9 @@ class _TrackTileState extends State<TrackTile> {
                   splashRadius: 18,
                 ),
               ],
-              if (widget.onMore != null || widget.onToggleDownload != null) ...[
+              if (widget.onMore != null ||
+                  widget.onToggleDownload != null ||
+                  _canEdit) ...[
                 const SizedBox(width: 4),
                 if (widget.downloadProgress != null)
                   SizedBox(
@@ -223,6 +229,8 @@ class _TrackTileState extends State<TrackTile> {
                         widget.onMore?.call();
                       } else if (value == 'download') {
                         widget.onToggleDownload?.call();
+                      } else if (value == 'edit_trim') {
+                        showEditTrackDialog(context, widget.track);
                       }
                     },
                     itemBuilder: (context) => [
@@ -250,6 +258,15 @@ class _TrackTileState extends State<TrackTile> {
                                   ? 'Remove download'
                                   : 'Download',
                             ),
+                          ),
+                        ),
+                      if (_canEdit)
+                        const PopupMenuItem(
+                          value: 'edit_trim',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.content_cut_rounded),
+                            title: Text('Edit song'),
                           ),
                         ),
                     ],

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:phamijam/models/edited_song_trim.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/listening_history_service.dart';
@@ -87,6 +88,26 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   RemoteSession? _remoteSession;
   bool _isRemoteControlling = false;
   String? _dismissedRemoteKey;
+
+  EditedSongTrim? Function(String videoId)? _trimLookup;
+  Duration? _trimStart;
+  Duration? _trimEnd;
+
+  void bindEditedSongsLookup(EditedSongTrim? Function(String videoId) lookup) {
+    _trimLookup = lookup;
+  }
+
+  Duration? get trimStart => _trimStart;
+  Duration? get trimEnd => _trimEnd;
+
+  Duration _clampToTrim(Duration value) {
+    var result = value;
+    final start = _trimStart;
+    final end = _trimEnd;
+    if (start != null && result < start) result = start;
+    if (end != null && result > end) result = end;
+    return result;
+  }
 
   Future<void> _restoreVolume() async {
     final saved = await PlaybackStateService.loadVolume();
@@ -192,7 +213,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_isRemoteControlling || _endHandled) return;
     final track = _currentTrack;
     if (track == null) return;
-    final trackDuration = track.duration;
+    final trackDuration = _trimEnd ?? track.duration;
     if (trackDuration <= Duration.zero) return;
     if (!_loaded || !_audioHandler.player.playing) return;
     if (pos < trackDuration - const Duration(milliseconds: 700)) return;
@@ -393,9 +414,20 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _endHandled = false;
     _loaded = true;
     _isLoadingTrack = true;
+
+    final videoId = track.videoId;
+    final trim = (videoId != null && videoId.isNotEmpty)
+        ? _trimLookup?.call(videoId)
+        : null;
+    _trimStart = trim != null ? Duration(milliseconds: trim.startMs) : null;
+    _trimEnd = trim != null ? Duration(milliseconds: trim.endMs) : null;
+    final effectiveStartAt = _clampToTrim(
+      startAt == Duration.zero && _trimStart != null ? _trimStart! : startAt,
+    );
+
     notifyListeners();
     try {
-      await _audioHandler.loadTrack(track, startAt: startAt);
+      await _audioHandler.loadTrack(track, startAt: effectiveStartAt);
       await _audioHandler.player.setVolume(_volume);
       _prefetchUpcomingTracks();
       _pushSessionIfHosting();
@@ -692,8 +724,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void seek(Duration position) {
     if (_isRemoteControlling) return;
-    _audioHandler.player.seek(position);
-    if (!_loaded) _pendingResumePosition = position;
+    final clamped = _clampToTrim(position);
+    _audioHandler.player.seek(clamped);
+    if (!_loaded) _pendingResumePosition = clamped;
   }
 
   @override

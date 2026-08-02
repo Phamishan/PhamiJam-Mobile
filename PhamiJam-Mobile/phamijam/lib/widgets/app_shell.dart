@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/playlist.dart';
@@ -7,9 +9,11 @@ import 'package:phamijam/pages/library_page.dart';
 import 'package:phamijam/pages/playlist_detail_page.dart';
 import 'package:phamijam/pages/search_page.dart';
 import 'package:phamijam/pages/settings_page.dart';
+import 'package:phamijam/providers/edited_songs_provider.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
+import 'package:phamijam/services/wrapphamied_widget_service.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/remote_session_banner.dart';
@@ -22,7 +26,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _navIndex = 0;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -37,15 +41,29 @@ class _AppShellState extends State<AppShell> {
       if (mounted) context.read<LibraryProvider>().refresh();
     });
     _player = context.read<PlayerProvider>();
+    _player.bindEditedSongsLookup(context.read<EditedSongsProvider>().trimFor);
+    unawaited(context.read<EditedSongsProvider>().refresh());
     _player.addListener(_handlePlayerChanged);
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(WrapphamiedWidgetService.refresh());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _player.removeListener(_handlePlayerChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(WrapphamiedWidgetService.refresh());
+    }
   }
 
   void _handlePlayerChanged() {

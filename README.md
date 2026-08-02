@@ -38,6 +38,12 @@
   - Added a YouTube Music/YouTube search engine toggle
   - Added a clear queue button
   - Redesigned artist page
+- 1.0.5 - 02/08/2026
+  - Added custom color
+  - Added song editing
+  - Redesigned artist page
+  - Fixed "Failed to load artist"
+  - Added widgets
 
 ## Screenshots:
 

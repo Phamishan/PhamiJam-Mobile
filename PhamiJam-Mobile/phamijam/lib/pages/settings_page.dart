@@ -2,12 +2,35 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/pages/downloads_page.dart';
+import 'package:phamijam/pages/edited_songs_page.dart';
 import 'package:phamijam/pages/wrapphamied_page.dart';
+import 'package:phamijam/providers/edited_songs_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
+import 'package:phamijam/theme/app_theme.dart';
 import 'package:provider/provider.dart';
+
+const List<Color> _accentColorPresets = [
+  Color(0xFFE53935),
+  Color(0xFFF4511E),
+  Color(0xFF43A047),
+  Color(0xFF00897B),
+  Color(0xFF1E88E5),
+  Color(0xFF5E35B1),
+  Color(0xFF8E24AA),
+  Color(0xFFD81B60),
+];
+
+Color? _parseHexColor(String input) {
+  var hex = input.trim().replaceFirst('#', '');
+  if (hex.length == 6) hex = 'FF$hex';
+  if (hex.length != 8) return null;
+  final value = int.tryParse(hex, radix: 16);
+  if (value == null) return null;
+  return Color(value);
+}
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -32,6 +55,149 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAccentColorSwatch({
+    required Color displayColor,
+    required bool selected,
+    required VoidCallback onTap,
+    required ColorScheme colorScheme,
+    IconData? icon,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: displayColor,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? colorScheme.onSurface : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: icon != null
+            ? Icon(icon, size: 16, color: Colors.white)
+            : (selected
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    )
+                  : null),
+      ),
+    );
+  }
+
+  Widget _buildAccentColorPicker(ColorScheme colorScheme) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        final current = themeProvider.accentColor;
+        final isCustom =
+            current != null && !_accentColorPresets.contains(current);
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _buildAccentColorSwatch(
+              displayColor: kBrandGold,
+              selected: current == null,
+              onTap: () => themeProvider.setAccentColor(null),
+              colorScheme: colorScheme,
+            ),
+            for (final preset in _accentColorPresets)
+              _buildAccentColorSwatch(
+                displayColor: preset,
+                selected: current == preset,
+                onTap: () => themeProvider.setAccentColor(preset),
+                colorScheme: colorScheme,
+              ),
+            _buildAccentColorSwatch(
+              displayColor: isCustom
+                  ? current
+                  : colorScheme.onSurface.withValues(alpha: 0.12),
+              selected: isCustom,
+              icon: isCustom ? null : Icons.colorize_rounded,
+              onTap: () => _showCustomColorDialog(
+                themeProvider,
+                isCustom ? current : null,
+              ),
+              colorScheme: colorScheme,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showCustomColorDialog(
+    ThemeProvider themeProvider,
+    Color? initial,
+  ) async {
+    final controller = TextEditingController(
+      text: initial != null
+          ? '#${initial.toARGB32().toRadixString(16).substring(2).toUpperCase()}'
+          : '',
+    );
+    Color? preview = initial;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+            return AlertDialog(
+              title: const Text('Custom accent color'),
+              content: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: preview ?? colorScheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      autofocus: true,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        labelText: 'Hex color',
+                        hintText: '#DBA43A',
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() => preview = _parseHexColor(value));
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: preview == null
+                      ? null
+                      : () {
+                          themeProvider.setAccentColor(preview);
+                          Navigator.of(dialogContext).pop();
+                        },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -175,6 +341,10 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
+          const SizedBox(height: 16),
+          Text('Accent color', style: Theme.of(context).textTheme.bodyLarge),
+          const SizedBox(height: 10),
+          _buildAccentColorPicker(colorScheme),
           const SizedBox(height: 28),
           Text(
             'Search & Artists',
@@ -260,6 +430,20 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
+          const SizedBox(height: 10),
+          Consumer<EditedSongsProvider>(
+            builder: (context, editedSongs, _) {
+              return _SettingsTile(
+                icon: Icons.content_cut_rounded,
+                title: 'Edited Songs',
+                subtitle: '${editedSongs.all.length} songs trimmed',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const EditedSongsPage()),
+                ),
+                color: colorScheme.onSurface,
+              );
+            },
+          ),
           const SizedBox(height: 28),
           Text('App', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
@@ -284,7 +468,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.0.4',
+            subtitle: 'Version 1.0.5',
             color: colorScheme.onSurface,
           ),
         ],

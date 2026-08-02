@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -6,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phamijam/firebase_options.dart';
 import 'package:phamijam/pages/login.dart';
+import 'package:phamijam/providers/edited_songs_provider.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
@@ -13,6 +16,7 @@ import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/audio_stream_resolver.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
+import 'package:phamijam/services/wrapphamied_widget_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/app_shell.dart';
 import 'package:provider/provider.dart';
@@ -43,6 +47,8 @@ void main() async {
   final downloadsProvider = DownloadsProvider(resolver: sharedResolver);
   audioHandler.resolveLocalPath = downloadsProvider.localPathFor;
 
+  unawaited(WrapphamiedWidgetService.refresh());
+
   runApp(
     MyApp(audioHandler: audioHandler, downloadsProvider: downloadsProvider),
   );
@@ -67,18 +73,19 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => EditedSongsProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider.value(value: downloadsProvider),
       ],
       child: Builder(
         builder: (context) {
-          final themeMode = context.watch<ThemeProvider>().flutterThemeMode;
+          final themeProvider = context.watch<ThemeProvider>();
           return MaterialApp(
             title: 'PhamiJam',
             debugShowCheckedModeBanner: false,
-            themeMode: themeMode,
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
+            themeMode: themeProvider.flutterThemeMode,
+            theme: AppTheme.light(accentColor: themeProvider.accentColor),
+            darkTheme: AppTheme.dark(accentColor: themeProvider.accentColor),
             home: StreamBuilder<User?>(
               stream: FirebaseAuth.instance.authStateChanges(),
               builder: (context, snapshot) {

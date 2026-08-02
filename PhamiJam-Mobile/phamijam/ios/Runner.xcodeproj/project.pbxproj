@@ -17,6 +17,8 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		F0A1B2C3D4E5F6A7B8C9D0E2 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F6A7B8C9D0E1 /* GoogleService-Info.plist */; };
+		AC01AC0000000000000001 /* PhamiJamWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC01AC0000000000000006 /* PhamiJamWidgets.swift */; };
+		AC01AC0000000000000002 /* PhamiJamWidgets.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = AC01AC0000000000000005 /* PhamiJamWidgets.appex */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,6 +28,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
+		};
+		AC01AC0000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC01AC000000000000000B;
+			remoteInfo = "PhamiJamWidgets";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -39,6 +48,17 @@
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC01AC0000000000000004 /* Copy Files */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC01AC0000000000000002 /* PhamiJamWidgets.appex in Copy Files */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			name = "Copy Files";
+			dstPath = "";
+			dstSubfolderSpec = 13;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -61,6 +81,11 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F0A1B2C3D4E5F6A7B8C9D0E1 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		AC01AC0000000000000005 /* PhamiJamWidgets.appex */ = {isa = PBXFileReference; name = "PhamiJamWidgets.appex"; path = "PhamiJamWidgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; };
+		AC01AC0000000000000006 /* PhamiJamWidgets.swift */ = {isa = PBXFileReference; name = "PhamiJamWidgets.swift"; path = "PhamiJamWidgets.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; includeInIndex = 0; };
+		AC01AC0000000000000007 /* PhamiJamWidgets-Info.plist */ = {isa = PBXFileReference; name = "PhamiJamWidgets-Info.plist"; path = "PhamiJamWidgets-Info.plist"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = text.plist.xml; includeInIndex = 0; };
+		AC01AC0000000000000008 /* PhamiJamWidgets.entitlements */ = {isa = PBXFileReference; name = "PhamiJamWidgets.entitlements"; path = "PhamiJamWidgets.entitlements"; sourceTree = "<group>"; lastKnownFileType = text.plist.entitlements; includeInIndex = 0; };
+		AC01AC0000000000000009 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -102,6 +127,7 @@
 				97C146F01CF9000F007C117D /* Runner */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
+				AC01AC000000000000000A /* PhamiJamWidgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -110,6 +136,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
+				AC01AC0000000000000005 /* PhamiJamWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -122,6 +149,7 @@
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
 				97C147021CF9000F007C117D /* Info.plist */,
 				F0A1B2C3D4E5F6A7B8C9D0E1 /* GoogleService-Info.plist */,
+				AC01AC0000000000000009 /* Runner.entitlements */,
 				1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */,
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
@@ -129,6 +157,17 @@
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		AC01AC000000000000000A /* PhamiJamWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				AC01AC0000000000000006 /* PhamiJamWidgets.swift */,
+				AC01AC0000000000000007 /* PhamiJamWidgets-Info.plist */,
+				AC01AC0000000000000008 /* PhamiJamWidgets.entitlements */,
+			);
+			name = PhamiJamWidgets;
+			path = PhamiJamWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -160,11 +199,13 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				AC01AC0000000000000004 /* Copy Files */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				AC01AC000000000000000D /* PBXTargetDependency */,
 			);
 			name = Runner;
 			packageProductDependencies = (
@@ -173,6 +214,21 @@
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
 			productType = "com.apple.product-type.application";
+		};
+		AC01AC000000000000000B /* "PhamiJamWidgets" */ = {
+			isa = PBXNativeTarget;
+			name = "PhamiJamWidgets";
+			productName = "PhamiJamWidgets";
+			productReference = AC01AC0000000000000005 /* PhamiJamWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+			buildConfigurationList = AC01AC0000000000000011 /* Build configuration list for PBXNativeTarget "PhamiJamWidgets" */;
+			buildPhases = (
+				AC01AC000000000000000C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
 		};
 /* End PBXNativeTarget section */
 
@@ -212,6 +268,7 @@
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
+				AC01AC000000000000000B /* "PhamiJamWidgets" */,
 			);
 		};
 /* End PBXProject section */
@@ -291,6 +348,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC01AC000000000000000C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC01AC0000000000000001 /* PhamiJamWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -298,6 +363,11 @@
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
+		};
+		AC01AC000000000000000D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AC01AC000000000000000B /* "PhamiJamWidgets" */;
+			targetProxy = AC01AC0000000000000003 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -391,6 +461,8 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
+				CODE_SIGN_ENTITLEMENTS = "Runner/Runner.entitlements";
+				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Profile;
 		};
@@ -571,6 +643,8 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
+				CODE_SIGN_ENTITLEMENTS = "Runner/Runner.entitlements";
+				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Debug;
 		};
@@ -592,8 +666,71 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
+				CODE_SIGN_ENTITLEMENTS = "Runner/Runner.entitlements";
+				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Release;
+		};
+		AC01AC000000000000000E /* Debug */ = {
+			name = Debug;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = "PhamiJamWidgets/PhamiJamWidgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "phamishan.phamijam.Widget";
+				CODE_SIGN_ENTITLEMENTS = "PhamiJamWidgets/PhamiJamWidgets.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				GENERATE_INFOPLIST_FILE = NO;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+			};
+		};
+		AC01AC000000000000000F /* Release */ = {
+			name = Release;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "PhamiJamWidgets/PhamiJamWidgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "phamishan.phamijam.Widget";
+				CODE_SIGN_ENTITLEMENTS = "PhamiJamWidgets/PhamiJamWidgets.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				GENERATE_INFOPLIST_FILE = NO;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+			};
+		};
+		AC01AC0000000000000010 /* Profile */ = {
+			name = Profile;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "PhamiJamWidgets/PhamiJamWidgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "phamishan.phamijam.Widget";
+				CODE_SIGN_ENTITLEMENTS = "PhamiJamWidgets/PhamiJamWidgets.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				GENERATE_INFOPLIST_FILE = NO;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+			};
 		};
 /* End XCBuildConfiguration section */
 
@@ -624,6 +761,16 @@
 				97C147061CF9000F007C117D /* Debug */,
 				97C147071CF9000F007C117D /* Release */,
 				249021D4217E4FDB00AE95B9 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AC01AC0000000000000011 /* Build configuration list for PBXNativeTarget "PhamiJamWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC01AC000000000000000E /* Debug */,
+				AC01AC000000000000000F /* Release */,
+				AC01AC0000000000000010 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
