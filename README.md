@@ -44,6 +44,13 @@
   - Redesigned artist page
   - Fixed "Failed to load artist"
   - Added widgets
+- 1.0.6 - 11/08/2026
+  - Added a checkbox to song edits
+  - Added option to insert saved playlists
+  - Added like button to every song
+  - Added a setting to show/hide playlists
+  - Redesigned artist page
+  - Updated app icons
 
 ## Screenshots:
 

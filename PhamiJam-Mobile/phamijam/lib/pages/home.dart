@@ -7,6 +7,7 @@ import 'package:phamijam/components/playlist_pin_action.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/widgets/playlist_card.dart';
 import 'package:phamijam/widgets/recent_artists_row.dart';
@@ -31,6 +32,10 @@ class HomePage extends StatelessWidget {
     final library = context.watch<LibraryProvider>();
     final downloads = context.watch<DownloadsProvider>();
     final player = context.read<PlayerProvider>();
+    final settings = context.watch<SettingsProvider>();
+    final visiblePlaylists = library.madeForYou
+        .where((p) => !settings.isPlaylistHidden(p.id))
+        .toList();
     final user = FirebaseAuth.instance.currentUser;
     final firstName = (user?.displayName ?? 'there').split(' ').first;
     final colorScheme = Theme.of(context).colorScheme;
@@ -70,8 +75,10 @@ class HomePage extends StatelessWidget {
               RecentArtistsRow(tracks: library.recentlyPlayed),
               const SizedBox(height: 24),
             ],
-            SectionHeader(title: 'Your Playlists', onSeeAll: onOpenLibrary),
-            _PlaylistRow(playlists: library.madeForYou, onOpen: onOpenPlaylist),
+            if (visiblePlaylists.isNotEmpty) ...[
+              SectionHeader(title: 'Your Playlists', onSeeAll: onOpenLibrary),
+              _PlaylistRow(playlists: visiblePlaylists, onOpen: onOpenPlaylist),
+            ],
             if (library.recentlyPlayed.isNotEmpty) ...[
               const SizedBox(height: 32),
               SectionHeader(title: 'Jump Back In'),

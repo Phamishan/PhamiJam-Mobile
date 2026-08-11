@@ -7,10 +7,17 @@ import 'package:phamijam/providers/edited_songs_provider.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:provider/provider.dart';
 
-Future<void> showEditTrackDialog(BuildContext context, Track track) async {
+Future<void> showEditTrackDialog(
+  BuildContext context,
+  Track track, {
+  String? playlistId,
+  String? playlistName,
+}) async {
   final videoId = track.videoId;
   if (videoId == null || videoId.isEmpty) return;
-  final existing = context.read<EditedSongsProvider>().trimFor(videoId);
+  final editedSongs = context.read<EditedSongsProvider>();
+  final existing = editedSongs.trimFor(videoId, playlistId);
+  final existingIsScoped = playlistId != null && existing?.playlistId != null;
   await showDialog<void>(
     context: context,
     builder: (dialogContext) => _EditTrackDialog(
@@ -20,6 +27,9 @@ Future<void> showEditTrackDialog(BuildContext context, Track track) async {
       thumbnailUrl: track.thumbnailUrl,
       durationSeconds: track.duration.inSeconds,
       existing: existing,
+      playlistId: playlistId,
+      playlistName: playlistName,
+      initialScopedToPlaylist: existingIsScoped,
     ),
   );
 }
@@ -31,7 +41,10 @@ class _EditTrackDialog extends StatefulWidget {
     required this.artist,
     required this.thumbnailUrl,
     required this.durationSeconds,
+    required this.initialScopedToPlaylist,
     this.existing,
+    this.playlistId,
+    this.playlistName,
   });
 
   final String videoId;
@@ -40,6 +53,9 @@ class _EditTrackDialog extends StatefulWidget {
   final String thumbnailUrl;
   final int durationSeconds;
   final EditedSongTrim? existing;
+  final String? playlistId;
+  final String? playlistName;
+  final bool initialScopedToPlaylist;
 
   @override
   State<_EditTrackDialog> createState() => _EditTrackDialogState();
@@ -51,10 +67,15 @@ class _EditTrackDialogState extends State<_EditTrackDialog> {
   int _durationSeconds = 0;
   bool _loadingDuration = false;
   bool _saving = false;
+  late bool _scopedToPlaylist;
+  bool get _canScope => widget.playlistId != null;
+  String? get _effectivePlaylistId =>
+      _scopedToPlaylist ? widget.playlistId : null;
 
   @override
   void initState() {
     super.initState();
+    _scopedToPlaylist = widget.initialScopedToPlaylist;
     _durationSeconds = widget.durationSeconds;
     _initRange();
     if (_durationSeconds <= 0) {
@@ -104,6 +125,7 @@ class _EditTrackDialogState extends State<_EditTrackDialog> {
       title: widget.title,
       artist: widget.artist,
       thumbnailUrl: widget.thumbnailUrl,
+      playlistId: _effectivePlaylistId,
     );
     try {
       await context.read<EditedSongsProvider>().saveTrim(trim);
@@ -120,7 +142,10 @@ class _EditTrackDialogState extends State<_EditTrackDialog> {
   Future<void> _remove() async {
     setState(() => _saving = true);
     try {
-      await context.read<EditedSongsProvider>().removeTrim(widget.videoId);
+      await context.read<EditedSongsProvider>().removeTrim(
+        widget.videoId,
+        _effectivePlaylistId,
+      );
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
@@ -134,6 +159,12 @@ class _EditTrackDialogState extends State<_EditTrackDialog> {
   @override
   Widget build(BuildContext context) {
     final hasDuration = _durationSeconds > 0;
+    final hasExistingForCurrentScope =
+        context.watch<EditedSongsProvider>().exactTrimFor(
+          widget.videoId,
+          _effectivePlaylistId,
+        ) !=
+        null;
     return AlertDialog(
       title: const Text('Edit song'),
       content: SizedBox(
@@ -194,11 +225,28 @@ class _EditTrackDialogState extends State<_EditTrackDialog> {
                 "This song's duration couldn't be found, so trimming isn't "
                 'available.',
               ),
+            if (_canScope) ...[
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                value: _scopedToPlaylist,
+                onChanged: _saving
+                    ? null
+                    : (value) =>
+                          setState(() => _scopedToPlaylist = value ?? false),
+                title: Text(
+                  'Only trim within "${widget.playlistName}"',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ],
           ],
         ),
       ),
       actions: [
-        if (widget.existing != null)
+        if (hasExistingForCurrentScope)
           TextButton(
             onPressed: _saving ? null : _remove,
             style: TextButton.styleFrom(

@@ -89,11 +89,14 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _isRemoteControlling = false;
   String? _dismissedRemoteKey;
 
-  EditedSongTrim? Function(String videoId)? _trimLookup;
+  EditedSongTrim? Function(String videoId, [String? playlistId])?
+  _trimLookup;
   Duration? _trimStart;
   Duration? _trimEnd;
 
-  void bindEditedSongsLookup(EditedSongTrim? Function(String videoId) lookup) {
+  void bindEditedSongsLookup(
+    EditedSongTrim? Function(String videoId, [String? playlistId]) lookup,
+  ) {
     _trimLookup = lookup;
   }
 
@@ -417,7 +420,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final videoId = track.videoId;
     final trim = (videoId != null && videoId.isNotEmpty)
-        ? _trimLookup?.call(videoId)
+        ? _trimLookup?.call(videoId, _currentSourcePlaylist?.id)
         : null;
     _trimStart = trim != null ? Duration(milliseconds: trim.startMs) : null;
     _trimEnd = trim != null ? Duration(milliseconds: trim.endMs) : null;

@@ -12,6 +12,7 @@ import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/widgets/section_header.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
@@ -64,7 +65,7 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
     try {
       final results = await Future.wait([
         YoutubeService.fetchChannelInfo(widget.channelId),
-        YoutubeService.fetchChannelVideos(widget.channelId, maxItems: 25),
+        YoutubeService.fetchChannelVideos(widget.channelId),
       ]);
       if (!mounted) return;
       setState(() {
@@ -93,6 +94,13 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
         ? ''
         : '${_formatCount(channel!.subscriberCount)} subscribers';
     final description = channel?.description ?? '';
+    final mostStreamed = [..._videos]
+      ..sort((a, b) => (b.viewCount ?? 0).compareTo(a.viewCount ?? 0));
+    final topStreamed = mostStreamed.take(5).toList();
+    final isThisChannelPlaying =
+        player.isPlaying &&
+        player.currentTrack != null &&
+        _videos.any((t) => t.id == player.currentTrack!.id);
 
     return SwipeBack(
       child: Scaffold(
@@ -200,9 +208,10 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                             ),
                             const SizedBox(width: 24),
                             _PlayButton(
-                              onTap: () => player.shuffle
-                                  ? player.shufflePlay(_videos)
-                                  : player.playQueue(_videos),
+                              isPlaying: isThisChannelPlaying,
+                              onTap: () => isThisChannelPlaying
+                                  ? player.togglePlayPause()
+                                  : player.shufflePlay(_videos),
                             ),
                             const SizedBox(width: 24),
                             IconButton(
@@ -312,9 +321,51 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                   ),
                 ),
               )
-            else
+            else ...[
+              if (topStreamed.isNotEmpty) ...[
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: SectionHeader(title: 'Most streamed'),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, i) {
+                      final track = topStreamed[i];
+                      return TrackTile(
+                        index: i + 1,
+                        track: track,
+                        isActive: player.currentTrack?.id == track.id,
+                        onTap: () =>
+                            player.playQueue(topStreamed, startIndex: i),
+                        onPlayNext: () => player.playNext(track),
+                        onMore: () => showAddToPlaylistSheet(context, track),
+                        isLiked: library.isLiked(track),
+                        onToggleLike: () => toggleTrackLike(context, track),
+                        isDownloaded: downloads.isDownloaded(track.videoId),
+                        downloadProgress: downloads.progressFor(
+                          track.videoId,
+                        ),
+                        onToggleDownload: () =>
+                            toggleTrackDownload(context, track),
+                        onCancelDownload: track.videoId == null
+                            ? null
+                            : () => downloads.cancelDownload(track.videoId!),
+                      );
+                    }, childCount: topStreamed.length),
+                  ),
+                ),
+              ],
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: SectionHeader(title: 'Latest released'),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate((context, i) {
                     final track = _videos[i];
@@ -338,6 +389,7 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                   }, childCount: _videos.length),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -347,7 +399,8 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
 
 class _PlayButton extends StatelessWidget {
   final VoidCallback? onTap;
-  const _PlayButton({required this.onTap});
+  final bool isPlaying;
+  const _PlayButton({required this.onTap, this.isPlaying = false});
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +416,7 @@ class _PlayButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Icon(
-            Icons.play_arrow_rounded,
+            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
             color: onTap == null
                 ? colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
                 : colorScheme.onPrimary,

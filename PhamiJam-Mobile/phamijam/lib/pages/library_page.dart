@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/create_playlist_sheet.dart';
 import 'package:phamijam/components/playlist_pin_action.dart';
+import 'package:phamijam/components/save_playlist_sheet.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/providers/library_provider.dart';
+import 'package:phamijam/providers/saved_playlists_provider.dart';
+import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/widgets/section_header.dart';
 import 'package:provider/provider.dart';
 
 class LibraryPage extends StatefulWidget {
@@ -19,6 +23,8 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
+    final savedPlaylists = context.watch<SavedPlaylistsProvider>();
+    final settings = context.watch<SettingsProvider>();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
@@ -36,6 +42,11 @@ class _LibraryPageState extends State<LibraryPage> {
               ),
               Row(
                 children: [
+                  _ActionIconButton(
+                    icon: Icons.bookmark_add_outlined,
+                    onTap: () => showSavePlaylistSheet(context),
+                  ),
+                  const SizedBox(width: 8),
                   _ActionIconButton(
                     icon: Icons.playlist_add_rounded,
                     onTap: () async {
@@ -62,47 +73,88 @@ class _LibraryPageState extends State<LibraryPage> {
                     message: library.errorMessage!,
                     onRetry: library.refresh,
                   )
-                : _buildContent(context, library),
+                : _buildContent(context, library, savedPlaylists, settings),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, LibraryProvider library) {
-    final playlists = library.userPlaylists;
-    if (playlists.isEmpty && library.likedSongs.isEmpty) {
+  Widget _buildContent(
+    BuildContext context,
+    LibraryProvider library,
+    SavedPlaylistsProvider savedPlaylists,
+    SettingsProvider settings,
+  ) {
+    if (library.userPlaylists.isEmpty &&
+        library.likedSongs.isEmpty &&
+        savedPlaylists.playlists.isEmpty) {
       return _EmptyState(onRefresh: library.refresh);
     }
+    final playlists = library.userPlaylists
+        .where((p) => !settings.isPlaylistHidden(p.id))
+        .toList();
+    final saved = savedPlaylists.playlists;
 
     return RefreshIndicator(
-      onRefresh: library.refresh,
+      onRefresh: () =>
+          Future.wait([library.refresh(), savedPlaylists.refresh()]),
       color: Theme.of(context).colorScheme.primary,
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      child: GridView.builder(
-        padding: const EdgeInsets.only(bottom: 24),
-        itemCount: playlists.length + 1,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 14,
-          crossAxisSpacing: 14,
-          childAspectRatio: 0.82,
-        ),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _LikedSongsCard(
-              count: library.likedSongs.length,
-              onTap: () => widget.onOpenPlaylist(library.likedSongsPlaylist),
-            );
-          }
-          final playlist = playlists[index - 1];
-          return _LibraryPlaylistTile(
-            playlist: playlist,
-            onTap: () => widget.onOpenPlaylist(playlist),
-            onLongPress: () => togglePlaylistPin(context, playlist),
-            onTogglePin: () => togglePlaylistPin(context, playlist),
-          );
-        },
+      child: CustomScrollView(
+        slivers: [
+          SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
+              childAspectRatio: 0.82,
+            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              if (index == 0) {
+                return _LikedSongsCard(
+                  count: library.likedSongs.length,
+                  onTap: () =>
+                      widget.onOpenPlaylist(library.likedSongsPlaylist),
+                );
+              }
+              final playlist = playlists[index - 1];
+              return _LibraryPlaylistTile(
+                playlist: playlist,
+                onTap: () => widget.onOpenPlaylist(playlist),
+                onLongPress: () => togglePlaylistPin(context, playlist),
+                onTogglePin: () => togglePlaylistPin(context, playlist),
+              );
+            }, childCount: playlists.length + 1),
+          ),
+          if (saved.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 24),
+                child: SectionHeader(title: 'Saved Playlists'),
+              ),
+            ),
+            SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 0.82,
+              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final playlist = saved[index];
+                return _LibraryPlaylistTile(
+                  playlist: playlist,
+                  onTap: () => widget.onOpenPlaylist(playlist),
+                  onLongPress: () => savedPlaylists.unsave(playlist.id),
+                  onTogglePin: null,
+                  onUnsave: () => savedPlaylists.unsave(playlist.id),
+                );
+              }, childCount: saved.length),
+            ),
+          ],
+          const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+        ],
       ),
     );
   }
@@ -113,12 +165,14 @@ class _LibraryPlaylistTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onTogglePin;
+  final VoidCallback? onUnsave;
 
   const _LibraryPlaylistTile({
     required this.playlist,
     required this.onTap,
     this.onLongPress,
     this.onTogglePin,
+    this.onUnsave,
   });
 
   @override
@@ -173,7 +227,7 @@ class _LibraryPlaylistTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                    if (onTogglePin != null)
+                    if (onTogglePin != null || onUnsave != null)
                       Positioned(
                         top: 4,
                         right: 4,
@@ -188,24 +242,37 @@ class _LibraryPlaylistTile extends StatelessWidget {
                             ),
                             onSelected: (value) {
                               if (value == 'toggle_pin') onTogglePin?.call();
+                              if (value == 'unsave') onUnsave?.call();
                             },
                             itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'toggle_pin',
-                                child: ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(
-                                    playlist.isPinned
-                                        ? Icons.push_pin_outlined
-                                        : Icons.push_pin_rounded,
-                                  ),
-                                  title: Text(
-                                    playlist.isPinned
-                                        ? 'Unpin playlist'
-                                        : 'Pin playlist',
+                              if (onUnsave != null)
+                                const PopupMenuItem(
+                                  value: 'unsave',
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(
+                                      Icons.bookmark_remove_outlined,
+                                    ),
+                                    title: Text('Remove from saved'),
                                   ),
                                 ),
-                              ),
+                              if (onTogglePin != null)
+                                PopupMenuItem(
+                                  value: 'toggle_pin',
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(
+                                      playlist.isPinned
+                                          ? Icons.push_pin_outlined
+                                          : Icons.push_pin_rounded,
+                                    ),
+                                    title: Text(
+                                      playlist.isPinned
+                                          ? 'Unpin playlist'
+                                          : 'Pin playlist',
+                                    ),
+                                  ),
+                                ),
                             ],
                             child: const Padding(
                               padding: EdgeInsets.all(7),

@@ -8,7 +8,7 @@ class Playlist {
   final List<Track> tracks;
   final bool isFromYoutube;
   final bool isPinned;
-
+  final bool isOwnedByUser;
   final int itemCount;
 
   const Playlist({
@@ -19,6 +19,7 @@ class Playlist {
     this.tracks = const [],
     this.isFromYoutube = true,
     this.isPinned = false,
+    this.isOwnedByUser = true,
     int? itemCount,
   }) : itemCount = itemCount ?? tracks.length;
 
@@ -36,6 +37,7 @@ class Playlist {
     tracks: tracks ?? this.tracks,
     isFromYoutube: isFromYoutube,
     isPinned: isPinned ?? this.isPinned,
+    isOwnedByUser: isOwnedByUser,
     itemCount: itemCount ?? this.itemCount,
   );
 }

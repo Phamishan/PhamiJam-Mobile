@@ -42,7 +42,9 @@ class _PlaylistCardState extends State<PlaylistCard> {
           width: widget.width,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _hovering ? colorScheme.surfaceContainerHighest : colorScheme.surfaceContainer,
+            color: _hovering
+                ? colorScheme.surfaceContainerHighest
+                : colorScheme.surfaceContainer,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -73,9 +75,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: colorScheme.shadow.withValues(
-                                alpha: 0.45,
-                              ),
+                              color: colorScheme.shadow.withValues(alpha: 0.45),
                               blurRadius: 6,
                             ),
                           ],

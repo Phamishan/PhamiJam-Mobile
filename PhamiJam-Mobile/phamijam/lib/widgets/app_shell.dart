@@ -12,6 +12,7 @@ import 'package:phamijam/pages/settings_page.dart';
 import 'package:phamijam/providers/edited_songs_provider.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/providers/saved_playlists_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/services/wrapphamied_widget_service.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
@@ -43,6 +44,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _player = context.read<PlayerProvider>();
     _player.bindEditedSongsLookup(context.read<EditedSongsProvider>().trimFor);
     unawaited(context.read<EditedSongsProvider>().refresh());
+    unawaited(context.read<SavedPlaylistsProvider>().refresh());
+    unawaited(context.read<SettingsProvider>().refreshHiddenPlaylists());
     _player.addListener(_handlePlayerChanged);
     WidgetsBinding.instance.addObserver(this);
     unawaited(WrapphamiedWidgetService.refresh());

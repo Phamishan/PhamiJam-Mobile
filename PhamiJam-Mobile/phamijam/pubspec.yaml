@@ -1,7 +1,7 @@
 name: phamijam
 description: "A new Flutter project."
 publish_to: "none"
-version: 1.0.5+1
+version: 1.0.6+1
 
 environment:
   sdk: ^3.12.2
@@ -49,16 +49,23 @@ flutter_launcher_icons:
   remove_alpha_ios: true
   adaptive_icon_background: "#DBA43A"
   adaptive_icon_foreground: "assets/images/p-trans.png"
+  image_path_ios_dark_transparent: "assets/images/p-trans.png"
+  image_path_ios_tinted_grayscale: "assets/images/p-trans.png"
+  desaturate_tinted_to_grayscale_ios: true
 
 flutter_native_splash:
   color: "#DBA43A"
   image: "assets/images/p-trans.png"
+  color_dark: "#1C1B1A"
+  image_dark: "assets/images/p-trans.png"
 
   fullscreen: true
 
   android_12:
     image: "assets/images/p-trans.png"
     color: "#DBA43A"
+    image_dark: "assets/images/p-trans.png"
+    color_dark: "#1C1B1A"
 
 flutter:
   uses-material-design: true

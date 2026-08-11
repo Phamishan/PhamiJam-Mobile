@@ -11,18 +11,16 @@ class TrackTile extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback? onMore;
   final VoidCallback? onArtistTap;
-
   final VoidCallback? onPlayNext;
-
   final Future<bool> Function()? onRemove;
-
   final bool isLiked;
   final VoidCallback? onToggleLike;
-
   final bool isDownloaded;
   final double? downloadProgress;
   final VoidCallback? onToggleDownload;
   final VoidCallback? onCancelDownload;
+  final String? playlistId;
+  final String? playlistName;
 
   const TrackTile({
     super.key,
@@ -40,6 +38,8 @@ class TrackTile extends StatefulWidget {
     this.downloadProgress,
     this.onToggleDownload,
     this.onCancelDownload,
+    this.playlistId,
+    this.playlistName,
   });
 
   @override
@@ -230,7 +230,12 @@ class _TrackTileState extends State<TrackTile> {
                       } else if (value == 'download') {
                         widget.onToggleDownload?.call();
                       } else if (value == 'edit_trim') {
-                        showEditTrackDialog(context, widget.track);
+                        showEditTrackDialog(
+                          context,
+                          widget.track,
+                          playlistId: widget.playlistId,
+                          playlistName: widget.playlistName,
+                        );
                       }
                     },
                     itemBuilder: (context) => [

@@ -227,7 +227,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                               ),
                             ),
                           ),
-                          if (playlist.isFromYoutube ||
+                          if ((playlist.isFromYoutube &&
+                                  playlist.isOwnedByUser) ||
                               playlist.tracks.isNotEmpty)
                             Builder(
                               builder: (context) {
@@ -263,7 +264,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                     }
                                   },
                                   itemBuilder: (context) => [
-                                    if (playlist.isFromYoutube) ...[
+                                    if (playlist.isFromYoutube &&
+                                        playlist.isOwnedByUser) ...[
                                       PopupMenuItem(
                                         value: 'pin',
                                         child: ListTile(
@@ -540,7 +542,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                         sourcePlaylist: playlist,
                       ),
                       onPlayNext: () => player.playNext(track),
-                      onRemove: () => _handleRemoveTrack(track),
+                      onRemove: playlist.isOwnedByUser
+                          ? () => _handleRemoveTrack(track)
+                          : null,
                       onMore: () => showAddToPlaylistSheet(context, track),
                       isLiked: library.isLiked(track),
                       onToggleLike: () => toggleTrackLike(context, track),
@@ -556,6 +560,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                         channelId: track.channelId,
                         artistName: track.artist,
                       ),
+                      playlistId: playlist.id,
+                      playlistName: playlist.title,
                     );
                   }, childCount: filteredTracks.length),
                 ),

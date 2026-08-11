@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/pages/downloads_page.dart';
 import 'package:phamijam/pages/edited_songs_page.dart';
+import 'package:phamijam/pages/manage_playlist_visibility_page.dart';
 import 'package:phamijam/pages/wrapphamied_page.dart';
 import 'package:phamijam/providers/edited_songs_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
@@ -413,6 +414,20 @@ class _SettingsPageState extends State<SettingsPage> {
             },
           ),
           const SizedBox(height: 28),
+          Text('Library', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          _SettingsTile(
+            icon: Icons.playlist_play_rounded,
+            title: 'Playlist Visibility',
+            subtitle: 'Choose which playlists show on Home and Library',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ManagePlaylistVisibilityPage(),
+              ),
+            ),
+            color: colorScheme.onSurface,
+          ),
+          const SizedBox(height: 28),
           Text('Storage', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
           Consumer<DownloadsProvider>(
@@ -468,7 +483,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.0.5',
+            subtitle: 'Version 1.0.6',
             color: colorScheme.onSurface,
           ),
         ],

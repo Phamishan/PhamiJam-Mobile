@@ -6,8 +6,8 @@ class Track {
   final Duration duration;
   final String? videoId;
   final String? channelId;
-
   final String? playlistItemId;
+  final int? viewCount;
 
   const Track({
     required this.id,
@@ -18,5 +18,6 @@ class Track {
     this.videoId,
     this.channelId,
     this.playlistItemId,
+    this.viewCount,
   });
 }

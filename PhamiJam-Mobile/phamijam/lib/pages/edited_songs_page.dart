@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:phamijam/components/like_action.dart';
+import 'package:phamijam/models/edited_song_trim.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/providers/edited_songs_provider.dart';
+import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
@@ -49,10 +52,66 @@ class EditedSongsPage extends StatelessWidget {
     }
   }
 
+  Widget _buildRow(
+    BuildContext context,
+    ColorScheme colorScheme,
+    EditedSongsProvider editedSongs,
+    LibraryProvider library,
+    EditedSongTrim trim,
+  ) {
+    final track = Track(
+      id: trim.videoId,
+      title: trim.title,
+      artist: trim.artist,
+      thumbnailUrl: trim.thumbnailUrl,
+      videoId: trim.videoId,
+    );
+    return ListTile(
+      leading: NetworkThumbnail(
+        url: trim.thumbnailUrl,
+        width: 44,
+        height: 44,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      title: Text(
+        trim.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${_formatMs(trim.startMs)} - ${_formatMs(trim.endMs)}',
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            onPressed: () => toggleTrackLike(context, track),
+            icon: Icon(
+              library.isLiked(track)
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Reset',
+            onPressed: () => editedSongs.removeTrim(trim.videoId),
+            icon: Icon(
+              Icons.restart_alt_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      onTap: () => context.read<PlayerProvider>().playQueue([track]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final editedSongs = context.watch<EditedSongsProvider>();
+    final library = context.watch<LibraryProvider>();
     final trims = List.of(editedSongs.all)
       ..sort((a, b) => a.title.compareTo(b.title));
 
@@ -101,42 +160,12 @@ class EditedSongsPage extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 16),
                           children: [
                             for (final trim in trims)
-                              ListTile(
-                                leading: NetworkThumbnail(
-                                  url: trim.thumbnailUrl,
-                                  width: 44,
-                                  height: 44,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                title: Text(
-                                  trim.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Text(
-                                  '${_formatMs(trim.startMs)} - '
-                                  '${_formatMs(trim.endMs)}',
-                                ),
-                                trailing: IconButton(
-                                  tooltip: 'Reset',
-                                  onPressed: () =>
-                                      editedSongs.removeTrim(trim.videoId),
-                                  icon: Icon(
-                                    Icons.restart_alt_rounded,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                onTap: () => context
-                                    .read<PlayerProvider>()
-                                    .playQueue([
-                                      Track(
-                                        id: trim.videoId,
-                                        title: trim.title,
-                                        artist: trim.artist,
-                                        thumbnailUrl: trim.thumbnailUrl,
-                                        videoId: trim.videoId,
-                                      ),
-                                    ]),
+                              _buildRow(
+                                context,
+                                colorScheme,
+                                editedSongs,
+                                library,
+                                trim,
                               ),
                           ],
                         ),

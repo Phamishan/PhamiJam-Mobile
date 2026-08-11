@@ -192,6 +192,30 @@ class YoutubeService {
     return playlists;
   }
 
+  static Future<Playlist?> fetchPlaylistById(String playlistId) async {
+    final data = await _get('playlists', {
+      'part': 'snippet,contentDetails',
+      'id': playlistId,
+    });
+    final items = data['items'] as List? ?? [];
+    if (items.isEmpty) return null;
+
+    final map = items.first as Map<String, dynamic>;
+    final snippet = map['snippet'] as Map<String, dynamic>?;
+    final contentDetails = map['contentDetails'] as Map<String, dynamic>?;
+    final itemCount = (contentDetails?['itemCount'] as num?)?.toInt() ?? 0;
+    final description = (snippet?['description'] as String? ?? '').trim();
+
+    return Playlist(
+      id: map['id'] as String,
+      title: snippet?['title'] as String? ?? 'Untitled playlist',
+      subtitle: description.isEmpty ? '$itemCount videos' : description,
+      thumbnailUrl: _bestThumbnail(snippet),
+      itemCount: itemCount,
+      isOwnedByUser: false,
+    );
+  }
+
   static Future<List<Track>> searchVideos(
     String query, {
     int maxResults = 25,
@@ -393,9 +417,7 @@ class YoutubeService {
         final hidden = statistics?['hiddenSubscriberCount'] == true;
         result[id] = hidden
             ? 0
-            : int.tryParse(
-                    (statistics?['subscriberCount'] as String?) ?? '',
-                  ) ??
+            : int.tryParse((statistics?['subscriberCount'] as String?) ?? '') ??
                   0;
       }
     }
@@ -421,16 +443,23 @@ class YoutubeService {
 
   static Future<List<Track>> fetchChannelVideos(
     String channelId, {
-    int maxItems = 25,
+    int maxItems = 200,
   }) async {
     final uploadsPlaylistId = await _fetchUploadsPlaylistId(channelId);
     if (uploadsPlaylistId == null || uploadsPlaylistId.isEmpty) return [];
-    return fetchPlaylistTracks(uploadsPlaylistId, maxItems: maxItems);
+    return fetchPlaylistTracks(
+      uploadsPlaylistId,
+      maxItems: maxItems,
+      includeViewCount: true,
+      excludeShorts: true,
+    );
   }
 
   static Future<List<Track>> fetchPlaylistTracks(
     String playlistId, {
     int? maxItems,
+    bool includeViewCount = false,
+    bool excludeShorts = false,
   }) async {
     final rawItems = <_RawPlaylistItem>[];
     String? pageToken;
@@ -480,23 +509,34 @@ class YoutubeService {
     final bounded = maxItems == null
         ? rawItems
         : rawItems.take(maxItems).toList();
-    final durations = await _fetchDurations(
+    final stats = await _fetchVideoStats(
       bounded.map((e) => e.videoId).toList(),
     );
 
-    return [
-      for (final item in bounded)
+    final tracks = <Track>[];
+    for (final item in bounded) {
+      final stat = stats[item.videoId];
+      final duration = stat?.duration ?? Duration.zero;
+      if (excludeShorts &&
+          duration > Duration.zero &&
+          duration.inSeconds <= 60) {
+        continue;
+      }
+      tracks.add(
         Track(
           id: item.playlistItemId,
           title: item.title,
           artist: item.artist,
           thumbnailUrl: item.thumbnailUrl,
-          duration: durations[item.videoId] ?? Duration.zero,
+          duration: duration,
           videoId: item.videoId,
           channelId: item.channelId,
           playlistItemId: item.apiItemId,
+          viewCount: includeViewCount ? stat?.viewCount : null,
         ),
-    ];
+      );
+    }
+    return tracks;
   }
 
   static Future<void> removeVideoFromPlaylist(String playlistItemId) async {
@@ -512,6 +552,12 @@ class YoutubeService {
   static Future<Map<String, Duration>> _fetchDurations(
     List<String> videoIds,
   ) async {
+    final stats = await _fetchVideoStats(videoIds);
+    return {for (final entry in stats.entries) entry.key: entry.value.duration};
+  }
+
+  static Future<Map<String, ({Duration duration, int viewCount})>>
+  _fetchVideoStats(List<String> videoIds) async {
     final chunks = <List<String>>[];
     for (var i = 0; i < videoIds.length; i += 50) {
       final chunk = videoIds.sublist(i, (i + 50).clamp(0, videoIds.length));
@@ -521,23 +567,30 @@ class YoutubeService {
 
     final responses = await Future.wait(
       chunks.map(
-        (chunk) =>
-            _get('videos', {'part': 'contentDetails', 'id': chunk.join(',')}),
+        (chunk) => _get('videos', {
+          'part': 'contentDetails,statistics',
+          'id': chunk.join(','),
+        }),
       ),
     );
 
-    final durations = <String, Duration>{};
+    final stats = <String, ({Duration duration, int viewCount})>{};
     for (final data in responses) {
       for (final item in (data['items'] as List? ?? [])) {
         final map = item as Map<String, dynamic>;
+        final id = map['id'] as String?;
+        if (id == null) continue;
         final iso =
             (map['contentDetails'] as Map<String, dynamic>?)?['duration']
                 as String?;
-        if (iso == null) continue;
-        durations[map['id'] as String] = _parseIsoDuration(iso);
+        final duration = iso == null ? Duration.zero : _parseIsoDuration(iso);
+        final viewCountRaw =
+            (map['statistics'] as Map<String, dynamic>?)?['viewCount'];
+        final viewCount = int.tryParse('$viewCountRaw') ?? 0;
+        stats[id] = (duration: duration, viewCount: viewCount);
       }
     }
-    return durations;
+    return stats;
   }
 }
 
