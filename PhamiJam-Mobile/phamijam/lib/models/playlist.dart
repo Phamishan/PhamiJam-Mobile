@@ -10,6 +10,7 @@ class Playlist {
   final bool isPinned;
   final bool isOwnedByUser;
   final int itemCount;
+  final String privacyStatus;
 
   const Playlist({
     required this.id,
@@ -21,7 +22,10 @@ class Playlist {
     this.isPinned = false,
     this.isOwnedByUser = true,
     int? itemCount,
+    this.privacyStatus = 'public',
   }) : itemCount = itemCount ?? tracks.length;
+
+  bool get isPrivate => privacyStatus == 'private';
 
   Playlist copyWith({
     String? title,
@@ -29,6 +33,7 @@ class Playlist {
     List<Track>? tracks,
     int? itemCount,
     bool? isPinned,
+    String? privacyStatus,
   }) => Playlist(
     id: id,
     title: title ?? this.title,
@@ -39,5 +44,6 @@ class Playlist {
     isPinned: isPinned ?? this.isPinned,
     isOwnedByUser: isOwnedByUser,
     itemCount: itemCount ?? this.itemCount,
+    privacyStatus: privacyStatus ?? this.privacyStatus,
   );
 }

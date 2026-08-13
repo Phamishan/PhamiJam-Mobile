@@ -31,6 +31,7 @@ class _EditPlaylistSheet extends StatefulWidget {
 class _EditPlaylistSheetState extends State<_EditPlaylistSheet> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
+  late String _privacy;
   bool _saving = false;
 
   @override
@@ -42,6 +43,7 @@ class _EditPlaylistSheetState extends State<_EditPlaylistSheet> {
     _descriptionController = TextEditingController(
       text: looksLikePlaceholder ? '' : subtitle,
     );
+    _privacy = widget.playlist.privacyStatus;
   }
 
   @override
@@ -62,6 +64,9 @@ class _EditPlaylistSheetState extends State<_EditPlaylistSheet> {
         widget.playlist,
         title: title,
         description: _descriptionController.text.trim(),
+        privacyStatus: _privacy == widget.playlist.privacyStatus
+            ? null
+            : _privacy,
       );
       if (!mounted) return;
       Navigator.of(context).pop(updated);
@@ -130,6 +135,36 @@ class _EditPlaylistSheetState extends State<_EditPlaylistSheet> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'private',
+                  label: Text('Private'),
+                  icon: Icon(Icons.lock_rounded),
+                ),
+                ButtonSegment(
+                  value: 'unlisted',
+                  label: Text('Unlisted'),
+                  icon: Icon(Icons.link_rounded),
+                ),
+                ButtonSegment(
+                  value: 'public',
+                  label: Text('Public'),
+                  icon: Icon(Icons.public_rounded),
+                ),
+              ],
+              selected: {_privacy},
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) =>
+                  setState(() => _privacy = selection.first),
+              style: SegmentedButton.styleFrom(
+                backgroundColor: colorScheme.surfaceContainerHigh,
+                foregroundColor: colorScheme.onSurfaceVariant,
+                selectedBackgroundColor: colorScheme.primary,
+                selectedForegroundColor: colorScheme.onPrimary,
               ),
             ),
             const SizedBox(height: 20),

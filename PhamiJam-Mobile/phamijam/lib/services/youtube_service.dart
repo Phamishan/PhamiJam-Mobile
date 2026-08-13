@@ -162,7 +162,7 @@ class YoutubeService {
 
     do {
       final data = await _get('playlists', {
-        'part': 'snippet,contentDetails',
+        'part': 'snippet,contentDetails,status',
         'mine': 'true',
         'maxResults': '50',
         'pageToken': ?pageToken,
@@ -172,6 +172,7 @@ class YoutubeService {
         final map = item as Map<String, dynamic>;
         final snippet = map['snippet'] as Map<String, dynamic>?;
         final contentDetails = map['contentDetails'] as Map<String, dynamic>?;
+        final status = map['status'] as Map<String, dynamic>?;
         final itemCount = (contentDetails?['itemCount'] as num?)?.toInt() ?? 0;
         final description = (snippet?['description'] as String? ?? '').trim();
 
@@ -182,6 +183,7 @@ class YoutubeService {
             subtitle: description.isEmpty ? '$itemCount videos' : description,
             thumbnailUrl: _bestThumbnail(snippet),
             itemCount: itemCount,
+            privacyStatus: status?['privacyStatus'] as String? ?? 'public',
           ),
         );
       }
@@ -194,7 +196,7 @@ class YoutubeService {
 
   static Future<Playlist?> fetchPlaylistById(String playlistId) async {
     final data = await _get('playlists', {
-      'part': 'snippet,contentDetails',
+      'part': 'snippet,contentDetails,status',
       'id': playlistId,
     });
     final items = data['items'] as List? ?? [];
@@ -203,6 +205,7 @@ class YoutubeService {
     final map = items.first as Map<String, dynamic>;
     final snippet = map['snippet'] as Map<String, dynamic>?;
     final contentDetails = map['contentDetails'] as Map<String, dynamic>?;
+    final status = map['status'] as Map<String, dynamic>?;
     final itemCount = (contentDetails?['itemCount'] as num?)?.toInt() ?? 0;
     final description = (snippet?['description'] as String? ?? '').trim();
 
@@ -213,6 +216,7 @@ class YoutubeService {
       thumbnailUrl: _bestThumbnail(snippet),
       itemCount: itemCount,
       isOwnedByUser: false,
+      privacyStatus: status?['privacyStatus'] as String? ?? 'public',
     );
   }
 
@@ -267,6 +271,32 @@ class YoutubeService {
     ];
   }
 
+  static Future<Track?> fetchVideoById(String videoId) async {
+    if (videoId.isEmpty) return null;
+    final data = await _get('videos', {
+      'part': 'snippet,contentDetails',
+      'id': videoId,
+    });
+    final items = data['items'] as List? ?? [];
+    if (items.isEmpty) return null;
+
+    final map = items.first as Map<String, dynamic>;
+    final snippet = map['snippet'] as Map<String, dynamic>?;
+    final iso =
+        (map['contentDetails'] as Map<String, dynamic>?)?['duration']
+            as String?;
+
+    return Track(
+      id: 'yt-$videoId',
+      title: snippet?['title'] as String? ?? 'Unknown song',
+      artist: snippet?['channelTitle'] as String? ?? 'YouTube',
+      thumbnailUrl: _bestThumbnail(snippet),
+      duration: iso == null ? Duration.zero : _parseIsoDuration(iso),
+      videoId: videoId,
+      channelId: snippet?['channelId'] as String?,
+    );
+  }
+
   static Future<void> addVideoToPlaylist(
     String playlistId,
     String videoId,
@@ -307,6 +337,7 @@ class YoutubeService {
       subtitle: description.isEmpty ? '0 videos' : description,
       thumbnailUrl: _bestThumbnail(snippet),
       itemCount: 0,
+      privacyStatus: privacyStatus,
     );
   }
 
@@ -314,13 +345,16 @@ class YoutubeService {
     String playlistId, {
     required String title,
     required String description,
+    String? privacyStatus,
   }) async {
     await _put(
       'playlists',
-      {'part': 'snippet'},
+      {'part': privacyStatus == null ? 'snippet' : 'snippet,status'},
       {
         'id': playlistId,
         'snippet': {'title': title, 'description': description},
+        if (privacyStatus != null)
+          'status': {'privacyStatus': privacyStatus},
       },
     );
   }

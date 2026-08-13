@@ -11,6 +11,7 @@ import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/services/download_service.dart';
+import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
@@ -261,9 +262,24 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                       );
                                     } else if (value == 'stop_downloading') {
                                       downloads.cancelAllDownloads();
+                                    } else if (value == 'share') {
+                                      ShareLinkService.sharePlaylist(
+                                        context,
+                                        playlist,
+                                      );
                                     }
                                   },
                                   itemBuilder: (context) => [
+                                    if (playlist.id.isNotEmpty &&
+                                        !playlist.isPrivate)
+                                      const PopupMenuItem(
+                                        value: 'share',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(Icons.share_rounded),
+                                          title: Text('Share'),
+                                        ),
+                                      ),
                                     if (playlist.isFromYoutube &&
                                         playlist.isOwnedByUser) ...[
                                       PopupMenuItem(

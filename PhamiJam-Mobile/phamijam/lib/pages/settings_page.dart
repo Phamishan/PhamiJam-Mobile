@@ -413,6 +413,18 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
+          const SizedBox(height: 10),
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return _SettingsSwitchTile(
+                icon: Icons.autorenew_rounded,
+                title: 'Autoplay',
+                subtitle: 'Keep playing similar songs when your queue ends',
+                value: settings.autoplayEnabled,
+                onChanged: settings.setAutoplayEnabled,
+              );
+            },
+          ),
           const SizedBox(height: 28),
           Text('Library', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
@@ -483,7 +495,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.0.6',
+            subtitle: 'Version 1.0.7',
             color: colorScheme.onSurface,
           ),
         ],

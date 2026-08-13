@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/components/edit_track_dialog.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 
 class TrackTile extends StatefulWidget {
@@ -236,6 +237,8 @@ class _TrackTileState extends State<TrackTile> {
                           playlistId: widget.playlistId,
                           playlistName: widget.playlistName,
                         );
+                      } else if (value == 'share') {
+                        ShareLinkService.shareTrack(context, widget.track);
                       }
                     },
                     itemBuilder: (context) => [
@@ -272,6 +275,15 @@ class _TrackTileState extends State<TrackTile> {
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(Icons.content_cut_rounded),
                             title: Text('Edit song'),
+                          ),
+                        ),
+                      if (_canEdit)
+                        const PopupMenuItem(
+                          value: 'share',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.share_rounded),
+                            title: Text('Share'),
                           ),
                         ),
                     ],

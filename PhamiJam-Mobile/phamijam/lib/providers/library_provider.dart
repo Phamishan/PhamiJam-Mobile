@@ -252,16 +252,22 @@ class LibraryProvider extends ChangeNotifier {
     Playlist playlist, {
     required String title,
     required String description,
+    String? privacyStatus,
   }) async {
     await YoutubeService.updatePlaylist(
       playlist.id,
       title: title,
       description: description,
+      privacyStatus: privacyStatus,
     );
     final subtitle = description.isEmpty
         ? '${playlist.itemCount} videos'
         : description;
-    final updated = playlist.copyWith(title: title, subtitle: subtitle);
+    final updated = playlist.copyWith(
+      title: title,
+      subtitle: subtitle,
+      privacyStatus: privacyStatus,
+    );
     _replacePlaylist(updated);
     return updated;
   }

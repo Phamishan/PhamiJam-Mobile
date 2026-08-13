@@ -14,46 +14,37 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:gravity="center"
+        android:gravity="center_vertical"
         android:padding="16dp">
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginEnd="6dp"
-                android:src="@mipmap/launcher_icon" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Wrapphamied"
-                android:textSize="13sp"
-                android:textColor="#1C1B1A" />
-
-        </LinearLayout>
-
         <TextView
-            android:id="@+id/widget_minutes_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="0"
-            android:textSize="40sp"
-            android:textStyle="bold"
+            android:text="Top Song This Week"
+            android:textSize="12sp"
             android:textColor="#1C1B1A" />
 
         <TextView
-            android:id="@+id/widget_minutes_label"
-            android:layout_width="wrap_content"
+            android:id="@+id/widget_top_song_title"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="minutes listened in 2026"
+            android:layout_marginTop="4dp"
+            android:text="No plays yet this week"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#1C1B1A" />
+
+        <TextView
+            android:id="@+id/widget_top_song_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text=""
             android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:textColor="#1C1B1A" />
 
     </LinearLayout>

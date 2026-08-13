@@ -12,6 +12,8 @@ import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/pull_down_to_dismiss.dart';
 import 'package:phamijam/widgets/remote_control_badge.dart';
+import 'package:phamijam/components/sleep_timer_sheet.dart';
+import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/scrim_icon_button.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/video_surface.dart';
@@ -223,27 +225,88 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                       color: colorScheme.onSurface,
                                     ),
                                   ),
-                                  IconButton(
-                                    onPressed: () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const LyricsPage(),
-                                      ),
-                                    ),
+                                  PopupMenuButton<String>(
                                     icon: Icon(
-                                      Icons.lyrics_outlined,
+                                      Icons.more_vert_rounded,
                                       color: colorScheme.onSurface,
                                     ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const QueuePage(),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    onSelected: (value) {
+                                      switch (value) {
+                                        case 'lyrics':
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const LyricsPage(),
+                                            ),
+                                          );
+                                        case 'queue':
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const QueuePage(),
+                                            ),
+                                          );
+                                        case 'sleep_timer':
+                                          showSleepTimerSheet(context);
+                                        case 'share':
+                                          ShareLinkService.shareTrack(
+                                            context,
+                                            track,
+                                          );
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'lyrics',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(
+                                            Icons.lyrics_outlined,
+                                          ),
+                                          title: Text('Lyrics'),
+                                        ),
                                       ),
-                                    ),
-                                    icon: Icon(
-                                      Icons.queue_music_rounded,
-                                      color: colorScheme.onSurface,
-                                    ),
+                                      const PopupMenuItem(
+                                        value: 'queue',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(
+                                            Icons.queue_music_rounded,
+                                          ),
+                                          title: Text('Queue'),
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'sleep_timer',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(
+                                            player.hasSleepTimer
+                                                ? Icons.bedtime_rounded
+                                                : Icons.bedtime_outlined,
+                                          ),
+                                          title: Text(
+                                            player.hasSleepTimer
+                                                ? 'Sleep timer (on)'
+                                                : 'Sleep timer',
+                                          ),
+                                        ),
+                                      ),
+                                      if ((track.videoId ?? '').isNotEmpty)
+                                        const PopupMenuItem(
+                                          value: 'share',
+                                          child: ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              Icons.share_rounded,
+                                            ),
+                                            title: Text('Share'),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),

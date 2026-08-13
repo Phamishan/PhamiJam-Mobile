@@ -8,6 +8,7 @@ const String _suggestRemovingSkippedSongsKey =
     'phamijam.suggest_removing_skipped_songs';
 const String _searchEngineKey = 'phamijam.search_engine';
 const String _hiddenPlaylistIdsKey = 'phamijam.hidden_playlist_ids';
+const String _autoplayEnabledKey = 'phamijam.autoplay_enabled';
 
 enum SearchEngine {
   youtubeMusic,
@@ -24,10 +25,12 @@ class SettingsProvider extends ChangeNotifier {
   bool _suggestRemovingSkippedSongs = true;
   SearchEngine _searchEngine = SearchEngine.youtubeMusic;
   Set<String> _hiddenPlaylistIds = {};
+  bool _autoplayEnabled = false;
 
   bool get miniPlayerSwipeToDismiss => _miniPlayerSwipeToDismiss;
   bool get suggestRemovingSkippedSongs => _suggestRemovingSkippedSongs;
   SearchEngine get searchEngine => _searchEngine;
+  bool get autoplayEnabled => _autoplayEnabled;
   bool isPlaylistHidden(String playlistId) =>
       _hiddenPlaylistIds.contains(playlistId);
 
@@ -49,6 +52,10 @@ class SettingsProvider extends ChangeNotifier {
     final savedHiddenPlaylistIds = prefs.getStringList(_hiddenPlaylistIdsKey);
     if (savedHiddenPlaylistIds != null) {
       _hiddenPlaylistIds = savedHiddenPlaylistIds.toSet();
+    }
+    final savedAutoplay = prefs.getBool(_autoplayEnabledKey);
+    if (savedAutoplay != null) {
+      _autoplayEnabled = savedAutoplay;
     }
     notifyListeners();
   }
@@ -75,6 +82,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_searchEngineKey, value.name);
+  }
+
+  Future<void> setAutoplayEnabled(bool value) async {
+    if (value == _autoplayEnabled) return;
+    _autoplayEnabled = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoplayEnabledKey, value);
   }
 
   Future<void> refreshHiddenPlaylists() async {

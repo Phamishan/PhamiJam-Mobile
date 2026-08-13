@@ -73,14 +73,8 @@ class EditedSongsPage extends StatelessWidget {
         height: 44,
         borderRadius: BorderRadius.circular(4),
       ),
-      title: Text(
-        trim.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        '${_formatMs(trim.startMs)} - ${_formatMs(trim.endMs)}',
-      ),
+      title: Text(trim.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text('${_formatMs(trim.startMs)} - ${_formatMs(trim.endMs)}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -94,7 +88,6 @@ class EditedSongsPage extends StatelessWidget {
             ),
           ),
           IconButton(
-            tooltip: 'Reset',
             onPressed: () => editedSongs.removeTrim(trim.videoId),
             icon: Icon(
               Icons.restart_alt_rounded,
@@ -176,8 +169,7 @@ class EditedSongsPage extends StatelessWidget {
                     child: SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _confirmClearAll(context, editedSongs),
+                        onPressed: () => _confirmClearAll(context, editedSongs),
                         icon: Icon(
                           Icons.delete_outline_rounded,
                           color: colorScheme.error,

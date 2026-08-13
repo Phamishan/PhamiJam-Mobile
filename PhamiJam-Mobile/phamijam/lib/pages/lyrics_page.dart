@@ -302,7 +302,6 @@ class _LyricsPageState extends State<LyricsPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-            tooltip: 'Show lyrics earlier',
             onPressed: () => _adjustOffset(-250),
             icon: const Icon(Icons.remove_rounded),
           ),
@@ -315,7 +314,6 @@ class _LyricsPageState extends State<LyricsPage> {
             ),
           ),
           IconButton(
-            tooltip: 'Show lyrics later',
             onPressed: () => _adjustOffset(250),
             icon: const Icon(Icons.add_rounded),
           ),

@@ -6,20 +6,20 @@ import android.content.SharedPreferences
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
 
-class MinutesWidgetSmallProvider : HomeWidgetProvider() {
+class StreakWidgetProvider : HomeWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
         widgetData: SharedPreferences,
     ) {
-        val minutes = widgetData.getInt("minutes_played", 0)
+        val days = widgetData.getInt("streak_days", 0)
         val accentColor = widgetData.getInt("accent_color", 0xFFDBA43A.toInt())
 
         for (appWidgetId in appWidgetIds) {
-            val views = RemoteViews(context.packageName, R.layout.widget_minutes_small)
+            val views = RemoteViews(context.packageName, R.layout.widget_streak)
             views.setInt(R.id.widget_bg, "setColorFilter", accentColor)
-            views.setTextViewText(R.id.widget_minutes_value, minutes.toString())
+            views.setTextViewText(R.id.widget_streak_value, days.toString())
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }

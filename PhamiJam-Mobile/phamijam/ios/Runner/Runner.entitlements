@@ -6,5 +6,10 @@
 	<array>
 		<string>group.phamishan.phamijam.widget</string>
 	</array>
+	<!-- Universal Links for shared song/playlist links (see PhamiJam-Share-Worker). -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:phamijam-share.phamijam.workers.dev</string>
+	</array>
 </dict>
 </plist>

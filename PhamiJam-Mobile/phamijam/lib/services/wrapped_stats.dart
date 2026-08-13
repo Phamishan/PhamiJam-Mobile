@@ -28,6 +28,7 @@ class WrappedStats {
   final String busiestDay;
   final String busiestHour;
   final int longestStreakDays;
+  final int currentStreakDays;
   final int topArtistPercent;
 
   const WrappedStats({
@@ -40,6 +41,7 @@ class WrappedStats {
     required this.busiestDay,
     required this.busiestHour,
     required this.longestStreakDays,
+    required this.currentStreakDays,
     required this.topArtistPercent,
   });
 
@@ -73,6 +75,7 @@ class WrappedStats {
         busiestDay: '',
         busiestHour: '',
         longestStreakDays: 0,
+        currentStreakDays: 0,
         topArtistPercent: 0,
       );
     }
@@ -155,6 +158,19 @@ class WrappedStats {
 
     final topArtistMs = topArtists.isEmpty ? 0 : topArtists.first.listenedMs;
 
+    var currentStreak = 0;
+    final today = DateTime.now();
+    var cursorKey = today.year * 10000 + today.month * 100 + today.day;
+    while (daysListened.contains(cursorKey)) {
+      currentStreak++;
+      final cursorDate = DateTime(
+        cursorKey ~/ 10000,
+        (cursorKey ~/ 100) % 100,
+        cursorKey % 100,
+      ).subtract(const Duration(days: 1));
+      cursorKey = cursorDate.year * 10000 + cursorDate.month * 100 + cursorDate.day;
+    }
+
     return WrappedStats(
       totalPlays: events.length,
       totalMs: totalMs,
@@ -165,6 +181,7 @@ class WrappedStats {
       busiestDay: _dayNames[busiestKey(msByWeekday) - 1],
       busiestHour: _formatHour(busiestKey(msByHour)),
       longestStreakDays: longestStreak,
+      currentStreakDays: currentStreak,
       topArtistPercent: totalMs == 0 ? 0 : (topArtistMs * 100 ~/ totalMs),
     );
   }

@@ -10,7 +10,9 @@ import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/playback_session_sync_service.dart';
 import 'package:phamijam/services/playback_state_service.dart';
+import 'package:phamijam/services/autoplay_service.dart';
 import 'package:phamijam/services/skip_tracking_service.dart';
+import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
 
 enum PlayerRepeatMode { off, all, one }
 
@@ -64,6 +66,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _sessionHeartbeat;
   Timer? _volumeCommandThrottle;
   double? _pendingVolumeCommandValue;
+  Timer? _sleepTimer;
+  DateTime? _sleepTimerEndsAt;
+  bool _pauseAtTrackEndScheduled = false;
 
   Track? _currentTrack;
   List<Track> _queue = [];
@@ -98,6 +103,48 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     EditedSongTrim? Function(String videoId, [String? playlistId]) lookup,
   ) {
     _trimLookup = lookup;
+  }
+
+  bool Function()? _autoplayEnabledLookup;
+  YTMusic? _ytmusic;
+  String? _autoplayAttemptedSeedVideoId;
+
+  void bindAutoplayEnabled(bool Function() lookup) {
+    _autoplayEnabledLookup = lookup;
+  }
+
+  Future<YTMusic?> _ensureYtMusic() async {
+    final existing = _ytmusic;
+    if (existing != null) return existing;
+    try {
+      final created = await YTMusic.create();
+      _ytmusic = created;
+      return created;
+    } catch (error) {
+      debugPrint('PlayerProvider: failed to init YTMusic: $error');
+      return null;
+    }
+  }
+
+  Future<bool> _tryAppendAutoplayContinuation() async {
+    if (_autoplayEnabledLookup?.call() != true) return false;
+    final seedVideoId = _currentTrack?.videoId;
+    if (seedVideoId == null || seedVideoId.isEmpty) return false;
+    if (_autoplayAttemptedSeedVideoId == seedVideoId) return false;
+    _autoplayAttemptedSeedVideoId = seedVideoId;
+
+    final ytmusic = await _ensureYtMusic();
+    if (ytmusic == null) return false;
+    final excludeIds = _queue.map((t) => t.videoId).whereType<String>().toSet();
+    final continuation = await AutoplayService.fetchAutoplayContinuation(
+      ytmusic,
+      seedVideoId,
+      excludeVideoIds: excludeIds,
+    );
+    if (continuation.isEmpty) return false;
+    _queue = List<Track>.from(_queue)..addAll(continuation);
+    _originalQueue = List<Track>.from(_originalQueue)..addAll(continuation);
+    return true;
   }
 
   Duration? get trimStart => _trimStart;
@@ -232,6 +279,12 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (playlist != null && videoId != null && videoId.isNotEmpty) {
       SkipTrackingService.recordCompleted(playlist.id, videoId);
     }
+    if (_pauseAtTrackEndScheduled) {
+      _pauseAtTrackEndScheduled = false;
+      _audioHandler.player.pause();
+      notifyListeners();
+      return;
+    }
     if (_autoAdvanceRateLimited()) return;
     if (_repeatMode == PlayerRepeatMode.one) {
       _replayCurrentTrack();
@@ -262,6 +315,40 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       suggestedRemovalPlaylist = playlist;
       notifyListeners();
     }
+  }
+
+  DateTime? get sleepTimerEndsAt => _sleepTimerEndsAt;
+  bool get isSleepTimerEndOfTrackScheduled => _pauseAtTrackEndScheduled;
+  bool get hasSleepTimer =>
+      _sleepTimerEndsAt != null || _pauseAtTrackEndScheduled;
+
+  void setSleepTimer(Duration duration) {
+    _sleepTimer?.cancel();
+    _pauseAtTrackEndScheduled = false;
+    _sleepTimerEndsAt = DateTime.now().add(duration);
+    _sleepTimer = Timer(duration, () {
+      _sleepTimer = null;
+      _sleepTimerEndsAt = null;
+      _audioHandler.player.pause();
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  void setSleepTimerEndOfTrack() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepTimerEndsAt = null;
+    _pauseAtTrackEndScheduled = true;
+    notifyListeners();
+  }
+
+  void cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepTimerEndsAt = null;
+    _pauseAtTrackEndScheduled = false;
+    notifyListeners();
   }
 
   Future<void> dismissSkipSuggestion() async {
@@ -558,7 +645,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     } else if (_repeatMode == PlayerRepeatMode.all) {
       _queueIndex = 0;
     } else {
-      return;
+      final appended = await _tryAppendAutoplayContinuation();
+      if (!appended || _queueIndex >= _queue.length - 1) return;
+      _queueIndex++;
     }
     _currentTrack = _queue[_queueIndex];
     notifyListeners();
@@ -743,6 +832,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _incomingCommandsSub?.cancel();
     _sessionHeartbeat?.cancel();
     _volumeCommandThrottle?.cancel();
+    _sleepTimer?.cancel();
     super.dispose();
   }
 }

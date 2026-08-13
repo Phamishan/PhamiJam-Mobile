@@ -30,6 +30,14 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- App Links for shared song/playlist links (see PhamiJam-Share-Worker). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="phamijam-share.phamijam.workers.dev"/>
+            </intent-filter>
         </activity>
 
         <service android:name="com.ryanheise.audioservice.AudioService"
@@ -69,6 +77,39 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/minutes_widget_large_info" />
+        </receiver>
+
+        <receiver android:name=".NowPlayingWidgetProvider"
+            android:exported="false"
+            android:label="Now Playing">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/now_playing_widget_info" />
+        </receiver>
+
+        <receiver android:name=".StreakWidgetProvider"
+            android:exported="false"
+            android:label="Listening Streak">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/streak_widget_info" />
+        </receiver>
+
+        <receiver android:name=".TopSongWidgetProvider"
+            android:exported="false"
+            android:label="Top Song This Week">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/top_song_widget_info" />
         </receiver>
 
         <!-- Don't delete the meta-data below.

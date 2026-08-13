@@ -1,13 +1,14 @@
 name: phamijam
 description: "A new Flutter project."
 publish_to: "none"
-version: 1.0.6+1
+version: 1.0.7+1
 
 environment:
   sdk: ^3.12.2
 
 dependencies:
   another_flushbar: ^2.2.4
+  app_links: ^7.2.1
   audio_service: ^0.18.19
   audio_video_progress_bar: ^2.0.3
   cached_network_image: ^3.4.1
@@ -24,6 +25,7 @@ dependencies:
   marquee: ^2.3.0
   path_provider: ^2.1.5
   provider: ^6.1.5+1
+  share_plus: ^13.3.0
   shared_preferences: ^2.3.3
   video_player: ^2.13.0
   youtube_explode_dart: ^3.1.0

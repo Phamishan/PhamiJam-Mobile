@@ -51,6 +51,13 @@
   - Added a setting to show/hide playlists
   - Redesigned artist page
   - Updated app icons
+- 1.0.7 - 13/08/2028
+  - Added a setting to change a playlist's visibility
+  - Added shareable link for songs and playlists
+  - Added a sleep timer
+  - Added autoplay
+  - Added new widgets
+  - Redesigned fullscreen mediaplayer
 
 ## Screenshots:
 
