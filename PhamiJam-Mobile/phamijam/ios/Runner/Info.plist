@@ -9,9 +9,15 @@
 			<string>audio</string>
 		</array>
 		<key>GIDClientID</key>
-		<string>186681716495-i61hogig92i8tvhcvar42s10assc2knq.apps.googleusercontent.com</string>
+		<string>186681716495-fek96ukcs9g4ajopftgdp0bknup0146a.apps.googleusercontent.com</string>
 		<key>CFBundleURLTypes</key>
 		<array>
+			<dict>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.googleusercontent.apps.186681716495-fek96ukcs9g4ajopftgdp0bknup0146a</string>
+				</array>
+			</dict>
 			<dict>
 				<key>CFBundleURLSchemes</key>
 				<array>

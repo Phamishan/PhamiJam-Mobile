@@ -52,6 +52,7 @@ class AppleAuthService {
 
       return AppleSignInResult(
         credential: oauthCredential,
+        idToken: idToken,
         displayName: displayName.isEmpty ? null : displayName,
       );
     } on SignInWithAppleAuthorizationException catch (error) {
@@ -62,10 +63,29 @@ class AppleAuthService {
       rethrow;
     }
   }
+
+  static Map<String, dynamic>? decodeIdTokenClaims(String idToken) {
+    try {
+      final parts = idToken.split('.');
+      if (parts.length < 2) return null;
+      var payload = parts[1].replaceAll('-', '+').replaceAll('_', '/');
+      payload += '=' * ((4 - payload.length % 4) % 4);
+      final decoded = utf8.decode(base64.decode(payload));
+      return jsonDecode(decoded) as Map<String, dynamic>;
+    } catch (error) {
+      debugPrint('$_logTag: failed to decode identityToken claims: $error');
+      return null;
+    }
+  }
 }
 
 class AppleSignInResult {
-  const AppleSignInResult({required this.credential, this.displayName});
+  const AppleSignInResult({
+    required this.credential,
+    required this.idToken,
+    this.displayName,
+  });
   final OAuthCredential credential;
+  final String idToken;
   final String? displayName;
 }

@@ -130,8 +130,9 @@ class _LoginState extends State<Login> {
       _isLoading = true;
     });
 
+    AppleSignInResult? result;
     try {
-      final result = await AppleAuthService.signIn();
+      result = await AppleAuthService.signIn();
       if (result == null) {
         if (!mounted) return;
         setState(() {
@@ -157,12 +158,40 @@ class _LoginState extends State<Login> {
       });
     } catch (error) {
       debugPrint('Error signing in with Apple: $error');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
+      final idToken = result?.idToken;
+      final claims = idToken == null
+          ? null
+          : AppleAuthService.decodeIdTokenClaims(idToken);
+      if (claims == null) {
         AppFlushbar.error(context, 'Failed to sign in: $error');
+        return;
       }
+
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Apple sign-in failed'),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              'error: $error\n\n'
+              'aud: ${claims['aud']}\n'
+              'iss: ${claims['iss']}\n'
+              'exp: ${claims['exp']}',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
