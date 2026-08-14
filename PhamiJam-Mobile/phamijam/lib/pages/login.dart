@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kDebugMode, TargetPlatform;
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:phamijam/services/apple_auth_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
-import 'package:phamijam/components/app_flushbar.dart';
+
+const Duration _authTimeout = Duration(seconds: 25);
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -38,14 +42,39 @@ class _LoginState extends State<Login> {
     return _auth.signInWithCredential(credential);
   }
 
+  String get _authDebugContext =>
+      'platform: ${defaultTargetPlatform.name}\n'
+      'clientId: ${dotenv.env['CLIENT_ID']}';
+
+  void _showAuthDebugDialog(String title, String content) {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(child: SelectableText(content)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _signInWithGoogle() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
 
+    final stopwatch = Stopwatch()..start();
+
     try {
-      final credentials = await GoogleAuthService.signIn();
+      final credentials = await GoogleAuthService.signIn().timeout(
+        _authTimeout,
+      );
 
       if (credentials == null) {
         debugPrint(
@@ -55,12 +84,15 @@ class _LoginState extends State<Login> {
         setState(() {
           _isLoading = false;
         });
-        if (kDebugMode) {
-          AppFlushbar.info(
-            context,
-            'Google sign-in was canceled. Please try again.',
-          );
-        }
+        _showAuthDebugDialog(
+          'Google sign-in returned nothing',
+          'signInOnline() completed after ${stopwatch.elapsed.inSeconds}s '
+              'but returned null credentials.\n\n'
+              'Note: the plugin catches every exception inside '
+              'signInOnline() (a user cancel and a real failure both '
+              'become null), so this could be either.\n\n'
+              '$_authDebugContext',
+        );
         return;
       }
 
@@ -80,10 +112,25 @@ class _LoginState extends State<Login> {
         _userId = userCredential.user?.email;
         _isLoading = false;
       });
+    } on TimeoutException {
+      debugPrint('Error signing in with Google: timed out');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      _showAuthDebugDialog(
+        'Google sign-in timed out',
+        'No response after ${_authTimeout.inSeconds}s inside '
+            'googleSignIn.signInOnline(). This usually means it hung on '
+            'the native side (e.g. stuck on accounts.google.com) rather '
+            'than throwing an error Dart could catch.\n\n'
+            '$_authDebugContext',
+      );
     } on FirebaseAuthException catch (error) {
       if (error.code == 'invalid-credential') {
         try {
-          final refreshedCredentials = await GoogleAuthService.signInFresh();
+          final refreshedCredentials = await GoogleAuthService.signInFresh()
+              .timeout(_authTimeout);
           if (refreshedCredentials != null) {
             final retriedUserCredential =
                 await _firebaseSignInFromGoogleCredentials(
@@ -102,25 +149,28 @@ class _LoginState extends State<Login> {
       }
 
       debugPrint('Error signing in with Google: $error');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        AppFlushbar.error(
-          context,
-          error.code == 'invalid-credential'
-              ? 'Google sign-in token expired. Please try again.'
-              : 'Failed to sign in: ${error.message ?? error.code}',
-        );
-      }
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      _showAuthDebugDialog(
+        'Google sign-in failed',
+        'error: ${error.code} — ${error.message}\n'
+            'elapsed: ${stopwatch.elapsed.inSeconds}s\n\n'
+            '$_authDebugContext',
+      );
     } catch (error) {
       debugPrint('Error signing in with Google: $error');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        AppFlushbar.error(context, 'Failed to sign in: $error');
-      }
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      _showAuthDebugDialog(
+        'Google sign-in failed',
+        'error: $error\n'
+            'elapsed: ${stopwatch.elapsed.inSeconds}s\n\n'
+            '$_authDebugContext',
+      );
     }
   }
 
@@ -130,9 +180,10 @@ class _LoginState extends State<Login> {
       _isLoading = true;
     });
 
+    final stopwatch = Stopwatch()..start();
     AppleSignInResult? result;
     try {
-      result = await AppleAuthService.signIn();
+      result = await AppleAuthService.signIn().timeout(_authTimeout);
       if (result == null) {
         if (!mounted) return;
         setState(() {
@@ -156,6 +207,19 @@ class _LoginState extends State<Login> {
         _userId = user?.email;
         _isLoading = false;
       });
+    } on TimeoutException {
+      debugPrint('Error signing in with Apple: timed out');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      _showAuthDebugDialog(
+        'Apple sign-in timed out',
+        'No response after ${_authTimeout.inSeconds}s. This usually means '
+            'it hung on the native side rather than throwing an error Dart '
+            'could catch.\n\n'
+            '$_authDebugContext',
+      );
     } catch (error) {
       debugPrint('Error signing in with Apple: $error');
       if (!mounted) return;
@@ -167,30 +231,12 @@ class _LoginState extends State<Login> {
       final claims = idToken == null
           ? null
           : AppleAuthService.decodeIdTokenClaims(idToken);
-      if (claims == null) {
-        AppFlushbar.error(context, 'Failed to sign in: $error');
-        return;
-      }
-
-      showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Apple sign-in failed'),
-          content: SingleChildScrollView(
-            child: SelectableText(
-              'error: $error\n\n'
-              'aud: ${claims['aud']}\n'
-              'iss: ${claims['iss']}\n'
-              'exp: ${claims['exp']}',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+      _showAuthDebugDialog(
+        'Apple sign-in failed',
+        'error: $error\n'
+            'elapsed: ${stopwatch.elapsed.inSeconds}s\n'
+            '${claims == null ? '' : 'aud: ${claims['aud']}\niss: ${claims['iss']}\nexp: ${claims['exp']}\n'}'
+            '\n$_authDebugContext',
       );
     }
   }
