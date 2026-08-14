@@ -1,152 +1,86 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import 'package:google_sign_in/google_sign_in.dart';
 
 const String _logTag = 'GoogleAuthService';
+
+class GoogleAuthCredentials {
+  const GoogleAuthCredentials({
+    required this.accessToken,
+    required this.scopes,
+    this.idToken,
+  });
+
+  final String accessToken;
+  final List<String> scopes;
+  final String? idToken;
+}
 
 class GoogleAuthService {
   GoogleAuthService._();
 
   static const String _youtubeScope = 'https://www.googleapis.com/auth/youtube';
+  static const List<String> _scopes = [_youtubeScope];
 
-  static final GoogleSignIn googleSignIn = GoogleSignIn(
-    params: GoogleSignInParams(
-      clientId: dotenv.env['CLIENT_ID'],
-      scopes: [
-        'openid',
-        'profile',
-        'email',
-        'https://www.googleapis.com/auth/youtube',
-      ],
-    ),
-  );
-
+  static Future<void>? _initFuture;
+  static GoogleSignInAccount? _account;
   static String? _accessToken;
-  static GoogleSignInCredentials? _credentials;
+
   static String? get accessToken => _accessToken;
-
-  static bool _isAccessTokenUsable(String? token, DateTime? expiresIn) {
-    if (token == null || token.isEmpty) {
-      return false;
-    }
-
-    if (expiresIn == null) {
-      return true;
-    }
-
-    return expiresIn.isAfter(
-      DateTime.now().toUtc().add(const Duration(minutes: 1)),
-    );
-  }
-
-  static bool _hasRequiredScopes(List<String>? scopes) {
-    if (scopes == null || scopes.isEmpty) {
-      return false;
-    }
-    return scopes.contains(_youtubeScope);
-  }
-
-  static void _updateCredentials(GoogleSignInCredentials? credentials) {
-    _credentials = credentials;
-    _accessToken = credentials?.accessToken;
-  }
-
-  static Future<GoogleSignInCredentials?> _refreshAccessToken(
-    GoogleSignInCredentials credentials,
-  ) async {
-    final refreshToken = credentials.refreshToken;
-    if (refreshToken == null || refreshToken.isEmpty) {
-      debugPrint(
-        '$_logTag: refresh skipped — no refresh token on credentials.',
-      );
-      return null;
-    }
-
-    final clientId = dotenv.env['CLIENT_ID'];
-    if (clientId == null || clientId.isEmpty) {
-      debugPrint('$_logTag: refresh skipped — CLIENT_ID missing from .env.');
-      return null;
-    }
-
-    final response = await http.post(
-      Uri.parse('https://oauth2.googleapis.com/token'),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {
-        'client_id': clientId,
-        if ((dotenv.env['CLIENT_SECRET'] ?? '').isNotEmpty)
-          'client_secret': dotenv.env['CLIENT_SECRET']!,
-        'grant_type': 'refresh_token',
-        'refresh_token': refreshToken,
-      },
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      debugPrint(
-        '$_logTag: refresh token request failed '
-        '(${response.statusCode}): ${response.body}',
-      );
-      return null;
-    }
-
-    final payload = jsonDecode(response.body) as Map<String, dynamic>;
-    final refreshedAccessToken = payload['access_token'] as String?;
-    if (refreshedAccessToken == null || refreshedAccessToken.isEmpty) {
-      return null;
-    }
-
-    final expiresInSeconds = (payload['expires_in'] as num?)?.toInt();
-    final expiresAt = expiresInSeconds == null
-        ? null
-        : DateTime.now().toUtc().add(Duration(seconds: expiresInSeconds));
-    final scopeString = payload['scope'] as String?;
-    final refreshedScopes = scopeString == null || scopeString.isEmpty
-        ? credentials.scopes
-        : scopeString.split(' ').where((scope) => scope.isNotEmpty).toList();
-
-    return credentials.copyWith(
-      accessToken: refreshedAccessToken,
-      tokenType: payload['token_type'] as String? ?? credentials.tokenType,
-      expiresIn: expiresAt,
-      scopes: refreshedScopes,
-    );
-  }
-
-  static Future<GoogleSignInCredentials?> _tryRestoringCredentials() async {
-    try {
-      final lightweightCredentials = await googleSignIn.lightweightSignIn();
-      if (lightweightCredentials != null) {
-        debugPrint('$_logTag: lightweightSignIn restored a session.');
-        return lightweightCredentials;
-      }
-      debugPrint('$_logTag: lightweightSignIn returned null.');
-    } catch (error, stackTrace) {
-      debugPrint('$_logTag: lightweightSignIn threw: $error');
-      debugPrintStack(
-        stackTrace: stackTrace,
-        label: '$_logTag lightweightSignIn',
-      );
-    }
-
-    try {
-      final silentCredentials = await googleSignIn.silentSignIn();
-      if (silentCredentials != null) {
-        debugPrint('$_logTag: silentSignIn restored a session.');
-        return silentCredentials;
-      }
-      debugPrint('$_logTag: silentSignIn returned null.');
-    } catch (error, stackTrace) {
-      debugPrint('$_logTag: silentSignIn threw: $error');
-      debugPrintStack(stackTrace: stackTrace, label: '$_logTag silentSignIn');
-    }
-
-    return null;
-  }
 
   static void setAccessToken(String? token) {
     _accessToken = token;
+  }
+
+  static Future<void> _ensureInitialized() {
+    return _initFuture ??= GoogleSignIn.instance.initialize(
+      serverClientId: dotenv.env['CLIENT_ID'],
+    );
+  }
+
+  static Future<GoogleSignInAccount?> _tryRestoringAccount() async {
+    final future = GoogleSignIn.instance.attemptLightweightAuthentication();
+    if (future == null) return null;
+    try {
+      final account = await future;
+      if (account != null) _account = account;
+      return account;
+    } on GoogleSignInException catch (error) {
+      debugPrint(
+        '$_logTag: attemptLightweightAuthentication threw: '
+        '${error.code} ${error.description}',
+      );
+      return null;
+    }
+  }
+
+  static Future<GoogleAuthCredentials?> _authorizeSilently(
+    GoogleSignInAccount account,
+  ) async {
+    final authz = await account.authorizationClient.authorizationForScopes(
+      _scopes,
+    );
+    if (authz == null) return null;
+    _account = account;
+    _accessToken = authz.accessToken;
+    return GoogleAuthCredentials(
+      accessToken: authz.accessToken,
+      scopes: _scopes,
+      idToken: account.authentication.idToken,
+    );
+  }
+
+  static Future<GoogleAuthCredentials> _authorizeInteractively(
+    GoogleSignInAccount account,
+  ) async {
+    final authz = await account.authorizationClient.authorizeScopes(_scopes);
+    _account = account;
+    _accessToken = authz.accessToken;
+    return GoogleAuthCredentials(
+      accessToken: authz.accessToken,
+      scopes: _scopes,
+      idToken: account.authentication.idToken,
+    );
   }
 
   static Future<String?>? _pendingEnsure;
@@ -157,8 +91,8 @@ class GoogleAuthService {
   }) {
     if (!forceOnline &&
         !forceRefresh &&
-        _hasRequiredScopes(_credentials?.scopes) &&
-        _isAccessTokenUsable(_accessToken, _credentials?.expiresIn)) {
+        _accessToken != null &&
+        _accessToken!.isNotEmpty) {
       return Future.value(_accessToken);
     }
 
@@ -178,125 +112,82 @@ class GoogleAuthService {
     bool forceOnline = false,
     bool forceRefresh = false,
   }) async {
+    await _ensureInitialized();
+
     if (!forceOnline) {
-      final restoredCredentials = await _tryRestoringCredentials();
-      if (restoredCredentials != null) {
-        _updateCredentials(restoredCredentials);
-        if (!forceRefresh &&
-            _hasRequiredScopes(restoredCredentials.scopes) &&
-            _isAccessTokenUsable(
-              restoredCredentials.accessToken,
-              restoredCredentials.expiresIn,
-            )) {
-          return _accessToken;
+      final account = _account ?? await _tryRestoringAccount();
+      if (account != null) {
+        if (forceRefresh && _accessToken != null) {
+          await account.authorizationClient.clearAuthorizationToken(
+            accessToken: _accessToken!,
+          );
         }
 
-        final refreshedCredentials = await _refreshAccessToken(
-          restoredCredentials,
-        );
-        if (_isAccessTokenUsable(
-              refreshedCredentials?.accessToken,
-              refreshedCredentials?.expiresIn,
-            ) &&
-            _hasRequiredScopes(refreshedCredentials?.scopes)) {
-          _updateCredentials(refreshedCredentials);
-          return _accessToken;
-        }
-      }
-
-      if (_credentials != null) {
-        final refreshedCachedCredentials = await _refreshAccessToken(
-          _credentials!,
-        );
-        if (_isAccessTokenUsable(
-              refreshedCachedCredentials?.accessToken,
-              refreshedCachedCredentials?.expiresIn,
-            ) &&
-            _hasRequiredScopes(refreshedCachedCredentials?.scopes)) {
-          _updateCredentials(refreshedCachedCredentials);
-          return _accessToken;
-        }
+        final silent = await _authorizeSilently(account);
+        if (silent != null) return silent.accessToken;
       }
     }
 
-    debugPrint('$_logTag: falling back to signInOnline() for a fresh token.');
-    final onlineCredentials = await googleSignIn.signInOnline();
-    _updateCredentials(onlineCredentials);
-    if (onlineCredentials == null) {
+    debugPrint('$_logTag: falling back to authenticate() for a fresh token.');
+    try {
+      final account = await GoogleSignIn.instance.authenticate(
+        scopeHint: _scopes,
+      );
+      final credentials = await _authorizeInteractively(account);
+      return credentials.accessToken;
+    } on GoogleSignInException catch (error) {
       debugPrint(
-        '$_logTag: signInOnline() returned null — the underlying plugin '
-        'swallows the real platform exception here. If the account picker '
-        'shows but nothing happens after you pick an account, check '
-        '`adb logcat` (Android) or the Xcode console (iOS) for '
-        'ApiException/DEVELOPER_ERROR while reproducing.',
+        '$_logTag: ensureAccessToken authenticate() failed: '
+        '${error.code} ${error.description}',
       );
       return null;
     }
-    if (!_hasRequiredScopes(onlineCredentials.scopes)) {
-      debugPrint(
-        '$_logTag: signInOnline() succeeded but is missing required scopes. '
-        'Got: ${onlineCredentials.scopes}',
-      );
-      return null;
-    }
-    return _accessToken;
   }
 
   static Future<bool> tryRestoreSilently() async {
-    final restored = await _tryRestoringCredentials();
-    if (restored == null) return false;
-    _updateCredentials(restored);
-
-    if (_hasRequiredScopes(restored.scopes) &&
-        _isAccessTokenUsable(restored.accessToken, restored.expiresIn)) {
-      return true;
-    }
-
-    final refreshed = await _refreshAccessToken(restored);
-    if (_isAccessTokenUsable(refreshed?.accessToken, refreshed?.expiresIn) &&
-        _hasRequiredScopes(refreshed?.scopes)) {
-      _updateCredentials(refreshed);
-      return true;
-    }
-    return false;
+    await _ensureInitialized();
+    final account = await _tryRestoringAccount();
+    if (account == null) return false;
+    final credentials = await _authorizeSilently(account);
+    return credentials != null;
   }
 
-  static Future<GoogleSignInCredentials?> signIn() async {
-    debugPrint('$_logTag: signIn() -> googleSignIn.signInOnline()');
-    final credentials = await googleSignIn.signInOnline();
-    _updateCredentials(credentials);
-    if (credentials == null) {
-      debugPrint(
-        '$_logTag: signIn() got null credentials back. The account picker '
-        'may have completed, but scope authorization or token exchange '
-        'failed silently inside the plugin (it swallows the real '
-        'exception). Reproduce and check `adb logcat` (Android) or the '
-        'Xcode console (iOS) for ApiException/DEVELOPER_ERROR.',
+  static Future<GoogleAuthCredentials?> signIn() async {
+    await _ensureInitialized();
+    debugPrint('$_logTag: signIn() -> authenticate()');
+    try {
+      final account = await GoogleSignIn.instance.authenticate(
+        scopeHint: _scopes,
       );
-    } else {
+      final credentials = await _authorizeInteractively(account);
       debugPrint(
         '$_logTag: signIn() succeeded. scopes=${credentials.scopes} '
         'hasIdToken=${(credentials.idToken ?? '').isNotEmpty}',
       );
+      return credentials;
+    } on GoogleSignInException catch (error) {
+      if (error.code == GoogleSignInExceptionCode.canceled) {
+        debugPrint('$_logTag: signIn() canceled by user.');
+        return null;
+      }
+      debugPrint(
+        '$_logTag: signIn() threw ${error.code}: ${error.description}',
+      );
+      rethrow;
     }
-    return credentials;
   }
 
-  static Future<GoogleSignInCredentials?> signInFresh() async {
-    debugPrint('$_logTag: signInFresh() -> signOut() then signInOnline()');
+  static Future<GoogleAuthCredentials?> signInFresh() async {
+    debugPrint('$_logTag: signInFresh() -> signOut() then authenticate()');
     await signOut();
-    final credentials = await googleSignIn.signInOnline();
-    _updateCredentials(credentials);
-    debugPrint(
-      '$_logTag: signInFresh() ${credentials == null ? 'returned null' : 'succeeded'}.',
-    );
-    return credentials;
+    return signIn();
   }
 
   static Future<void> signOut() async {
     debugPrint('$_logTag: signOut()');
-    await googleSignIn.signOut();
+    await _ensureInitialized();
+    await GoogleSignIn.instance.signOut();
+    _account = null;
     _accessToken = null;
-    _credentials = null;
   }
 }
