@@ -20,7 +20,7 @@ dependencies:
     sdk: flutter
   flutter_dotenv: ^6.0.1
   flutter_inappwebview: 6.2.0-beta.3
-  google_sign_in: ^7.2.0
+  google_sign_in_all_platforms: ^2.0.3
   home_widget: ^0.9.3
   http: ^1.4.0
   just_audio: ^0.10.6

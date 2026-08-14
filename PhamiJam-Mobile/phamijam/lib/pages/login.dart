@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kDebugMode, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:phamijam/services/apple_auth_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
@@ -20,7 +21,7 @@ class _LoginState extends State<Login> {
   bool _isLoading = false;
 
   Future<UserCredential?> _firebaseSignInFromGoogleCredentials(
-    GoogleAuthCredentials credentials,
+    GoogleSignInCredentials credentials,
   ) async {
     final hasIdToken = (credentials.idToken ?? '').isNotEmpty;
     final hasAccessToken = credentials.accessToken.isNotEmpty;
@@ -114,26 +115,12 @@ class _LoginState extends State<Login> {
       }
     } catch (error) {
       debugPrint('Error signing in with Google: $error');
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
-
-      showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Google sign-in failed'),
-          content: SingleChildScrollView(
-            child: SelectableText('$error'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        AppFlushbar.error(context, 'Failed to sign in: $error');
+      }
     }
   }
 
