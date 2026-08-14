@@ -41,9 +41,11 @@ class AppleAuthService {
         return null;
       }
 
-      final oauthCredential = OAuthProvider(
-        'apple.com',
-      ).credential(idToken: idToken, rawNonce: rawNonce);
+      final oauthCredential = OAuthProvider('apple.com').credential(
+        idToken: idToken,
+        rawNonce: rawNonce,
+        accessToken: appleCredential.authorizationCode,
+      );
 
       final displayName = [
         appleCredential.givenName,

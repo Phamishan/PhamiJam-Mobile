@@ -160,6 +160,12 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
+  void clearDriveConnection() {
+    hasConnectedDriveFolder = false;
+    localFiles = [];
+    notifyListeners();
+  }
+
   Future<void> _refreshRecentlyPlayed() async {
     try {
       final since = DateTime.now().subtract(const Duration(days: 180));

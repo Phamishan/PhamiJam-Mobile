@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -276,10 +277,29 @@ class GoogleAuthService {
     } else {
       debugPrint(
         '$_logTag: signIn() succeeded. scopes=${credentials.scopes} '
+        '(NOTE: this is the requested scope list, not necessarily what was '
+        'actually granted — see _debugPrintRealScopes below) '
         'hasIdToken=${(credentials.idToken ?? '').isNotEmpty}',
       );
+      unawaited(_debugPrintRealScopes(credentials.accessToken));
     }
     return credentials;
+  }
+
+  static Future<void> _debugPrintRealScopes(String accessToken) async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://oauth2.googleapis.com/tokeninfo?access_token=$accessToken',
+        ),
+      );
+      debugPrint(
+        '$_logTag: REAL granted scopes (tokeninfo, ${response.statusCode}): '
+        '${response.body}',
+      );
+    } catch (error) {
+      debugPrint('$_logTag: tokeninfo check failed: $error');
+    }
   }
 
   static Future<GoogleSignInCredentials?> signInFresh() async {

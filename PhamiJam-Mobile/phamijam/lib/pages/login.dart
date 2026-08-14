@@ -8,7 +8,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:phamijam/services/apple_auth_service.dart';
+import 'package:phamijam/services/drive_folder_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
+import 'package:phamijam/services/google_drive_auth_service.dart';
+import 'package:phamijam/providers/library_provider.dart';
+import 'package:provider/provider.dart';
 
 const Duration _authTimeout = Duration(seconds: 25);
 
@@ -243,8 +247,11 @@ class _LoginState extends State<Login> {
 
   Future<void> _signOut() async {
     await GoogleAuthService.signOut();
+    await GoogleDriveAuthService.signOut();
+    await DriveFolderService.clearFolderId();
     await _auth.signOut();
     if (!mounted) return;
+    context.read<LibraryProvider>().clearDriveConnection();
     setState(() {
       _userId = null;
     });
