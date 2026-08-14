@@ -7,6 +7,13 @@ import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:provider/provider.dart';
 
 Future<void> showAddToPlaylistSheet(BuildContext context, Track track) {
+  return showAddTracksToPlaylistSheet(context, [track]);
+}
+
+Future<void> showAddTracksToPlaylistSheet(
+  BuildContext context,
+  List<Track> tracks,
+) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -14,14 +21,14 @@ Future<void> showAddToPlaylistSheet(BuildContext context, Track track) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (sheetContext) => _AddToPlaylistSheet(track: track),
+    builder: (sheetContext) => _AddToPlaylistSheet(tracks: tracks),
   );
 }
 
 class _AddToPlaylistSheet extends StatefulWidget {
-  final Track track;
+  final List<Track> tracks;
 
-  const _AddToPlaylistSheet({required this.track});
+  const _AddToPlaylistSheet({required this.tracks});
 
   @override
   State<_AddToPlaylistSheet> createState() => _AddToPlaylistSheetState();
@@ -49,7 +56,9 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
     await Future.wait(
       targets.map((playlist) async {
         try {
-          await library.addTrackToPlaylist(playlist, widget.track);
+          for (final track in widget.tracks) {
+            await library.addTrackToPlaylist(playlist, track);
+          }
         } catch (_) {
           failures.add(playlist.title);
         }
@@ -57,21 +66,23 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
     );
     if (!mounted) return;
 
+    Navigator.of(context).pop();
+
     if (failures.isEmpty) {
+      final destination = targets.length == 1
+          ? 'to ${targets.first.title}'
+          : 'to ${targets.length} playlists';
       AppFlushbar.success(
         context,
-        targets.length == 1
-            ? 'Added to ${targets.first.title}'
-            : 'Added to ${targets.length} playlists',
+        widget.tracks.length == 1
+            ? 'Added $destination'
+            : 'Added ${widget.tracks.length} songs $destination',
       );
     } else if (failures.length == targets.length) {
       AppFlushbar.error(context, "Couldn't add to any playlist");
     } else {
       AppFlushbar.error(context, 'Failed for: ${failures.join(', ')}');
     }
-    await Future.delayed(const Duration(milliseconds: 150));
-    if (!mounted) return;
-    Navigator.of(context).pop();
   }
 
   @override
@@ -104,7 +115,9 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          widget.track.title,
+                          widget.tracks.length == 1
+                              ? widget.tracks.first.title
+                              : '${widget.tracks.length} songs selected',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodyMedium,

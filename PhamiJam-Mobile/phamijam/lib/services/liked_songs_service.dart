@@ -53,6 +53,7 @@ class LikedSongsService {
     final data = doc.data();
     final videoId = data['videoId'];
     if (videoId is! String || videoId.isEmpty) return null;
+    final likedAt = data['likedAt'];
     return Track(
       id: 'yt-$videoId',
       title: data['title'] is String ? data['title'] as String : '',
@@ -67,6 +68,7 @@ class LikedSongsService {
       channelId: data['channelId'] is String
           ? data['channelId'] as String
           : null,
+      addedAt: likedAt is Timestamp ? likedAt.toDate() : null,
     );
   }
 }

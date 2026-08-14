@@ -32,8 +32,8 @@ const String _nowPlayingTitleKey = 'now_playing_title';
 const String _nowPlayingArtistKey = 'now_playing_artist';
 const String _nowPlayingLabelKey = 'now_playing_label';
 
-class WrapphamiedWidgetService {
-  WrapphamiedWidgetService._();
+class JamstatsWidgetService {
+  JamstatsWidgetService._();
 
   static Future<void> refresh({int? accentColor}) async {
     try {
@@ -93,7 +93,7 @@ class WrapphamiedWidgetService {
         iOSName: _iOSTopSongWidgetName,
       );
     } catch (error) {
-      debugPrint('WrapphamiedWidgetService: refresh failed: $error');
+      debugPrint('JamstatsWidgetService: refresh failed: $error');
     }
   }
 
@@ -120,7 +120,7 @@ class WrapphamiedWidgetService {
         iOSName: _iOSNowPlayingWidgetName,
       );
     } catch (error) {
-      debugPrint('WrapphamiedWidgetService: pushNowPlaying failed: $error');
+      debugPrint('JamstatsWidgetService: pushNowPlaying failed: $error');
     }
   }
 }

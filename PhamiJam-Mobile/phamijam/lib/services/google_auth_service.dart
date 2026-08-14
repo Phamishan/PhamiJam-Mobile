@@ -26,7 +26,6 @@ class GoogleAuthService {
 
   static String? _accessToken;
   static GoogleSignInCredentials? _credentials;
-
   static String? get accessToken => _accessToken;
 
   static bool _isAccessTokenUsable(String? token, DateTime? expiresIn) {
@@ -241,6 +240,25 @@ class GoogleAuthService {
       return null;
     }
     return _accessToken;
+  }
+
+  static Future<bool> tryRestoreSilently() async {
+    final restored = await _tryRestoringCredentials();
+    if (restored == null) return false;
+    _updateCredentials(restored);
+
+    if (_hasRequiredScopes(restored.scopes) &&
+        _isAccessTokenUsable(restored.accessToken, restored.expiresIn)) {
+      return true;
+    }
+
+    final refreshed = await _refreshAccessToken(restored);
+    if (_isAccessTokenUsable(refreshed?.accessToken, refreshed?.expiresIn) &&
+        _hasRequiredScopes(refreshed?.scopes)) {
+      _updateCredentials(refreshed);
+      return true;
+    }
+    return false;
   }
 
   static Future<GoogleSignInCredentials?> signIn() async {

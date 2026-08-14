@@ -36,6 +36,10 @@ workflows:
           cd "$PROJECT_DIR"
           echo "$FIREBASE_OPTIONS_DART_B64" | base64 --decode > lib/firebase_options.dart
 
+      - name: Sync changelog from README
+        script: |
+          cp README.md "$PROJECT_DIR/assets/CHANGELOG.md"
+
       - name: Flutter pub get
         script: |
           cd "$PROJECT_DIR"

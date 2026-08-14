@@ -9,6 +9,7 @@ import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/widgets/play_button.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
@@ -37,6 +38,43 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
   List<Track> _tracks = const [];
   bool _loading = true;
   String? _error;
+  bool _selectionMode = false;
+  final Set<String> _selectedTrackIds = {};
+
+  void _enterSelectionMode(Track track) {
+    setState(() {
+      _selectionMode = true;
+      _selectedTrackIds
+        ..clear()
+        ..add(track.id);
+    });
+  }
+
+  void _toggleTrackSelection(Track track) {
+    setState(() {
+      if (!_selectedTrackIds.remove(track.id)) {
+        _selectedTrackIds.add(track.id);
+      }
+      if (_selectedTrackIds.isEmpty) _selectionMode = false;
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedTrackIds.clear();
+    });
+  }
+
+  Future<void> _addSelectedToPlaylist() async {
+    final selectedTracks = _tracks
+        .where((t) => _selectedTrackIds.contains(t.id))
+        .toList();
+    if (selectedTracks.isEmpty) return;
+    await showAddTracksToPlaylistSheet(context, selectedTracks);
+    if (!mounted) return;
+    _exitSelectionMode();
+  }
 
   @override
   void initState() {
@@ -122,6 +160,10 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
     final year = album != null ? readYtString(album['year']) : '';
     final description = album != null ? readYtString(album['description']) : '';
     final artistLinks = _artistLinks(album);
+    final isThisAlbumPlaying =
+        player.isPlaying &&
+        player.currentTrack != null &&
+        _tracks.any((t) => t.id == player.currentTrack!.id);
 
     return SwipeBack(
       child: Scaffold(
@@ -134,23 +176,48 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: Icon(
-                        Icons.arrow_back_rounded,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        displayTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                  ],
+                  children: _selectionMode
+                      ? [
+                          IconButton(
+                            onPressed: _exitSelectionMode,
+                            icon: Icon(
+                              Icons.close_rounded,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${_selectedTrackIds.length} selected',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _selectedTrackIds.isEmpty
+                                ? null
+                                : _addSelectedToPlaylist,
+                            icon: Icon(
+                              Icons.playlist_add_rounded,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ]
+                      : [
+                          IconButton(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            icon: Icon(
+                              Icons.arrow_back_rounded,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              displayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                        ],
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -223,7 +290,47 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      onPressed: _tracks.isEmpty ? null : player.toggleShuffle,
+                      icon: Icon(
+                        Icons.shuffle_rounded,
+                        color: player.shuffle
+                            ? colorScheme.primary
+                            : colorScheme.onSurfaceVariant,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    PlayButton(
+                      isPlaying: isThisAlbumPlaying,
+                      onTap: _tracks.isEmpty
+                          ? null
+                          : () => isThisAlbumPlaying
+                                ? player.togglePlayPause()
+                                : player.shuffle
+                                ? player.shufflePlay(_tracks)
+                                : player.playQueue(_tracks),
+                    ),
+                    const SizedBox(width: 24),
+                    IconButton(
+                      onPressed: player.cycleRepeatMode,
+                      icon: Icon(
+                        player.repeatMode == PlayerRepeatMode.one
+                            ? Icons.repeat_one_rounded
+                            : Icons.repeat_rounded,
+                        color: player.repeatMode == PlayerRepeatMode.off
+                            ? colorScheme.onSurfaceVariant
+                            : colorScheme.primary,
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 if (_loading)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 40),
@@ -272,9 +379,19 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                       index: i + 1,
                       track: track,
                       isActive: player.currentTrack?.id == track.id,
-                      onTap: () => player.playQueue(_tracks, startIndex: i),
+                      selectionMode: _selectionMode,
+                      selected: _selectedTrackIds.contains(track.id),
+                      onTap: _selectionMode
+                          ? () => _toggleTrackSelection(track)
+                          : () => player.playQueue(_tracks, startIndex: i),
+                      onLongPress: _selectionMode
+                          ? () => _toggleTrackSelection(track)
+                          : () => _enterSelectionMode(track),
                       onPlayNext: () => player.playNext(track),
-                      onMore: () => showAddToPlaylistSheet(context, track),
+                      onMore: () =>
+                          _selectionMode && _selectedTrackIds.isNotEmpty
+                          ? _addSelectedToPlaylist()
+                          : showAddToPlaylistSheet(context, track),
                       isLiked: library.isLiked(track),
                       onToggleLike: () => toggleTrackLike(context, track),
                       isDownloaded: downloads.isDownloaded(track.videoId),

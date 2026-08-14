@@ -17,7 +17,7 @@ import 'package:phamijam/providers/saved_playlists_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/deep_link_service.dart';
-import 'package:phamijam/services/wrapphamied_widget_service.dart';
+import 'package:phamijam/services/jamstats_widget_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
 import 'package:phamijam/widgets/mini_player.dart';
@@ -102,7 +102,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _refreshWidgets() {
     final accentColor = context.read<ThemeProvider>().accentColor?.toARGB32();
-    return WrapphamiedWidgetService.refresh(accentColor: accentColor);
+    return JamstatsWidgetService.refresh(accentColor: accentColor);
   }
 
   @override
@@ -140,7 +140,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _lastPushedNowPlayingVideoId = track?.videoId;
     _lastPushedNowPlayingIsPlaying = isPlaying;
     unawaited(
-      WrapphamiedWidgetService.pushNowPlaying(
+      JamstatsWidgetService.pushNowPlaying(
         track: track,
         isPlaying: isPlaying,
       ),

@@ -5,14 +5,14 @@ import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 
-class WrapphamiedPage extends StatefulWidget {
-  const WrapphamiedPage({super.key});
+class JamstatsPage extends StatefulWidget {
+  const JamstatsPage({super.key});
 
   @override
-  State<WrapphamiedPage> createState() => _WrapphamiedPageState();
+  State<JamstatsPage> createState() => _JamstatsPageState();
 }
 
-class _WrapphamiedPageState extends State<WrapphamiedPage> {
+class _JamstatsPageState extends State<JamstatsPage> {
   WrappedStats? _stats;
   int _slideIndex = 0;
   int _year = DateTime.now().year;
@@ -305,7 +305,7 @@ class _IntroSlide extends StatelessWidget {
       children: [
         Text('$year', style: _kicker(context)),
         const SizedBox(height: 8),
-        Text('Wrapphamied', style: _hero(context)),
+        Text('Jamstats ✨', style: _hero(context)),
         const SizedBox(height: 16),
         Text(
           'Your year in PhamiJam.\nTap to see the sound through your eyes ✨',
@@ -578,7 +578,7 @@ class _SummarySlide extends StatelessWidget {
 
     return _SlideScaffold(
       children: [
-        Text('Wrapphamied $year', style: _hero(context).copyWith(fontSize: 30)),
+        Text('Jamstats ✨ $year', style: _hero(context).copyWith(fontSize: 30)),
         const SizedBox(height: 24),
         Container(
           padding: const EdgeInsets.all(20),
@@ -626,7 +626,7 @@ class _EmptyState extends StatelessWidget {
     final isCurrentYear = year == DateTime.now().year;
     return _SlideScaffold(
       children: [
-        Text('Wrapphamied $year', style: _hero(context).copyWith(fontSize: 32)),
+        Text('Jamstats ✨ $year', style: _hero(context).copyWith(fontSize: 32)),
         const SizedBox(height: 16),
         Text(
           isCurrentYear

@@ -10,6 +10,9 @@ class TrackTile extends StatefulWidget {
   final int? index;
   final bool isActive;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool selectionMode;
+  final bool selected;
   final VoidCallback? onMore;
   final VoidCallback? onArtistTap;
   final VoidCallback? onPlayNext;
@@ -27,6 +30,9 @@ class TrackTile extends StatefulWidget {
     super.key,
     required this.track,
     required this.onTap,
+    this.onLongPress,
+    this.selectionMode = false,
+    this.selected = false,
     this.index,
     this.isActive = false,
     this.onMore,
@@ -51,7 +57,9 @@ class _TrackTileState extends State<TrackTile> {
   bool _hovering = false;
 
   bool get _canEdit =>
-      widget.track.videoId != null && widget.track.videoId!.isNotEmpty;
+      widget.track.videoId != null &&
+      widget.track.videoId!.isNotEmpty &&
+      !widget.track.isDriveSourced;
 
   String _formatDuration(Duration d) {
     final minutes = d.inMinutes.remainder(60).toString();
@@ -71,21 +79,34 @@ class _TrackTileState extends State<TrackTile> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         child: Container(
           decoration: BoxDecoration(
-            color: widget.isActive
+            color: widget.selected
+                ? colorScheme.primary.withValues(alpha: _hovering ? 0.24 : 0.2)
+                : widget.isActive
                 ? colorScheme.primary.withValues(alpha: _hovering ? 0.16 : 0.12)
                 : _hovering
                 ? colorScheme.surfaceContainerHigh
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
             children: [
               SizedBox(
-                width: 28,
-                child: widget.isActive
+                width: 22,
+                child: widget.selectionMode
+                    ? Icon(
+                        widget.selected
+                            ? Icons.check_circle_rounded
+                            : Icons.circle_outlined,
+                        color: widget.selected
+                            ? colorScheme.primary
+                            : colorScheme.onSurfaceVariant,
+                        size: 20,
+                      )
+                    : widget.isActive
                     ? Icon(
                         Icons.graphic_eq_rounded,
                         color: colorScheme.primary,
@@ -110,14 +131,14 @@ class _TrackTileState extends State<TrackTile> {
                         size: 18,
                       ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               NetworkThumbnail(
                 url: widget.track.thumbnailUrl,
                 width: 40,
                 height: 40,
                 borderRadius: BorderRadius.circular(4),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,16 +148,17 @@ class _TrackTileState extends State<TrackTile> {
                       widget.track.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.copyWith(color: activeColor),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: activeColor,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     widget.onArtistTap == null
                         ? Text(
                             widget.track.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            style: Theme.of(context).textTheme.bodySmall,
                           )
                         : GestureDetector(
                             onTap: widget.onArtistTap,
@@ -144,7 +166,7 @@ class _TrackTileState extends State<TrackTile> {
                               widget.track.artist,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     decoration: TextDecoration.underline,
                                   ),
@@ -153,12 +175,12 @@ class _TrackTileState extends State<TrackTile> {
                   ],
                 ),
               ),
+              const SizedBox(width: 4),
               Text(
                 _formatDuration(widget.track.duration),
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-              if (widget.onToggleLike != null) ...[
-                const SizedBox(width: 4),
+              if (widget.onToggleLike != null)
                 IconButton(
                   onPressed: widget.onToggleLike,
                   icon: Icon(
@@ -170,13 +192,15 @@ class _TrackTileState extends State<TrackTile> {
                         : colorScheme.onSurface,
                     size: 18,
                   ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
                   splashRadius: 18,
                 ),
-              ],
               if (widget.onMore != null ||
                   widget.onToggleDownload != null ||
                   _canEdit) ...[
-                const SizedBox(width: 4),
+                const SizedBox(width: 2),
                 if (widget.downloadProgress != null)
                   SizedBox(
                     width: 34,
@@ -215,13 +239,7 @@ class _TrackTileState extends State<TrackTile> {
                   )
                 else
                   PopupMenuButton<String>(
-                    icon: Icon(
-                      Icons.more_horiz_rounded,
-                      color: colorScheme.onSurfaceVariant,
-                      size: 18,
-                    ),
                     splashRadius: 18,
-                    padding: EdgeInsets.zero,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -287,6 +305,14 @@ class _TrackTileState extends State<TrackTile> {
                           ),
                         ),
                     ],
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.more_horiz_rounded,
+                        color: colorScheme.onSurfaceVariant,
+                        size: 18,
+                      ),
+                    ),
                   ),
               ],
             ],
@@ -295,6 +321,7 @@ class _TrackTileState extends State<TrackTile> {
       ),
     );
 
+    if (widget.selectionMode) return tile;
     if (widget.onPlayNext == null && widget.onRemove == null) return tile;
 
     final DismissDirection direction;

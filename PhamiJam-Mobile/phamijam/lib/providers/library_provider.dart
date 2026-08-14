@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/services/google_drive_service.dart';
 import 'package:phamijam/services/liked_songs_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/playlist_pin_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 
 const String kLikedSongsPlaylistId = 'liked-songs';
+const String kLocalFilesPlaylistId = 'local-files';
 
 class LibraryProvider extends ChangeNotifier {
   bool isLoading = false;
@@ -16,6 +18,8 @@ class LibraryProvider extends ChangeNotifier {
   List<Track> recentlyPlayed = [];
   List<Playlist> userPlaylists = [];
   List<Track> likedSongs = [];
+  List<Track> localFiles = [];
+  bool hasConnectedDriveFolder = false;
   final Set<String> _likedVideoIds = {};
   List<String> _pinnedOrder = [];
   Set<String> get _pinnedIds => _pinnedOrder.toSet();
@@ -27,6 +31,15 @@ class LibraryProvider extends ChangeNotifier {
     subtitle: '${likedSongs.length} songs',
     thumbnailUrl: likedSongs.isNotEmpty ? likedSongs.first.thumbnailUrl : '',
     tracks: likedSongs,
+    isFromYoutube: false,
+  );
+
+  Playlist get localFilesPlaylist => Playlist(
+    id: kLocalFilesPlaylistId,
+    title: 'Google Drive',
+    subtitle: '${localFiles.length} songs',
+    thumbnailUrl: '',
+    tracks: localFiles,
     isFromYoutube: false,
   );
 
@@ -45,6 +58,7 @@ class LibraryProvider extends ChangeNotifier {
       _refreshYoutubePlaylists(),
       _refreshLikedSongs(),
       _refreshRecentlyPlayed(),
+      refreshLocalFiles(),
     ]);
 
     isLoading = false;
@@ -130,6 +144,18 @@ class LibraryProvider extends ChangeNotifier {
         ..addAll(liked.map((t) => t.videoId).whereType<String>());
     } catch (error, stackTrace) {
       debugPrint('LibraryProvider: liked songs refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> refreshLocalFiles() async {
+    try {
+      final files = await GoogleDriveService.listAudioFiles();
+      hasConnectedDriveFolder = files != null;
+      localFiles = files ?? [];
+      notifyListeners();
+    } catch (error, stackTrace) {
+      debugPrint('LibraryProvider: local files refresh failed: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
   }

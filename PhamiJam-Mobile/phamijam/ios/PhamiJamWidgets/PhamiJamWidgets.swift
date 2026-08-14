@@ -71,7 +71,7 @@ struct PhamiJamMinutesWidgetView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "music.note")
                         .foregroundColor(widgetDark)
-                    Text("Wrapphamied")
+                    Text("Jamstats ✨")
                         .font(.subheadline)
                         .foregroundColor(widgetDark)
                 }
@@ -109,7 +109,7 @@ struct PhamiJamMinutesWidget: Widget {
         StaticConfiguration(kind: kind, provider: MinutesProvider()) { entry in
             PhamiJamMinutesWidgetView(entry: entry)
         }
-        .configurationDisplayName("Wrapphamied Minutes")
+        .configurationDisplayName("Jamstats Minutes")
         .description("Shows how many minutes you've listened to this year.")
         .supportedFamilies([.systemSmall, .systemLarge])
     }

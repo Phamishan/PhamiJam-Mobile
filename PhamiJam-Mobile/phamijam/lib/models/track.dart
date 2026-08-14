@@ -8,6 +8,7 @@ class Track {
   final String? channelId;
   final String? playlistItemId;
   final int? viewCount;
+  final DateTime? addedAt;
 
   const Track({
     required this.id,
@@ -19,5 +20,8 @@ class Track {
     this.channelId,
     this.playlistItemId,
     this.viewCount,
+    this.addedAt,
   });
+
+  bool get isDriveSourced => (videoId ?? '').startsWith('drive:');
 }

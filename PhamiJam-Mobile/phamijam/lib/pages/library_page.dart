@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/components/create_playlist_sheet.dart';
 import 'package:phamijam/components/playlist_pin_action.dart';
 import 'package:phamijam/components/save_playlist_sheet.dart';
@@ -20,6 +21,17 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
+  void _openLocalFiles(BuildContext context, LibraryProvider library) {
+    if (!library.hasConnectedDriveFolder) {
+      AppFlushbar.info(
+        context,
+        'Connect Google Drive in Settings to play your songs.',
+      );
+      return;
+    }
+    widget.onOpenPlaylist(library.localFilesPlaylist);
+  }
+
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
@@ -88,6 +100,7 @@ class _LibraryPageState extends State<LibraryPage> {
   ) {
     if (library.userPlaylists.isEmpty &&
         library.likedSongs.isEmpty &&
+        library.localFiles.isEmpty &&
         savedPlaylists.playlists.isEmpty) {
       return _EmptyState(onRefresh: library.refresh);
     }
@@ -118,14 +131,20 @@ class _LibraryPageState extends State<LibraryPage> {
                       widget.onOpenPlaylist(library.likedSongsPlaylist),
                 );
               }
-              final playlist = playlists[index - 1];
+              if (index == 1) {
+                return _LocalFilesCard(
+                  count: library.localFiles.length,
+                  onTap: () => _openLocalFiles(context, library),
+                );
+              }
+              final playlist = playlists[index - 2];
               return _LibraryPlaylistTile(
                 playlist: playlist,
                 onTap: () => widget.onOpenPlaylist(playlist),
                 onLongPress: () => togglePlaylistPin(context, playlist),
                 onTogglePin: () => togglePlaylistPin(context, playlist),
               );
-            }, childCount: playlists.length + 1),
+            }, childCount: playlists.length + 2),
           ),
           if (saved.isNotEmpty) ...[
             SliverToBoxAdapter(
@@ -346,6 +365,55 @@ class _LikedSongsCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 'Liked Songs',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              Text(
+                '$count songs',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LocalFilesCard extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _LocalFilesCard({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Center(
+                  child: Icon(
+                    Icons.folder_rounded,
+                    color: colorScheme.onSurface,
+                    size: 40,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Google Drive',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               Text(

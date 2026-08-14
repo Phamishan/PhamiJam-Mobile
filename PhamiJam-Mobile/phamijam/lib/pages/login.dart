@@ -1,7 +1,10 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kDebugMode, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:phamijam/services/apple_auth_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 
@@ -121,6 +124,48 @@ class _LoginState extends State<Login> {
     }
   }
 
+  Future<void> _signInWithApple() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await AppleAuthService.signIn();
+      if (result == null) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final userCredential = await _auth.signInWithCredential(
+        result.credential,
+      );
+      final user = userCredential.user;
+      if (user != null &&
+          result.displayName != null &&
+          (user.displayName ?? '').isEmpty) {
+        await user.updateDisplayName(result.displayName);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _userId = user?.email;
+        _isLoading = false;
+      });
+    } catch (error) {
+      debugPrint('Error signing in with Apple: $error');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        AppFlushbar.error(context, 'Failed to sign in: $error');
+      }
+    }
+  }
+
   Future<void> _signOut() async {
     await GoogleAuthService.signOut();
     await _auth.signOut();
@@ -198,7 +243,7 @@ class _LoginState extends State<Login> {
                             Text(
                               _userId != null
                                   ? "Logged in as $_userId"
-                                  : "Sign in with your Google account to sync your YouTube playlists and start listening.",
+                                  : "Sign in to sync your YouTube playlists and start listening.",
                               style: TextStyle(
                                 fontSize: 14,
                                 color: colorScheme.onSurfaceVariant,
@@ -234,6 +279,25 @@ class _LoginState extends State<Login> {
                                     isSignedIn
                                         ? 'Sign Out'
                                         : 'Continue with Google',
+                                  ),
+                                ),
+                              ),
+                            if (!_isLoading &&
+                                !isSignedIn &&
+                                defaultTargetPlatform == TargetPlatform.iOS)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 44,
+                                  child: SignInWithAppleButton(
+                                    onPressed: _signInWithApple,
+                                    style:
+                                        Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? SignInWithAppleButtonStyle.white
+                                        : SignInWithAppleButtonStyle.black,
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
                               ),

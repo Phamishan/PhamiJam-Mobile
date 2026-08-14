@@ -21,19 +21,33 @@ class YoutubeApiException implements Exception {
 class YoutubeService {
   YoutubeService._();
 
-  static Future<Map<String, dynamic>> _get(
-    String path,
-    Map<String, String> query,
+  static Future<http.Response> _sendWithAutoRefresh(
+    Future<http.Response> Function(String token) send,
   ) async {
     final token = await GoogleAuthService.ensureAccessToken();
     if (token == null || token.isEmpty) {
       throw YoutubeApiException('Not signed in to YouTube.');
     }
 
+    var response = await send(token);
+    if (response.statusCode == 401) {
+      final refreshedToken = await GoogleAuthService.ensureAccessToken(
+        forceRefresh: true,
+      );
+      if (refreshedToken != null && refreshedToken.isNotEmpty) {
+        response = await send(refreshedToken);
+      }
+    }
+    return response;
+  }
+
+  static Future<Map<String, dynamic>> _get(
+    String path,
+    Map<String, String> query,
+  ) async {
     final uri = Uri.parse('$_baseUrl/$path').replace(queryParameters: query);
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $token'},
+    final response = await _sendWithAutoRefresh(
+      (token) => http.get(uri, headers: {'Authorization': 'Bearer $token'}),
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -53,19 +67,16 @@ class YoutubeService {
     Map<String, String> query,
     Map<String, dynamic> body,
   ) async {
-    final token = await GoogleAuthService.ensureAccessToken();
-    if (token == null || token.isEmpty) {
-      throw YoutubeApiException('Not signed in to YouTube.');
-    }
-
     final uri = Uri.parse('$_baseUrl/$path').replace(queryParameters: query);
-    final response = await http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json; charset=utf-8',
-      },
-      body: jsonEncode(body),
+    final response = await _sendWithAutoRefresh(
+      (token) => http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: jsonEncode(body),
+      ),
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -85,19 +96,16 @@ class YoutubeService {
     Map<String, String> query,
     Map<String, dynamic> body,
   ) async {
-    final token = await GoogleAuthService.ensureAccessToken();
-    if (token == null || token.isEmpty) {
-      throw YoutubeApiException('Not signed in to YouTube.');
-    }
-
     final uri = Uri.parse('$_baseUrl/$path').replace(queryParameters: query);
-    final response = await http.put(
-      uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json; charset=utf-8',
-      },
-      body: jsonEncode(body),
+    final response = await _sendWithAutoRefresh(
+      (token) => http.put(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: jsonEncode(body),
+      ),
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -113,15 +121,9 @@ class YoutubeService {
   }
 
   static Future<void> _delete(String path, Map<String, String> query) async {
-    final token = await GoogleAuthService.ensureAccessToken();
-    if (token == null || token.isEmpty) {
-      throw YoutubeApiException('Not signed in to YouTube.');
-    }
-
     final uri = Uri.parse('$_baseUrl/$path').replace(queryParameters: query);
-    final response = await http.delete(
-      uri,
-      headers: {'Authorization': 'Bearer $token'},
+    final response = await _sendWithAutoRefresh(
+      (token) => http.delete(uri, headers: {'Authorization': 'Bearer $token'}),
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -353,8 +355,7 @@ class YoutubeService {
       {
         'id': playlistId,
         'snippet': {'title': title, 'description': description},
-        if (privacyStatus != null)
-          'status': {'privacyStatus': privacyStatus},
+        if (privacyStatus != null) 'status': {'privacyStatus': privacyStatus},
       },
     );
   }
@@ -531,6 +532,9 @@ class YoutubeService {
                 'YouTube',
             channelId: snippet?['videoOwnerChannelId'] as String?,
             thumbnailUrl: _bestThumbnail(snippet),
+            addedAt: DateTime.tryParse(
+              snippet?['publishedAt'] as String? ?? '',
+            ),
           ),
         );
       }
@@ -567,6 +571,7 @@ class YoutubeService {
           channelId: item.channelId,
           playlistItemId: item.apiItemId,
           viewCount: includeViewCount ? stat?.viewCount : null,
+          addedAt: item.addedAt,
         ),
       );
     }
@@ -652,6 +657,7 @@ class _RawPlaylistItem {
   final String artist;
   final String? channelId;
   final String thumbnailUrl;
+  final DateTime? addedAt;
 
   _RawPlaylistItem({
     required this.playlistItemId,
@@ -661,5 +667,6 @@ class _RawPlaylistItem {
     required this.artist,
     this.channelId,
     required this.thumbnailUrl,
+    this.addedAt,
   });
 }

@@ -23,9 +23,9 @@ class MiniPlayer extends StatelessWidget {
         final track = player.currentTrack;
         if (track == null) return const SizedBox.shrink();
 
-        final progress = track.duration.inMilliseconds == 0
+        final progress = player.duration.inMilliseconds == 0
             ? 0.0
-            : player.position.inMilliseconds / track.duration.inMilliseconds;
+            : player.position.inMilliseconds / player.duration.inMilliseconds;
 
         return Dismissible(
           key: ValueKey('mini-player-${track.id}'),

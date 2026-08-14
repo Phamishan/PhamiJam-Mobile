@@ -206,8 +206,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   IconButton(
-                                    onPressed: () =>
-                                        toggleTrackLike(context, track),
+                                    onPressed: track.isDriveSourced
+                                        ? null
+                                        : () => toggleTrackLike(context, track),
                                     icon: Icon(
                                       library.isLiked(track)
                                           ? Icons.favorite_rounded
@@ -218,8 +219,12 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   IconButton(
-                                    onPressed: () =>
-                                        showAddToPlaylistSheet(context, track),
+                                    onPressed: track.isDriveSourced
+                                        ? null
+                                        : () => showAddToPlaylistSheet(
+                                            context,
+                                            track,
+                                          ),
                                     icon: Icon(
                                       Icons.playlist_add_rounded,
                                       color: colorScheme.onSurface,
@@ -245,8 +250,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                         case 'queue':
                                           Navigator.of(context).push(
                                             MaterialPageRoute(
-                                              builder: (_) =>
-                                                  const QueuePage(),
+                                              builder: (_) => const QueuePage(),
                                             ),
                                           );
                                         case 'sleep_timer':
@@ -263,9 +267,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                         value: 'lyrics',
                                         child: ListTile(
                                           contentPadding: EdgeInsets.zero,
-                                          leading: Icon(
-                                            Icons.lyrics_outlined,
-                                          ),
+                                          leading: Icon(Icons.lyrics_outlined),
                                           title: Text('Lyrics'),
                                         ),
                                       ),
@@ -295,14 +297,13 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                           ),
                                         ),
                                       ),
-                                      if ((track.videoId ?? '').isNotEmpty)
+                                      if ((track.videoId ?? '').isNotEmpty &&
+                                          !track.isDriveSourced)
                                         const PopupMenuItem(
                                           value: 'share',
                                           child: ListTile(
                                             contentPadding: EdgeInsets.zero,
-                                            leading: Icon(
-                                              Icons.share_rounded,
-                                            ),
+                                            leading: Icon(Icons.share_rounded),
                                             title: Text('Share'),
                                           ),
                                         ),
@@ -371,7 +372,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                               const SizedBox(height: 24),
                               ProgressBar(
                                 progress: player.position,
-                                total: track.duration,
+                                total: player.duration,
                                 barHeight: 4,
                                 thumbRadius: 6,
                                 timeLabelLocation: TimeLabelLocation.below,

@@ -6,6 +6,9 @@ import 'package:just_audio/just_audio.dart';
 import 'package:phamijam/models/edited_song_trim.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/services/drive_duration_cache_service.dart';
+import 'package:phamijam/services/google_drive_service.dart'
+    show driveTrackIdPrefix;
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/playback_session_sync_service.dart';
@@ -34,6 +37,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
       _checkNearEndFallback(pos);
     });
+    _durationSub = _audioHandler.player.durationStream.listen((liveDuration) {
+      notifyListeners();
+      _maybeCacheDriveDuration(liveDuration);
+    });
     _errorSub = _audioHandler.player.playbackEventStream.listen(
       (_) {},
       onError: (Object error, StackTrace stackTrace) =>
@@ -60,6 +67,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   final PhamiJamAudioHandler _audioHandler;
   StreamSubscription<PlayerState>? _playerStateSub;
   StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration?>? _durationSub;
   StreamSubscription<PlaybackEvent>? _errorSub;
   StreamSubscription<RemoteSession?>? _remoteSessionSub;
   StreamSubscription<List<RemoteCommand>>? _incomingCommandsSub;
@@ -94,8 +102,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _isRemoteControlling = false;
   String? _dismissedRemoteKey;
 
-  EditedSongTrim? Function(String videoId, [String? playlistId])?
-  _trimLookup;
+  EditedSongTrim? Function(String videoId, [String? playlistId])? _trimLookup;
   Duration? _trimStart;
   Duration? _trimEnd;
 
@@ -263,7 +270,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_isRemoteControlling || _endHandled) return;
     final track = _currentTrack;
     if (track == null) return;
-    final trackDuration = _trimEnd ?? track.duration;
+    final trackDuration = _trimEnd ?? duration;
     if (trackDuration <= Duration.zero) return;
     if (!_loaded || !_audioHandler.player.playing) return;
     if (pos < trackDuration - const Duration(milliseconds: 700)) return;
@@ -303,9 +310,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
         videoId.isEmpty) {
       return;
     }
-    final duration = track.duration;
-    if (duration <= Duration.zero) return;
-    final playedFraction = position.inMilliseconds / duration.inMilliseconds;
+    final trackDuration = duration;
+    if (trackDuration <= Duration.zero) return;
+    final playedFraction =
+        position.inMilliseconds / trackDuration.inMilliseconds;
     if (playedFraction >= SkipTrackingService.consideredSkippedBeforeFraction) {
       return;
     }
@@ -472,6 +480,27 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Duration get position => _isRemoteControlling
       ? (_remoteSession?.position ?? Duration.zero)
       : (_loaded ? _audioHandler.player.position : _pendingResumePosition);
+  Duration get duration {
+    if (_isRemoteControlling) {
+      return _remoteSession?.currentTrack?.duration ??
+          _currentTrack?.duration ??
+          Duration.zero;
+    }
+    final live = _loaded ? _audioHandler.player.duration : null;
+    if (live != null && live > Duration.zero) return live;
+    return _currentTrack?.duration ?? Duration.zero;
+  }
+
+  void _maybeCacheDriveDuration(Duration? liveDuration) {
+    if (liveDuration == null || liveDuration <= Duration.zero) return;
+    final track = _currentTrack;
+    final videoId = track?.videoId;
+    if (track == null || videoId == null || !track.isDriveSourced) return;
+    final fileId = videoId.substring(driveTrackIdPrefix.length);
+    if (fileId.isEmpty) return;
+    unawaited(DriveDurationCacheService.setDuration(fileId, liveDuration));
+  }
+
   List<Track> get queue => List.unmodifiable(
     _isRemoteControlling ? (_remoteSession?.queue ?? const []) : _queue,
   );
@@ -827,6 +856,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _finalizeActivePlay();
     _playerStateSub?.cancel();
     _positionSub?.cancel();
+    _durationSub?.cancel();
     _errorSub?.cancel();
     _remoteSessionSub?.cancel();
     _incomingCommandsSub?.cancel();

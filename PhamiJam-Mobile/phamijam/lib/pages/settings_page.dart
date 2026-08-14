@@ -1,11 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
+import 'package:phamijam/components/changelog_dialog.dart';
+import 'package:phamijam/pages/connect_drive_folder_page.dart';
 import 'package:phamijam/pages/downloads_page.dart';
 import 'package:phamijam/pages/edited_songs_page.dart';
 import 'package:phamijam/pages/manage_playlist_visibility_page.dart';
-import 'package:phamijam/pages/wrapphamied_page.dart';
+import 'package:phamijam/pages/jamstats_page.dart';
 import 'package:phamijam/providers/edited_songs_provider.dart';
+import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/download_service.dart';
@@ -42,22 +45,6 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _signingOut = false;
-
-  void _showComingSoon(String feature) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Coming soon'),
-        content: Text('$feature isn\'t available yet, but it\'s on the way.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildAccentColorSwatch({
     required Color displayColor,
@@ -200,6 +187,37 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       },
     );
+  }
+
+  void _showDriveInfo() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Google Drive folder'),
+        content: const Text(
+          'The Google Drive feature allows you to connect a folder in your Google Drive to PhamiJam. \n\n'
+          'Create a folder named "PhamiJam" in your Google Drive and drop '
+          "audio files into it using Drive's own apps. Connect it here once, "
+          'and PhamiJam reads that folder to play your songs.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _connectDriveFolder() async {
+    final library = context.read<LibraryProvider>();
+    final connected = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const ConnectDriveFolderPage()),
+    );
+    if (connected == true) {
+      await library.refreshLocalFiles();
+    }
   }
 
   Future<void> _signOut() async {
@@ -359,28 +377,30 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 12),
           Consumer<SettingsProvider>(
             builder: (context, settings, _) {
-              return SegmentedButton<SearchEngine>(
-                segments: const [
-                  ButtonSegment(
-                    value: SearchEngine.youtubeMusic,
-                    label: Text('YouTube Music'),
-                    icon: Icon(Icons.music_note_rounded),
+              return Center(
+                child: SegmentedButton<SearchEngine>(
+                  segments: const [
+                    ButtonSegment(
+                      value: SearchEngine.youtubeMusic,
+                      label: Text('YouTube Music'),
+                      icon: Icon(Icons.music_note_rounded),
+                    ),
+                    ButtonSegment(
+                      value: SearchEngine.youtube,
+                      label: Text('YouTube'),
+                      icon: Icon(Icons.smart_display_rounded),
+                    ),
+                  ],
+                  selected: {settings.searchEngine},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (selection) =>
+                      settings.setSearchEngine(selection.first),
+                  style: SegmentedButton.styleFrom(
+                    backgroundColor: colorScheme.surfaceContainer,
+                    foregroundColor: colorScheme.onSurfaceVariant,
+                    selectedBackgroundColor: colorScheme.primary,
+                    selectedForegroundColor: colorScheme.onPrimary,
                   ),
-                  ButtonSegment(
-                    value: SearchEngine.youtube,
-                    label: Text('YouTube'),
-                    icon: Icon(Icons.smart_display_rounded),
-                  ),
-                ],
-                selected: {settings.searchEngine},
-                showSelectedIcon: false,
-                onSelectionChanged: (selection) =>
-                    settings.setSearchEngine(selection.first),
-                style: SegmentedButton.styleFrom(
-                  backgroundColor: colorScheme.surfaceContainer,
-                  foregroundColor: colorScheme.onSurfaceVariant,
-                  selectedBackgroundColor: colorScheme.primary,
-                  selectedForegroundColor: colorScheme.onPrimary,
                 ),
               );
             },
@@ -476,26 +496,34 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 12),
           _SettingsTile(
             icon: Icons.auto_awesome_rounded,
-            title: 'Wrapphamied',
+            title: 'Jamstats ✨',
             subtitle: 'Your year in PhamiJam, wrapped',
             onTap: () => Navigator.of(
               context,
-            ).push(MaterialPageRoute(builder: (_) => const WrapphamiedPage())),
+            ).push(MaterialPageRoute(builder: (_) => const JamstatsPage())),
             color: colorScheme.onSurface,
           ),
           const SizedBox(height: 10),
-          _SettingsTile(
-            icon: Icons.folder_rounded,
-            title: 'Local Files',
-            subtitle: 'Manage folders scanned for local music',
-            onTap: () => _showComingSoon('Local Files'),
-            color: colorScheme.onSurface,
+          Consumer<LibraryProvider>(
+            builder: (context, library, _) {
+              return _SettingsTile(
+                icon: Icons.add_to_drive_rounded,
+                title: 'Google Drive folder',
+                subtitle: library.hasConnectedDriveFolder
+                    ? 'Connected · ${library.localFiles.length} songs'
+                    : 'Play songs from a "PhamiJam" folder in your Drive',
+                onTap: _connectDriveFolder,
+                onInfoTap: _showDriveInfo,
+                color: colorScheme.onSurface,
+              );
+            },
           ),
           const SizedBox(height: 10),
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.0.7',
+            subtitle: 'Version 1.0.8',
+            onTap: () => showChangelogDialog(context),
             color: colorScheme.onSurface,
           ),
         ],
@@ -510,6 +538,7 @@ class _SettingsTile extends StatelessWidget {
   final String subtitle;
   final Color color;
   final VoidCallback? onTap;
+  final VoidCallback? onInfoTap;
 
   const _SettingsTile({
     required this.icon,
@@ -517,6 +546,7 @@ class _SettingsTile extends StatelessWidget {
     required this.subtitle,
     required this.color,
     this.onTap,
+    this.onInfoTap,
   });
 
   @override
@@ -546,6 +576,16 @@ class _SettingsTile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onInfoTap != null)
+                IconButton(
+                  onPressed: onInfoTap,
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(
+                    Icons.help_outline_rounded,
+                    size: 20,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
               if (onTap != null)
                 Icon(
                   Icons.chevron_right_rounded,

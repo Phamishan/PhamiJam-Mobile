@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phamijam/firebase_options.dart';
+import 'package:phamijam/pages/connect_google_page.dart';
 import 'package:phamijam/pages/login.dart';
 import 'package:phamijam/providers/edited_songs_provider.dart';
 import 'package:phamijam/providers/library_provider.dart';
@@ -16,8 +17,9 @@ import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/audio_stream_resolver.dart';
 import 'package:phamijam/services/download_service.dart';
+import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
-import 'package:phamijam/services/wrapphamied_widget_service.dart';
+import 'package:phamijam/services/jamstats_widget_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/app_shell.dart';
 import 'package:provider/provider.dart';
@@ -48,7 +50,7 @@ void main() async {
   final downloadsProvider = DownloadsProvider(resolver: sharedResolver);
   audioHandler.resolveLocalPath = downloadsProvider.localPathFor;
 
-  unawaited(WrapphamiedWidgetService.refresh());
+  unawaited(JamstatsWidgetService.refresh());
 
   runApp(
     MyApp(audioHandler: audioHandler, downloadsProvider: downloadsProvider),
@@ -101,7 +103,7 @@ class MyApp extends StatelessWidget {
                 }
 
                 if (snapshot.hasData) {
-                  return const AppShell();
+                  return _YoutubeConnectionGate(user: snapshot.data!);
                 }
                 return const Login();
               },
@@ -110,5 +112,56 @@ class MyApp extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+class _YoutubeConnectionGate extends StatefulWidget {
+  const _YoutubeConnectionGate({required this.user});
+
+  final User user;
+
+  @override
+  State<_YoutubeConnectionGate> createState() => _YoutubeConnectionGateState();
+}
+
+class _YoutubeConnectionGateState extends State<_YoutubeConnectionGate> {
+  bool? _isConnected;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkConnection();
+  }
+
+  void _checkConnection() {
+    final signedInWithGoogle = widget.user.providerData.any(
+      (info) => info.providerId == 'google.com',
+    );
+    if (signedInWithGoogle) {
+      setState(() => _isConnected = true);
+      return;
+    }
+
+    GoogleAuthService.tryRestoreSilently().then((connected) {
+      if (!mounted) return;
+      setState(() => _isConnected = connected);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (_isConnected) {
+      case null:
+        return const Scaffold(
+          backgroundColor: kBrandGold,
+          body: Center(child: CircularProgressIndicator(color: Colors.white)),
+        );
+      case false:
+        return ConnectGooglePage(
+          onConnected: () => setState(() => _isConnected = true),
+        );
+      case true:
+        return const AppShell();
+    }
   }
 }

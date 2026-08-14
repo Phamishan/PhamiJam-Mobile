@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/audio_stream_resolver.dart';
+import 'package:phamijam/services/google_drive_service.dart';
 
 class PhamiJamAudioHandler extends BaseAudioHandler {
   PhamiJamAudioHandler({AudioStreamResolver? resolver})
@@ -27,30 +28,42 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
 
   void _wirePlayerStreams() {
     _playerStateSub = player.playerStateStream.listen((state) {
-      playbackState.add(
-        playbackState.value.copyWith(
-          controls: [
-            MediaControl.skipToPrevious,
-            state.playing ? MediaControl.pause : MediaControl.play,
-            MediaControl.skipToNext,
-            MediaControl.stop,
-          ],
-          systemActions: const {
-            MediaAction.seek,
-            MediaAction.seekForward,
-            MediaAction.seekBackward,
-          },
-          androidCompactActionIndices: const [0, 1, 2],
-          processingState: _mapProcessingState(state.processingState),
-          playing: state.playing,
-          updatePosition: player.position,
-          bufferedPosition: player.bufferedPosition,
-          speed: player.speed,
-        ),
+      _pushPlaybackState(
+        playing: state.playing,
+        processingState: _mapProcessingState(state.processingState),
+        position: player.position,
       );
     });
 
     _eventSub = player.playbackEventStream.listen((_) {}, onError: (_, _) {});
+  }
+
+  void _pushPlaybackState({
+    required bool playing,
+    required AudioProcessingState processingState,
+    Duration position = Duration.zero,
+  }) {
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: [
+          MediaControl.skipToPrevious,
+          playing ? MediaControl.pause : MediaControl.play,
+          MediaControl.skipToNext,
+          MediaControl.stop,
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+        },
+        androidCompactActionIndices: const [0, 1, 2],
+        processingState: processingState,
+        playing: playing,
+        updatePosition: position,
+        bufferedPosition: player.bufferedPosition,
+        speed: player.speed,
+      ),
+    );
   }
 
   AudioProcessingState _mapProcessingState(ProcessingState state) {
@@ -87,6 +100,32 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
         extras: {'videoId': videoId},
       ),
     );
+    _pushPlaybackState(
+      playing: autoPlay,
+      processingState: AudioProcessingState.loading,
+      position: startAt,
+    );
+
+    if (videoId.startsWith(driveTrackIdPrefix)) {
+      final fileId = videoId.substring(driveTrackIdPrefix.length);
+      final headers = await GoogleDriveService.streamHeaders(fileId);
+      if (requestId != _loadRequestId) return;
+      final setSourceFuture = player.setAudioSource(
+        AudioSource.uri(GoogleDriveService.streamUri(fileId), headers: headers),
+        initialPosition: startAt,
+        preload: false,
+      );
+      if (autoPlay) {
+        unawaited(
+          setSourceFuture.then((_) {
+            if (requestId == _loadRequestId) unawaited(player.play());
+          }),
+        );
+      } else {
+        await setSourceFuture;
+      }
+      return;
+    }
 
     final localPath = resolveLocalPath?.call(videoId);
     if (localPath != null) {
@@ -101,12 +140,20 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
 
     final resolved = await _resolver.resolve(videoId);
     if (requestId != _loadRequestId) return;
-    await player.setAudioSource(
+    final setSourceFuture = player.setAudioSource(
       AudioSource.uri(resolved.audioUrl),
       initialPosition: startAt,
+      preload: false,
     );
-    if (requestId != _loadRequestId) return;
-    if (autoPlay) unawaited(player.play());
+    if (autoPlay) {
+      unawaited(
+        setSourceFuture.then((_) {
+          if (requestId == _loadRequestId) unawaited(player.play());
+        }),
+      );
+    } else {
+      await setSourceFuture;
+    }
   }
 
   Future<void> reloadAfterStreamError(Track track) async {
@@ -117,12 +164,16 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
     _resolver.invalidate(videoId);
     final resolved = await _resolver.resolve(videoId, forceRefresh: true);
     if (requestId != _loadRequestId) return;
-    await player.setAudioSource(
+    final setSourceFuture = player.setAudioSource(
       AudioSource.uri(resolved.audioUrl),
       initialPosition: resumeAt,
+      preload: false,
     );
-    if (requestId != _loadRequestId) return;
-    unawaited(player.play());
+    unawaited(
+      setSourceFuture.then((_) {
+        if (requestId == _loadRequestId) unawaited(player.play());
+      }),
+    );
   }
 
   Future<void> prefetch(String videoId) async {
