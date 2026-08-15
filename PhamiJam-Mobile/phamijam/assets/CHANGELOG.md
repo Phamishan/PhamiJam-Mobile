@@ -73,6 +73,13 @@
   - Added Sign in with Apple
   - Added play/shuffle/repeat controls to the album details page
   - Fixed readme
+- 1.0.9 - 15/08/2026
+  - Added queue reordering and an "Add to queue" option
+  - Added a like button for songs from a connected Google Drive folder
+  - Fixed Google Drive error
+  - Fixed Sign in with Apple
+  - Fixed YouTube song durations sometimes showing doubled
+  - Fixed songs sometimes skipping or getting stuck on the previous song
 
 ## Screenshots:
 

@@ -603,6 +603,8 @@ class _ArtistPageState extends State<ArtistPage> {
                                   onTap: () =>
                                       player.playQueue(_songs, startIndex: i),
                                   onPlayNext: () => player.playNext(track),
+                                  onAddToQueue: () =>
+                                      player.addToQueue(track),
                                   onMore: () =>
                                       showAddToPlaylistSheet(context, track),
                                   isLiked: library.isLiked(track),

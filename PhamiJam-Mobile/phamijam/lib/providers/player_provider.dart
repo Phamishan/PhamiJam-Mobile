@@ -261,13 +261,13 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     if (state.processingState == ProcessingState.completed) {
       _handleTrackEnded();
-    } else {
+    } else if (state.processingState == ProcessingState.ready) {
       _endHandled = false;
     }
   }
 
   void _checkNearEndFallback(Duration pos) {
-    if (_isRemoteControlling || _endHandled) return;
+    if (_isRemoteControlling || _endHandled || _isLoadingTrack) return;
     final track = _currentTrack;
     if (track == null) return;
     final trackDuration = _trimEnd ?? duration;
@@ -486,9 +486,13 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
           _currentTrack?.duration ??
           Duration.zero;
     }
+    final known = _currentTrack?.duration ?? Duration.zero;
+    if (known > Duration.zero && !(_currentTrack?.isDriveSourced ?? false)) {
+      return known;
+    }
     final live = _loaded ? _audioHandler.player.duration : null;
     if (live != null && live > Duration.zero) return live;
-    return _currentTrack?.duration ?? Duration.zero;
+    return known;
   }
 
   void _maybeCacheDriveDuration(Duration? liveDuration) {
@@ -530,7 +534,6 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }) async {
     _finalizeActivePlay();
     _beginActivePlay(track);
-    _endHandled = false;
     _loaded = true;
     _isLoadingTrack = true;
 
@@ -712,11 +715,41 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _prefetchUpcomingTracks();
   }
 
+  void addToQueue(Track track) {
+    _exitRemoteControl();
+    if (_currentTrack == null || _queue.isEmpty) {
+      playQueue([track]);
+      return;
+    }
+    _queue = List<Track>.from(_queue)..add(track);
+    notifyListeners();
+    _prefetchUpcomingTracks();
+  }
+
   void removeFromQueue(int index) {
     if (index < 0 || index >= _queue.length) return;
     _queue = List<Track>.from(_queue)..removeAt(index);
     if (index < _queueIndex) {
       _queueIndex--;
+    }
+    notifyListeners();
+    _prefetchUpcomingTracks();
+  }
+
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= _queue.length) return;
+    if (newIndex < 0 || newIndex >= _queue.length) return;
+    if (oldIndex == newIndex) return;
+    final updated = List<Track>.from(_queue);
+    final track = updated.removeAt(oldIndex);
+    updated.insert(newIndex, track);
+    _queue = updated;
+    if (oldIndex == _queueIndex) {
+      _queueIndex = newIndex;
+    } else if (oldIndex < _queueIndex && newIndex >= _queueIndex) {
+      _queueIndex--;
+    } else if (oldIndex > _queueIndex && newIndex <= _queueIndex) {
+      _queueIndex++;
     }
     notifyListeners();
     _prefetchUpcomingTracks();

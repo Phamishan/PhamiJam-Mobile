@@ -112,50 +112,94 @@ class QueuePage extends StatelessWidget {
                                   ),
                                 )
                               else
-                                ...List.generate(upNext.length, (i) {
-                                  final queueIndex = currentIndex + 1 + i;
-                                  final track = queue[queueIndex];
-                                  return TrackTile(
-                                    index: i + 1,
-                                    track: track,
-                                    onTap: () =>
-                                        player.playFromQueue(queueIndex),
-                                    onPlayNext: () => player.playNext(track),
-                                    onRemove: () async {
-                                      player.removeFromQueue(queueIndex);
-                                      if (context.mounted) {
-                                        AppFlushbar.success(
-                                          context,
-                                          'Removed from queue',
-                                        );
-                                      }
-                                      return true;
-                                    },
-                                    onMore: () =>
-                                        showAddToPlaylistSheet(context, track),
-                                    isLiked: library.isLiked(track),
-                                    onToggleLike: () =>
-                                        toggleTrackLike(context, track),
-                                    isDownloaded: downloads.isDownloaded(
-                                      track.videoId,
-                                    ),
-                                    downloadProgress: downloads.progressFor(
-                                      track.videoId,
-                                    ),
-                                    onToggleDownload: () =>
-                                        toggleTrackDownload(context, track),
-                                    onCancelDownload: track.videoId == null
-                                        ? null
-                                        : () => downloads.cancelDownload(
-                                            track.videoId!,
+                                ReorderableListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  buildDefaultDragHandles: false,
+                                  itemCount: upNext.length,
+                                  onReorderItem: (oldIndex, newIndex) {
+                                    player.reorderQueue(
+                                      currentIndex + 1 + oldIndex,
+                                      currentIndex + 1 + newIndex,
+                                    );
+                                  },
+                                  itemBuilder: (context, i) {
+                                    final queueIndex = currentIndex + 1 + i;
+                                    final track = queue[queueIndex];
+                                    return Row(
+                                      key: ValueKey('queue-item-$queueIndex'),
+                                      children: [
+                                        Expanded(
+                                          child: TrackTile(
+                                            index: i + 1,
+                                            track: track,
+                                            onTap: () =>
+                                                player.playFromQueue(
+                                                  queueIndex,
+                                                ),
+                                            onPlayNext: () =>
+                                                player.playNext(track),
+                                            onRemove: () async {
+                                              player.removeFromQueue(
+                                                queueIndex,
+                                              );
+                                              if (context.mounted) {
+                                                AppFlushbar.success(
+                                                  context,
+                                                  'Removed from queue',
+                                                );
+                                              }
+                                              return true;
+                                            },
+                                            onMore: () => showAddToPlaylistSheet(
+                                              context,
+                                              track,
+                                            ),
+                                            isLiked: library.isLiked(track),
+                                            onToggleLike: () =>
+                                                toggleTrackLike(context, track),
+                                            isDownloaded: downloads.isDownloaded(
+                                              track.videoId,
+                                            ),
+                                            downloadProgress: downloads
+                                                .progressFor(track.videoId),
+                                            onToggleDownload: () =>
+                                                toggleTrackDownload(
+                                                  context,
+                                                  track,
+                                                ),
+                                            onCancelDownload:
+                                                track.videoId == null
+                                                ? null
+                                                : () => downloads
+                                                      .cancelDownload(
+                                                        track.videoId!,
+                                                      ),
+                                            onArtistTap:
+                                                openArtistPageCallback(
+                                                  context,
+                                                  channelId: track.channelId,
+                                                  artistName: track.artist,
+                                                ),
                                           ),
-                                    onArtistTap: openArtistPageCallback(
-                                      context,
-                                      channelId: track.channelId,
-                                      artistName: track.artist,
-                                    ),
-                                  );
-                                }),
+                                        ),
+                                        ReorderableDragStartListener(
+                                          index: i,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                            ),
+                                            child: Icon(
+                                              Icons.drag_handle_rounded,
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
                             ],
                           ),
                   ),

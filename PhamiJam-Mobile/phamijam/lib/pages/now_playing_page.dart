@@ -206,9 +206,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   IconButton(
-                                    onPressed: track.isDriveSourced
-                                        ? null
-                                        : () => toggleTrackLike(context, track),
+                                    onPressed: () =>
+                                        toggleTrackLike(context, track),
                                     icon: Icon(
                                       library.isLiked(track)
                                           ? Icons.favorite_rounded

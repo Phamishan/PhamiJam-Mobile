@@ -526,7 +526,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.0.8',
+            subtitle: 'Version 1.0.9',
             onTap: () => showChangelogDialog(context),
             color: colorScheme.onSurface,
           ),

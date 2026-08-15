@@ -341,6 +341,7 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                         onTap: () =>
                             player.playQueue(topStreamed, startIndex: i),
                         onPlayNext: () => player.playNext(track),
+                        onAddToQueue: () => player.addToQueue(track),
                         onMore: () => showAddToPlaylistSheet(context, track),
                         isLiked: library.isLiked(track),
                         onToggleLike: () => toggleTrackLike(context, track),
@@ -375,6 +376,7 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                       isActive: player.currentTrack?.id == track.id,
                       onTap: () => player.playQueue(_videos, startIndex: i),
                       onPlayNext: () => player.playNext(track),
+                      onAddToQueue: () => player.addToQueue(track),
                       onMore: () => showAddToPlaylistSheet(context, track),
                       isLiked: library.isLiked(track),
                       onToggleLike: () => toggleTrackLike(context, track),

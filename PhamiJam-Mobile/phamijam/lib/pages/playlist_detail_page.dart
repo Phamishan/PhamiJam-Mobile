@@ -809,6 +809,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                           ? () => _toggleTrackSelection(track)
                           : () => _enterSelectionMode(track),
                       onPlayNext: () => player.playNext(track),
+                      onAddToQueue: () => player.addToQueue(track),
                       onRemove: playlist.isOwnedByUser
                           ? () => _handleRemoveTrack(track)
                           : null,
@@ -818,9 +819,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                 ? _addSelectedToPlaylist()
                                 : showAddToPlaylistSheet(context, track),
                       isLiked: library.isLiked(track),
-                      onToggleLike: track.isDriveSourced
-                          ? null
-                          : () => toggleTrackLike(context, track),
+                      onToggleLike: () => toggleTrackLike(context, track),
                       isDownloaded: downloads.isDownloaded(track.videoId),
                       downloadProgress: track.isDriveSourced
                           ? null

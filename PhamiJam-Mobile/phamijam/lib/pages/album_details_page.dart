@@ -388,6 +388,7 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                           ? () => _toggleTrackSelection(track)
                           : () => _enterSelectionMode(track),
                       onPlayNext: () => player.playNext(track),
+                      onAddToQueue: () => player.addToQueue(track),
                       onMore: () =>
                           _selectionMode && _selectedTrackIds.isNotEmpty
                           ? _addSelectedToPlaylist()

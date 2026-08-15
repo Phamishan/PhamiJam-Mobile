@@ -16,6 +16,7 @@ class TrackTile extends StatefulWidget {
   final VoidCallback? onMore;
   final VoidCallback? onArtistTap;
   final VoidCallback? onPlayNext;
+  final VoidCallback? onAddToQueue;
   final Future<bool> Function()? onRemove;
   final bool isLiked;
   final VoidCallback? onToggleLike;
@@ -38,6 +39,7 @@ class TrackTile extends StatefulWidget {
     this.onMore,
     this.onArtistTap,
     this.onPlayNext,
+    this.onAddToQueue,
     this.onRemove,
     this.isLiked = false,
     this.onToggleLike,
@@ -198,6 +200,7 @@ class _TrackTileState extends State<TrackTile> {
                   splashRadius: 18,
                 ),
               if (widget.onMore != null ||
+                  widget.onAddToQueue != null ||
                   widget.onToggleDownload != null ||
                   _canEdit) ...[
                 const SizedBox(width: 2),
@@ -246,6 +249,9 @@ class _TrackTileState extends State<TrackTile> {
                     onSelected: (value) {
                       if (value == 'add_to_playlist') {
                         widget.onMore?.call();
+                      } else if (value == 'add_to_queue') {
+                        widget.onAddToQueue?.call();
+                        AppFlushbar.success(context, 'Added to queue');
                       } else if (value == 'download') {
                         widget.onToggleDownload?.call();
                       } else if (value == 'edit_trim') {
@@ -267,6 +273,15 @@ class _TrackTileState extends State<TrackTile> {
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(Icons.playlist_add_rounded),
                             title: Text('Add to playlist'),
+                          ),
+                        ),
+                      if (widget.onAddToQueue != null)
+                        const PopupMenuItem(
+                          value: 'add_to_queue',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.queue_music_rounded),
+                            title: Text('Add to queue'),
                           ),
                         ),
                       if (widget.onToggleDownload != null)
