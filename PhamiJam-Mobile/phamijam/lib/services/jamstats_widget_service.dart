@@ -12,8 +12,7 @@ const String _androidMinutesLargeReceiver =
     'phamishan.phamijam.MinutesWidgetLargeProvider';
 const String _androidNowPlayingReceiver =
     'phamishan.phamijam.NowPlayingWidgetProvider';
-const String _androidStreakReceiver =
-    'phamishan.phamijam.StreakWidgetProvider';
+const String _androidStreakReceiver = 'phamishan.phamijam.StreakWidgetProvider';
 const String _androidTopSongReceiver =
     'phamishan.phamijam.TopSongWidgetProvider';
 
@@ -35,7 +34,16 @@ const String _nowPlayingLabelKey = 'now_playing_label';
 class JamstatsWidgetService {
   JamstatsWidgetService._();
 
+  static DateTime? _lastRefreshAt;
+  static const Duration _refreshCooldown = Duration(minutes: 15);
+
   static Future<void> refresh({int? accentColor}) async {
+    final now = DateTime.now();
+    final last = _lastRefreshAt;
+    if (last != null && now.difference(last) < _refreshCooldown) {
+      return;
+    }
+    _lastRefreshAt = now;
     try {
       await HomeWidget.setAppGroupId(_appGroupId);
 

@@ -46,12 +46,21 @@ String ytThumbnailUrl(Map<String, dynamic> item) {
 
   final thumbnails = item['thumbnails'];
   if (thumbnails is List) {
+    var bestUrl = '';
+    var bestArea = -1;
     for (final thumbnail in thumbnails) {
-      if (thumbnail is Map) {
-        final url = readYtString(thumbnail['url']);
-        if (url.isNotEmpty) return url;
+      if (thumbnail is! Map) continue;
+      final url = readYtString(thumbnail['url']);
+      if (url.isEmpty) continue;
+      final width = (thumbnail['width'] as num?)?.toInt() ?? 0;
+      final height = (thumbnail['height'] as num?)?.toInt() ?? 0;
+      final area = width * height;
+      if (area >= bestArea) {
+        bestArea = area;
+        bestUrl = url;
       }
     }
+    if (bestUrl.isNotEmpty) return bestUrl;
   }
   return '';
 }
@@ -483,7 +492,9 @@ class _ArtistPageState extends State<ArtistPage> {
                               isPlaying: isThisArtistPlaying,
                               onTap: () => isThisArtistPlaying
                                   ? player.togglePlayPause()
-                                  : player.shufflePlay(_songs),
+                                  : player.shuffle
+                                  ? player.shufflePlay(_songs)
+                                  : player.playQueue(_songs),
                             ),
                             const SizedBox(width: 24),
                             IconButton(
@@ -603,8 +614,7 @@ class _ArtistPageState extends State<ArtistPage> {
                                   onTap: () =>
                                       player.playQueue(_songs, startIndex: i),
                                   onPlayNext: () => player.playNext(track),
-                                  onAddToQueue: () =>
-                                      player.addToQueue(track),
+                                  onAddToQueue: () => player.addToQueue(track),
                                   onMore: () =>
                                       showAddToPlaylistSheet(context, track),
                                   isLiked: library.isLiked(track),

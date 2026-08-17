@@ -46,6 +46,25 @@ class _LoginState extends State<Login> {
     return _auth.signInWithCredential(credential);
   }
 
+  Future<void> _backfillGoogleProfile(UserCredential userCredential) async {
+    final user = userCredential.user;
+    if (user == null) return;
+    final profile = userCredential.additionalUserInfo?.profile;
+    if (profile == null) return;
+    if ((user.displayName ?? '').isEmpty) {
+      final name = profile['name'] as String?;
+      if (name != null && name.isNotEmpty) {
+        await user.updateDisplayName(name);
+      }
+    }
+    if ((user.photoURL ?? '').isEmpty) {
+      final photoUrl = profile['picture'] as String?;
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        await user.updatePhotoURL(photoUrl);
+      }
+    }
+  }
+
   String get _authDebugContext =>
       'platform: ${defaultTargetPlatform.name}\n'
       'clientId: ${dotenv.env['CLIENT_ID']}';
@@ -111,6 +130,8 @@ class _LoginState extends State<Login> {
         );
       }
 
+      await _backfillGoogleProfile(userCredential);
+
       if (!mounted) return;
       setState(() {
         _userId = userCredential.user?.email;
@@ -141,11 +162,14 @@ class _LoginState extends State<Login> {
                   refreshedCredentials,
                 );
 
-            if (retriedUserCredential != null && mounted) {
-              setState(() {
-                _userId = retriedUserCredential.user?.email;
-                _isLoading = false;
-              });
+            if (retriedUserCredential != null) {
+              await _backfillGoogleProfile(retriedUserCredential);
+              if (mounted) {
+                setState(() {
+                  _userId = retriedUserCredential.user?.email;
+                  _isLoading = false;
+                });
+              }
               return;
             }
           }

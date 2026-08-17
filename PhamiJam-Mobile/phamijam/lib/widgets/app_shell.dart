@@ -108,14 +108,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
+        state == AppLifecycleState.paused) {
       unawaited(_refreshWidgets());
     }
   }
 
   void _handlePlayerChanged() {
     _maybePushNowPlaying();
+
+    final playbackError = _player.playbackErrorMessage;
+    if (playbackError != null) {
+      _player.consumePlaybackError();
+      AppFlushbar.error(context, playbackError);
+    }
 
     final track = _player.suggestedRemovalTrack;
     final playlist = _player.suggestedRemovalPlaylist;
@@ -140,10 +145,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _lastPushedNowPlayingVideoId = track?.videoId;
     _lastPushedNowPlayingIsPlaying = isPlaying;
     unawaited(
-      JamstatsWidgetService.pushNowPlaying(
-        track: track,
-        isPlaying: isPlaying,
-      ),
+      JamstatsWidgetService.pushNowPlaying(track: track, isPlaying: isPlaying),
     );
   }
 

@@ -35,6 +35,15 @@ class AudioStreamResolver {
   final Map<String, ResolvedStreams> _cache = {};
   final Map<String, Future<ResolvedStreams>> _inflight = {};
 
+  Future<void> _resolveQueue = Future.value();
+
+  Future<T> _serialized<T>(Future<T> Function() action) {
+    final previous = _resolveQueue;
+    final completer = Completer<void>();
+    _resolveQueue = completer.future;
+    return previous.then((_) => action()).whenComplete(completer.complete);
+  }
+
   Future<ResolvedStreams> resolve(String videoId, {bool forceRefresh = false}) {
     final cached = _cache[videoId];
     if (!forceRefresh && cached != null && !cached.isExpired) {
@@ -43,9 +52,11 @@ class AudioStreamResolver {
     final existing = _inflight[videoId];
     if (existing != null) return existing;
 
-    final future = _resolveUncached(videoId).whenComplete(() {
-      _inflight.remove(videoId);
-    });
+    final future = _serialized(() => _resolveUncached(videoId)).whenComplete(
+      () {
+        _inflight.remove(videoId);
+      },
+    );
     _inflight[videoId] = future;
     return future;
   }

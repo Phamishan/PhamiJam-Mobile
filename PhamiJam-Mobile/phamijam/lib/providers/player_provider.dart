@@ -617,9 +617,31 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     _currentTrack = _queue[_queueIndex];
     notifyListeners();
-    await _tryStartTrack(_currentTrack!);
+    await _startCurrentIndexWithFallback();
     notifyListeners();
     _persistSession();
+  }
+
+  Future<void> _startCurrentIndexWithFallback({int attempt = 0}) async {
+    final track = _currentTrack;
+    if (track == null) return;
+    final started = await _tryStartTrack(track);
+    if (started) return;
+    if (attempt + 1 >= _queue.length || _queueIndex >= _queue.length - 1) {
+      playbackErrorMessage = 'Couldn\'t play "${track.title}".';
+      notifyListeners();
+      return;
+    }
+    _queueIndex++;
+    _currentTrack = _queue[_queueIndex];
+    notifyListeners();
+    await _startCurrentIndexWithFallback(attempt: attempt + 1);
+  }
+
+  String? playbackErrorMessage;
+
+  void consumePlaybackError() {
+    playbackErrorMessage = null;
   }
 
   void shufflePlay(List<Track> tracks, {Playlist? sourcePlaylist}) {
@@ -698,7 +720,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _queueIndex = index;
     _currentTrack = _queue[index];
     notifyListeners();
-    await _tryStartTrack(_currentTrack!);
+    await _startCurrentIndexWithFallback();
     notifyListeners();
     _persistSession();
   }

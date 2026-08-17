@@ -80,6 +80,12 @@
   - Fixed Sign in with Apple
   - Fixed YouTube song durations sometimes showing doubled
   - Fixed songs sometimes skipping or getting stuck on the previous song
+- 1.1.0 - 17/08/2026
+  - Fixed missing profile picture and name after signing in with Google
+  - Fixed the wrong song sometimes playing when queued tracks load close together
+  - Fixed Play All sometimes stopping right after it starts
+  - Fixed the artist page's play button ignoring your shuffle setting
+  - Reduced how often background listening stats sync, to save battery and data
 
 ## Screenshots:
 
