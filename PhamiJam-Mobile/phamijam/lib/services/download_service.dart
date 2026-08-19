@@ -191,9 +191,25 @@ class DownloadsProvider extends ChangeNotifier {
       final file = File('${dir.path}/$videoId.m4a');
       partialFile = file;
 
-      final response = await client.send(
-        http.Request('GET', resolved.audioUrl),
-      );
+      http.StreamedResponse? response;
+      Object? lastError;
+      for (final url in resolved.audioUrls) {
+        try {
+          final candidate = await client.send(http.Request('GET', url));
+          if (candidate.statusCode >= 200 && candidate.statusCode < 300) {
+            response = candidate;
+            break;
+          }
+          lastError = Exception(
+            'Download failed with status ${candidate.statusCode}',
+          );
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (response == null) {
+        throw lastError ?? Exception('No playable audio source for $videoId');
+      }
       final total = response.contentLength ?? 0;
       var received = 0;
 

@@ -240,7 +240,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     final colorScheme = Theme.of(context).colorScheme;
 
     return SingleChildScrollView(
@@ -250,85 +249,6 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Text('Settings', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: colorScheme.primary,
-                      backgroundImage: user?.photoURL != null
-                          ? NetworkImage(user!.photoURL!)
-                          : null,
-                      child: user?.photoURL == null
-                          ? Icon(
-                              Icons.person_rounded,
-                              color: colorScheme.onPrimary,
-                              size: 30,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user?.displayName ?? 'PhamiJam User',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            user?.email ?? 'Signed in with Google',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _signingOut ? null : _signOut,
-                    icon: _signingOut
-                        ? SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          )
-                        : const Icon(Icons.logout_rounded, size: 18),
-                    label: Text(_signingOut ? 'Signing out...' : 'Sign out'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colorScheme.onSurface,
-                      side: BorderSide(
-                        color: colorScheme.surfaceContainerHighest,
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
           Text('Appearance', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
           Consumer<ThemeProvider>(
@@ -526,9 +446,17 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsTile(
             icon: Icons.info_rounded,
             title: 'About PhamiJam',
-            subtitle: 'Version 1.1.0',
+            subtitle: 'Version 1.1.1',
             onTap: () => showChangelogDialog(context),
             color: colorScheme.onSurface,
+          ),
+          const SizedBox(height: 10),
+          _SettingsTile(
+            icon: Icons.logout_rounded,
+            title: _signingOut ? 'Signing out...' : 'Sign out',
+            subtitle: 'Sign out of PhamiJam on this device',
+            onTap: _signingOut ? null : _signOut,
+            color: colorScheme.error,
           ),
         ],
       ),

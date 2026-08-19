@@ -239,6 +239,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     return false;
   }
 
+  static const int _maxConsecutiveStreamErrors = 3;
+  int _consecutiveStreamErrors = 0;
+
   Future<void> _handleStreamError(Object error) async {
     final track = _currentTrack;
     if (track == null) return;
@@ -250,7 +253,16 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _lastStreamErrorAt = DateTime.now();
     try {
       await _audioHandler.reloadAfterStreamError(track);
+      _consecutiveStreamErrors = 0;
     } catch (_) {
+      _consecutiveStreamErrors++;
+      if (_consecutiveStreamErrors >= _maxConsecutiveStreamErrors) {
+        _consecutiveStreamErrors = 0;
+        playbackErrorMessage =
+            "Having trouble playing music - check your connection.";
+        notifyListeners();
+        return;
+      }
       if (_autoAdvanceRateLimited()) return;
       _localNext();
     }
@@ -263,6 +275,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       _handleTrackEnded();
     } else if (state.processingState == ProcessingState.ready) {
       _endHandled = false;
+      _consecutiveStreamErrors = 0;
     }
   }
 
@@ -708,8 +721,13 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     final started = await _tryStartTrack(_currentTrack!);
     notifyListeners();
     _persistSession();
-    if (!started && skipAttempts < _queue.length) {
-      await _localNext(skipAttempts: skipAttempts + 1);
+    if (!started) {
+      if (skipAttempts < _queue.length) {
+        await _localNext(skipAttempts: skipAttempts + 1);
+      } else {
+        playbackErrorMessage = "Having trouble playing music - check your connection.";
+        notifyListeners();
+      }
     }
   }
 
@@ -787,25 +805,34 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistSession();
   }
 
+  static const Duration _previousRestartThreshold = Duration(seconds: 3);
+
+  bool get _pastPreviousRestartThreshold =>
+      position > _previousRestartThreshold;
+
   Future<void> previous() async {
     if (_isRemoteControlling) {
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.previous);
       return;
     }
-    unawaited(_recordPotentialSkip());
+    if (!_pastPreviousRestartThreshold) {
+      unawaited(_recordPotentialSkip());
+    }
     await _localPrevious();
   }
 
   Future<void> _localPrevious() async {
     if (_queue.isEmpty) return;
-    if (_queueIndex > 0) {
-      _queueIndex--;
-      _currentTrack = _queue[_queueIndex];
-      notifyListeners();
-      await _tryStartTrack(_currentTrack!);
-      notifyListeners();
-      _persistSession();
+    if (_pastPreviousRestartThreshold || _queueIndex <= 0) {
+      seek(Duration.zero);
+      return;
     }
+    _queueIndex--;
+    _currentTrack = _queue[_queueIndex];
+    notifyListeners();
+    await _tryStartTrack(_currentTrack!);
+    notifyListeners();
+    _persistSession();
   }
 
   Future<void> _replayCurrentTrack() async {

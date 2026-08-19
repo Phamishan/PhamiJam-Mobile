@@ -2,7 +2,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/services/share_link_service.dart';
 
-enum DeepLinkType { song, playlist }
+enum DeepLinkType { song, playlist, profile }
 
 class DeepLinkTarget {
   final DeepLinkType type;
@@ -24,6 +24,7 @@ class DeepLinkService {
     if (id.isEmpty) return null;
     if (segments[0] == 's') return DeepLinkTarget(DeepLinkType.song, id);
     if (segments[0] == 'p') return DeepLinkTarget(DeepLinkType.playlist, id);
+    if (segments[0] == 'u') return DeepLinkTarget(DeepLinkType.profile, id);
     return null;
   }
 

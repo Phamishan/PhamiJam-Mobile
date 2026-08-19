@@ -15,6 +15,12 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
   final AudioStreamResolver _resolver;
   final AudioPlayer player = AudioPlayer();
 
+  static const Map<String, String> _youtubeHttpHeaders = {
+    'User-Agent':
+        'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Mobile Safari/537.36',
+    'Referer': 'https://www.youtube.com/',
+  };
+
   FutureOr<void> Function()? onPlayRequested;
   FutureOr<void> Function()? onPauseRequested;
   FutureOr<void> Function()? onNextRequested;
@@ -110,20 +116,13 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       final fileId = videoId.substring(driveTrackIdPrefix.length);
       final headers = await GoogleDriveService.streamHeaders(fileId);
       if (requestId != _loadRequestId) return;
-      final setSourceFuture = player.setAudioSource(
+      await player.setAudioSource(
         AudioSource.uri(GoogleDriveService.streamUri(fileId), headers: headers),
         initialPosition: startAt,
-        preload: false,
+        preload: true,
       );
-      if (autoPlay) {
-        unawaited(
-          setSourceFuture.then((_) {
-            if (requestId == _loadRequestId) unawaited(player.play());
-          }),
-        );
-      } else {
-        await setSourceFuture;
-      }
+      if (requestId != _loadRequestId) return;
+      if (autoPlay) unawaited(player.play());
       return;
     }
 
@@ -140,20 +139,12 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
 
     final resolved = await _resolver.resolve(videoId);
     if (requestId != _loadRequestId) return;
-    final setSourceFuture = player.setAudioSource(
-      AudioSource.uri(resolved.audioUrl),
-      initialPosition: startAt,
-      preload: false,
+    await _setYouTubeSource(
+      resolved.audioUrls,
+      position: startAt,
+      autoPlay: autoPlay,
+      requestId: requestId,
     );
-    if (autoPlay) {
-      unawaited(
-        setSourceFuture.then((_) {
-          if (requestId == _loadRequestId) unawaited(player.play());
-        }),
-      );
-    } else {
-      await setSourceFuture;
-    }
   }
 
   Future<void> reloadAfterStreamError(Track track) async {
@@ -164,16 +155,39 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
     _resolver.invalidate(videoId);
     final resolved = await _resolver.resolve(videoId, forceRefresh: true);
     if (requestId != _loadRequestId) return;
-    final setSourceFuture = player.setAudioSource(
-      AudioSource.uri(resolved.audioUrl),
-      initialPosition: resumeAt,
-      preload: false,
+    await _setYouTubeSource(
+      resolved.audioUrls,
+      position: resumeAt,
+      autoPlay: true,
+      requestId: requestId,
     );
-    unawaited(
-      setSourceFuture.then((_) {
-        if (requestId == _loadRequestId) unawaited(player.play());
-      }),
-    );
+  }
+
+  Future<void> _setYouTubeSource(
+    List<Uri> candidates, {
+    required Duration position,
+    required bool autoPlay,
+    required int requestId,
+  }) async {
+    Object? lastError;
+    for (final url in candidates) {
+      if (requestId != _loadRequestId) return;
+      try {
+        await player
+            .setAudioSource(
+              AudioSource.uri(url, headers: _youtubeHttpHeaders),
+              initialPosition: position,
+              preload: true,
+            )
+            .timeout(const Duration(seconds: 8));
+        if (requestId != _loadRequestId) return;
+        if (autoPlay) unawaited(player.play());
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? StateError('No playable audio candidates');
   }
 
   Future<void> prefetch(String videoId) async {

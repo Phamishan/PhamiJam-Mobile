@@ -4,14 +4,16 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 class ResolvedStreams {
   const ResolvedStreams({
-    required this.audioUrl,
+    required this.audioUrls,
     required this.videoOnlyUrl,
     required this.expiresAt,
   });
 
-  final Uri audioUrl;
+  final List<Uri> audioUrls;
   final Uri? videoOnlyUrl;
   final DateTime expiresAt;
+
+  Uri get audioUrl => audioUrls.first;
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 }
@@ -31,7 +33,7 @@ class AudioStreamResolver {
     : _yt = client ?? YoutubeExplode();
 
   final YoutubeExplode _yt;
-  static final _ytClients = [YoutubeApiClient.androidVr, YoutubeApiClient.ios];
+  static final _ytClients = [YoutubeApiClient.androidSdkless];
   final Map<String, ResolvedStreams> _cache = {};
   final Map<String, Future<ResolvedStreams>> _inflight = {};
 
@@ -126,16 +128,30 @@ class AudioStreamResolver {
     }
   }
 
-  ResolvedStreams _pickStreams(StreamManifest manifest) {
-    if (manifest.audioOnly.isEmpty) {
-      throw StateError('No audio-only streams in manifest');
-    }
-    final mp4AudioCandidates = manifest.audioOnly
+  List<Uri> _pickAudioCandidates(StreamManifest manifest) {
+    final mp4Audio = manifest.audioOnly
         .where((s) => s.container == StreamContainer.mp4)
-        .toList();
-    final audio = mp4AudioCandidates.isNotEmpty
-        ? mp4AudioCandidates.withHighestBitrate()
-        : manifest.audioOnly.withHighestBitrate();
+        .toList()
+        .sortByBitrate();
+    final otherAudio = manifest.audioOnly
+        .where((s) => s.container != StreamContainer.mp4)
+        .toList()
+        .sortByBitrate();
+    final muxed = manifest.muxed.toList().sortByBitrate();
+
+    final urls = [
+      ...muxed.map((s) => s.url),
+      ...mp4Audio.map((s) => s.url),
+      ...otherAudio.map((s) => s.url),
+    ];
+    if (urls.isEmpty) {
+      throw StateError('No playable audio streams in manifest');
+    }
+    return urls;
+  }
+
+  ResolvedStreams _pickStreams(StreamManifest manifest) {
+    final audioUrls = _pickAudioCandidates(manifest);
 
     final mp4VideoCandidates = manifest.videoOnly
         .where((s) => s.container == StreamContainer.mp4)
@@ -156,7 +172,7 @@ class AudioStreamResolver {
               : null);
 
     return ResolvedStreams(
-      audioUrl: audio.url,
+      audioUrls: audioUrls,
       videoOnlyUrl: video?.url,
       expiresAt: DateTime.now().add(const Duration(hours: 4)),
     );

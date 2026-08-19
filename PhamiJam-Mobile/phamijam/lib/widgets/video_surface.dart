@@ -20,6 +20,12 @@ class _VideoSurfaceState extends State<VideoSurface> {
   static const _driftCheckInterval = Duration(seconds: 2);
   static const _driftTolerance = Duration(milliseconds: 350);
 
+  static const Map<String, String> _youtubeHttpHeaders = {
+    'User-Agent':
+        'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Mobile Safari/537.36',
+    'Referer': 'https://www.youtube.com/',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +73,7 @@ class _VideoSurfaceState extends State<VideoSurface> {
       await _teardown();
       final controller = VideoPlayerController.networkUrl(
         url,
+        httpHeaders: _youtubeHttpHeaders,
         videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
       );
       _controller = controller;

@@ -1,23 +1,28 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/pages/friend_profile_page.dart';
 import 'package:phamijam/pages/home.dart';
 import 'package:phamijam/pages/library_page.dart';
 import 'package:phamijam/pages/now_playing_page.dart';
 import 'package:phamijam/pages/playlist_detail_page.dart';
+import 'package:phamijam/pages/profile_page.dart';
 import 'package:phamijam/pages/search_page.dart';
-import 'package:phamijam/pages/settings_page.dart';
 import 'package:phamijam/providers/edited_songs_provider.dart';
+import 'package:phamijam/providers/friends_provider.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
+import 'package:phamijam/providers/profile_provider.dart';
 import 'package:phamijam/providers/saved_playlists_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/deep_link_service.dart';
 import 'package:phamijam/services/jamstats_widget_service.dart';
+import 'package:phamijam/services/profile_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
 import 'package:phamijam/widgets/mini_player.dart';
@@ -54,6 +59,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
     unawaited(context.read<EditedSongsProvider>().refresh());
     unawaited(context.read<SavedPlaylistsProvider>().refresh());
+    unawaited(context.read<ProfileProvider>().refresh());
+    context.read<FriendsProvider>().start();
     unawaited(context.read<SettingsProvider>().refreshHiddenPlaylists());
     _player.addListener(_handlePlayerChanged);
     WidgetsBinding.instance.addObserver(this);
@@ -80,6 +87,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
 
+    if (target.type == DeepLinkType.profile) {
+      final resolvedUid = await ProfileService.resolveProfileLinkId(target.id);
+      if (!mounted) return;
+      final ownUid = FirebaseAuth.instance.currentUser?.uid;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => resolvedUid == ownUid
+              ? const ProfilePage()
+              : FriendProfilePage(uid: resolvedUid),
+        ),
+      );
+      return;
+    }
+
     try {
       final playlist = await YoutubeService.fetchPlaylistById(target.id);
       if (playlist == null || !mounted) return;
@@ -97,6 +118,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _player.removeListener(_handlePlayerChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
+    context.read<FriendsProvider>().stop();
     super.dispose();
   }
 
@@ -250,7 +272,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   onOpenPlaylist: (p) => _openPlaylist(context, p),
                 ),
                 LibraryPage(onOpenPlaylist: (p) => _openPlaylist(context, p)),
-                const SettingsPage(),
+                const ProfilePage(),
               ],
             ),
           ),

@@ -53,7 +53,7 @@
   - Updated app icons
 - 1.0.7 - 13/08/2026
   - Added a setting to change a playlist's visibility
-  - Added shareable link for songs and playlists (needs testing)
+  - Added shareable link for songs and playlists
   - Added a sleep timer
   - Added autoplay
   - Added new widgets
@@ -86,6 +86,12 @@
   - Fixed Play All sometimes stopping right after it starts
   - Fixed the artist page's play button ignoring your shuffle setting
   - Reduced how often background listening stats sync, to save battery and data
+- 1.1.1 - 19/08/2026
+  - Fixed playback issues
+  - Added a lyrics fallback for songs YouTube Music doesn't have lyrics for
+  - Fixed share link "Listen on PhamiJam" redirect (needs testing)
+  - Added social feature
+  - Added customizable profile pages
 
 ## Screenshots:
 

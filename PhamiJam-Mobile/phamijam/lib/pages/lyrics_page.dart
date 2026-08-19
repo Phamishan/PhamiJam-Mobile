@@ -67,7 +67,15 @@ class _LyricsPageState extends State<LyricsPage> {
     }
 
     try {
-      final lyrics = await LyricsService.fetchFor(videoId);
+      final track = _player.currentTrack;
+      final lyrics = await LyricsService.fetchFor(
+        videoId,
+        title: track?.title,
+        artist: track?.artist,
+        durationSeconds: (track != null && track.duration > Duration.zero)
+            ? track.duration.inSeconds
+            : null,
+      );
       final offset = await LyricsService.getSyncOffsetMs(videoId);
       if (!mounted || _player.currentTrack?.videoId != videoId) return;
       setState(() {
@@ -199,6 +207,17 @@ class _LyricsPageState extends State<LyricsPage> {
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
+                                if ((_lyrics?.source ?? '').isNotEmpty)
+                                  Text(
+                                    'Lyrics via ${_lyrics!.source}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color:
+                                              colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
                               ],
                             ),
                           ),
