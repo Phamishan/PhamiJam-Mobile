@@ -27,6 +27,10 @@
 		</array>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
+		<key>CFBundleLocalizations</key>
+		<array>
+			<string>en</string>
+		</array>
 		<key>CFBundleDisplayName</key>
 		<string>PhamiJam</string>
 		<key>CFBundleExecutable</key>
