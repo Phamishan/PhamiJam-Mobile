@@ -22,6 +22,7 @@ class ProfileGridView extends StatelessWidget {
     this.gridProvider,
     this.editable = false,
     this.onTileTap,
+    this.onTileLongPress,
   }) : assert(
          editable ? gridProvider != null : tiles != null,
          'editable requires a gridProvider; read-only requires tiles',
@@ -32,6 +33,7 @@ class ProfileGridView extends StatelessWidget {
   final ProfileGridProvider? gridProvider;
   final bool editable;
   final void Function(GridTile tile)? onTileTap;
+  final void Function(GridTile tile)? onTileLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +47,7 @@ class ProfileGridView extends StatelessWidget {
           editable: true,
           gridProvider: provider,
           onTileTap: onTileTap,
+          onTileLongPress: onTileLongPress,
         ),
       );
     }
@@ -54,6 +57,7 @@ class ProfileGridView extends StatelessWidget {
       editable: false,
       gridProvider: null,
       onTileTap: onTileTap,
+      onTileLongPress: onTileLongPress,
     );
   }
 }
@@ -65,6 +69,7 @@ class _GridCanvas extends StatelessWidget {
     required this.editable,
     required this.gridProvider,
     required this.onTileTap,
+    required this.onTileLongPress,
   });
 
   final List<GridTile> tiles;
@@ -72,6 +77,7 @@ class _GridCanvas extends StatelessWidget {
   final bool editable;
   final ProfileGridProvider? gridProvider;
   final void Function(GridTile tile)? onTileTap;
+  final void Function(GridTile tile)? onTileLongPress;
 
   static const double _maxGridWidth = 720;
   static const double _gap = 10;
@@ -117,6 +123,9 @@ class _GridCanvas extends StatelessWidget {
                       editable: editable,
                       gridProvider: gridProvider,
                       onTap: onTileTap == null ? null : () => onTileTap!(tile),
+                      onLongPress: onTileLongPress == null
+                          ? null
+                          : () => onTileLongPress!(tile),
                     ),
                   if (editable && gridProvider != null)
                     _AddTileSlot(

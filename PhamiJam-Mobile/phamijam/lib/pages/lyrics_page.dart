@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/services/lyrics_service.dart';
@@ -22,6 +24,8 @@ class _LyricsPageState extends State<LyricsPage> {
   String? _error;
   int _syncOffsetMs = 0;
   int _lastActiveIndex = -1;
+  bool _userScrolling = false;
+  Timer? _resumeAutoScrollTimer;
 
   @override
   void initState() {
@@ -34,8 +38,23 @@ class _LyricsPageState extends State<LyricsPage> {
   @override
   void dispose() {
     _player.removeListener(_handlePlayerChanged);
+    _resumeAutoScrollTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
+      _resumeAutoScrollTimer?.cancel();
+      _userScrolling = true;
+    } else if (notification is ScrollEndNotification) {
+      _resumeAutoScrollTimer?.cancel();
+      _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
+        _userScrolling = false;
+      });
+    }
+    return false;
   }
 
   void _handlePlayerChanged() {
@@ -116,6 +135,7 @@ class _LyricsPageState extends State<LyricsPage> {
     _lastActiveIndex = index;
     if (!mounted) return;
     setState(() {});
+    if (_userScrolling) return;
     final lineContext = _lineKeys[index]?.currentContext;
     if (lineContext == null) return;
     Scrollable.ensureVisible(
@@ -273,33 +293,40 @@ class _LyricsPageState extends State<LyricsPage> {
     if (lyrics.hasSynced) {
       final synced = lyrics.synced!;
       final activeIndex = _activeLineIndex();
-      return ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-        itemCount: synced.length,
-        itemBuilder: (context, i) {
-          final key = _lineKeys.putIfAbsent(i, () => GlobalKey());
-          final isActive = i == activeIndex;
-          return Padding(
-            key: key,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: GestureDetector(
-              onTap: () => _seekToLine(synced[i]),
-              child: AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
-                style:
-                    Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-                      color: isActive
-                          ? colorScheme.onSurface
-                          : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                    ) ??
-                    const TextStyle(),
-                child: Text(synced[i].text),
+      return NotificationListener<ScrollNotification>(
+        onNotification: _handleScrollNotification,
+        child: ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          itemCount: synced.length,
+          itemBuilder: (context, i) {
+            final key = _lineKeys.putIfAbsent(i, () => GlobalKey());
+            final isActive = i == activeIndex;
+            return Padding(
+              key: key,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: GestureDetector(
+                onTap: () => _seekToLine(synced[i]),
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style:
+                      Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: isActive
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                        color: isActive
+                            ? colorScheme.onSurface
+                            : colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.6,
+                              ),
+                      ) ??
+                      const TextStyle(),
+                  child: Text(synced[i].text),
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       );
     }
 

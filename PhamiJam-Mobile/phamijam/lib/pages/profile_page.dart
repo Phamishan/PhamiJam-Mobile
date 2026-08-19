@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/pages/friends_page.dart';
 import 'package:phamijam/pages/settings_page.dart';
@@ -32,6 +33,12 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       _gridProvider = ProfileGridProvider(profileProvider.profile.gridLayout);
     });
+  }
+
+  void _handleTileLongPress(ProfileProvider profileProvider) {
+    if (_gridProvider != null) return;
+    HapticFeedback.mediumImpact();
+    _startEdit(profileProvider);
   }
 
   void _cancelEdit() {
@@ -96,17 +103,16 @@ class _ProfilePageState extends State<ProfilePage> {
                 _FriendsIconButton(),
                 IconButton(
                   icon: const Icon(Icons.ios_share_rounded),
-                  tooltip: 'Share profile',
                   onPressed: () => ShareLinkService.shareProfile(
                     context,
                     uid,
                     username: profileProvider.profile.username,
-                    subject: '${profileProvider.effectiveDisplayName} on PhamiJam',
+                    subject:
+                        '${profileProvider.effectiveDisplayName} on PhamiJam',
                   ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.settings_rounded),
-                  tooltip: 'Settings',
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SettingsPage()),
                   ),
@@ -128,18 +134,17 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 20),
               ],
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Your profile', style: Theme.of(context).textTheme.titleMedium),
-                  if (!editing)
-                    TextButton.icon(
-                      onPressed: () => _startEdit(profileProvider),
-                      icon: const Icon(Icons.edit_rounded, size: 18),
-                      label: const Text('Edit layout'),
-                    ),
-                ],
+              Text(
+                'Your profile',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
+              if (!editing && profileProvider.profile.gridLayout.isNotEmpty)
+                Text(
+                  'Long-press a widget to rearrange',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               const SizedBox(height: 8),
               if (!editing && profileProvider.profile.gridLayout.isEmpty)
                 _EmptyGridHint(onEdit: () => _startEdit(profileProvider))
@@ -149,6 +154,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   editable: editing,
                   tiles: editing ? null : profileProvider.profile.gridLayout,
                   gridProvider: gridProvider,
+                  onTileLongPress: editing
+                      ? null
+                      : (_) => _handleTileLongPress(profileProvider),
                 ),
             ],
           ),
@@ -183,7 +191,11 @@ class _ProfileHeader extends StatelessWidget {
                 ? NetworkImage(profileProvider.effectivePhotoUrl!)
                 : null,
             child: profileProvider.effectivePhotoUrl == null
-                ? Icon(Icons.person_rounded, color: colorScheme.onPrimary, size: 30)
+                ? Icon(
+                    Icons.person_rounded,
+                    color: colorScheme.onPrimary,
+                    size: 30,
+                  )
                 : null,
           ),
           const SizedBox(width: 16),
@@ -216,11 +228,7 @@ class _ProfileHeader extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_rounded),
-            tooltip: 'Edit bio',
-            onPressed: onEdit,
-          ),
+          IconButton(icon: const Icon(Icons.edit_rounded), onPressed: onEdit),
         ],
       ),
     );
@@ -247,7 +255,9 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   void initState() {
     super.initState();
     final profile = widget.profileProvider.profile;
-    _nameController = TextEditingController(text: profile.displayNameOverride ?? '');
+    _nameController = TextEditingController(
+      text: profile.displayNameOverride ?? '',
+    );
     _usernameController = TextEditingController(text: profile.username ?? '');
     _bioController = TextEditingController(text: profile.bio ?? '');
   }
@@ -379,7 +389,6 @@ class _FriendsIconButton extends StatelessWidget {
       icon: hasPending
           ? const Badge(child: Icon(Icons.people_alt_rounded))
           : const Icon(Icons.people_alt_rounded),
-      tooltip: 'Friends',
       onPressed: () => Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const FriendsPage())),
@@ -412,12 +421,15 @@ class _EmptyGridHint extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Tap "Edit layout" to add your bio, featured playlists, and more.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
-          FilledButton.tonal(onPressed: onEdit, child: const Text('Edit layout')),
+          FilledButton.tonal(
+            onPressed: onEdit,
+            child: const Text('Edit layout'),
+          ),
         ],
       ),
     );

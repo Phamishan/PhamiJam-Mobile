@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
 import 'package:phamijam/components/app_flushbar.dart';
@@ -12,6 +13,7 @@ import 'package:phamijam/pages/connect_drive_folder_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/services/download_service.dart';
+import 'package:phamijam/services/profile_service.dart';
 import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
@@ -68,6 +70,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   bool _selectionMode = false;
   final Set<String> _selectedTrackIds = {};
   _PlaylistSort _sort = _PlaylistSort.custom;
+  bool _isFeaturedOnProfile = false;
 
   int _compareAddedAt(Track a, Track b, {required bool newestFirst}) {
     final da = a.addedAt;
@@ -102,6 +105,40 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     _playlist = widget.playlist;
     if (_playlist.tracks.isEmpty && _playlist.itemCount > 0) {
       _loadTracks();
+    }
+    if (_playlist.isFromYoutube && _playlist.isOwnedByUser) {
+      _loadFeaturedStatus();
+    }
+  }
+
+  Future<void> _loadFeaturedStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final ids = await ProfileService.fetchProfilePlaylistIds(user.uid);
+      if (!mounted) return;
+      setState(() => _isFeaturedOnProfile = ids.contains(_playlist.id));
+    } catch (_) {}
+  }
+
+  Future<void> _handleToggleFeatured() async {
+    final wasFeatured = _isFeaturedOnProfile;
+    setState(() => _isFeaturedOnProfile = !wasFeatured);
+    try {
+      if (wasFeatured) {
+        await ProfileService.removeProfilePlaylist(_playlist.id);
+      } else {
+        await ProfileService.addProfilePlaylist(_playlist.id);
+      }
+      if (!mounted) return;
+      AppFlushbar.success(
+        context,
+        wasFeatured ? 'Removed from your profile' : 'Featured on your profile',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isFeaturedOnProfile = wasFeatured);
+      AppFlushbar.error(context, "Couldn't update your profile: $error");
     }
   }
 
@@ -429,6 +466,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                               context,
                                               playlist,
                                             );
+                                          } else if (value == 'feature') {
+                                            _handleToggleFeatured();
                                           }
                                         },
                                         itemBuilder: (context) => [
@@ -446,6 +485,23 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                             ),
                                           if (playlist.isFromYoutube &&
                                               playlist.isOwnedByUser) ...[
+                                            PopupMenuItem(
+                                              value: 'feature',
+                                              child: ListTile(
+                                                contentPadding: EdgeInsets.zero,
+                                                leading: Icon(
+                                                  _isFeaturedOnProfile
+                                                      ? Icons.star_rounded
+                                                      : Icons
+                                                            .star_border_rounded,
+                                                ),
+                                                title: Text(
+                                                  _isFeaturedOnProfile
+                                                      ? 'Remove from profile'
+                                                      : 'Feature on profile',
+                                                ),
+                                              ),
+                                            ),
                                             PopupMenuItem(
                                               value: 'pin',
                                               child: ListTile(
@@ -658,7 +714,6 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                       ),
                       const SizedBox(width: 8),
                       PopupMenuButton<_PlaylistSort>(
-                        tooltip: 'Sort songs',
                         initialValue: _sort,
                         onSelected: (value) => setState(() => _sort = value),
                         shape: RoundedRectangleBorder(

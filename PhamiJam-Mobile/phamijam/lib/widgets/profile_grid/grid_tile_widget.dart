@@ -18,6 +18,7 @@ class GridTileWidget extends StatelessWidget {
     required this.editable,
     required this.gridProvider,
     this.onTap,
+    this.onLongPress,
   });
 
   final GridTile tile;
@@ -28,6 +29,7 @@ class GridTileWidget extends StatelessWidget {
   final bool editable;
   final ProfileGridProvider? gridProvider;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +63,7 @@ class GridTileWidget extends StatelessWidget {
         editable: editable,
         isDragging: isDragging,
         onTap: editable ? null : onTap,
+        onLongPress: editable ? null : onLongPress,
         onDragPanStart: editable ? (_) => provider!.beginDrag(tile.id) : null,
         onDragPanUpdate: editable
             ? (details) => provider!.updateDragPreview(
@@ -96,6 +99,7 @@ class _TileSurface extends StatelessWidget {
     required this.editable,
     required this.isDragging,
     this.onTap,
+    this.onLongPress,
     this.onDragPanStart,
     this.onDragPanUpdate,
     this.onDragPanEnd,
@@ -110,6 +114,7 @@ class _TileSurface extends StatelessWidget {
   final bool editable;
   final bool isDragging;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final GestureDragStartCallback? onDragPanStart;
   final GestureDragUpdateCallback? onDragPanUpdate;
   final GestureDragEndCallback? onDragPanEnd;
@@ -135,12 +140,13 @@ class _TileSurface extends StatelessWidget {
       ),
     );
 
-    if (onTap != null) {
+    if (onTap != null || onLongPress != null) {
       content = Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: content,
         ),
       );

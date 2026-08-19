@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ytmusicapi_dart/models/lyrics.dart' as ytm;
-import 'package:ytmusicapi_dart/navigation.dart';
 import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
 
 class LyricLine {
@@ -47,7 +46,8 @@ class LyricsService {
     SongLyrics? result;
     try {
       final ytmusic = await YTMusic.create();
-      final browseId = await _fetchLyricsBrowseId(ytmusic, videoId);
+      final watchPlaylist = await ytmusic.getWatchPlaylist(videoId: videoId);
+      final browseId = watchPlaylist['lyrics'] as String?;
       if (browseId != null) {
         List<LyricLine>? synced;
         try {
@@ -100,42 +100,6 @@ class LyricsService {
 
     _cache[videoId] = result;
     return result;
-  }
-
-  static Future<String?> _fetchLyricsBrowseId(
-    YTMusic ytmusic,
-    String videoId,
-  ) async {
-    final body = <String, dynamic>{
-      'enablePersistentPlaylistPanel': true,
-      'isAudioOnly': true,
-      'tunerSettingValue': 'AUTOMIX_SETTING_NORMAL',
-      'videoId': videoId,
-      'watchEndpointMusicSupportedConfigs': {
-        'watchEndpointMusicConfig': {
-          'hasPersistentPlaylistPanel': true,
-          'musicVideoType': 'MUSIC_VIDEO_TYPE_ATV',
-        },
-      },
-    };
-    final response = await ytmusic.sendRequest('next', body);
-    final watchNextRenderer =
-        nav(response, [
-              'contents',
-              'singleColumnMusicWatchNextResultsRenderer',
-              'tabbedRenderer',
-              'watchNextTabbedResultsRenderer',
-            ], nullIfAbsent: true)
-            as Map?;
-    final tabs = watchNextRenderer?['tabs'];
-    if (tabs is! List || tabs.length < 2) return null;
-    final tabRenderer = (tabs[1] as Map?)?['tabRenderer'] as Map?;
-    if (tabRenderer == null || tabRenderer.containsKey('unselectable')) {
-      return null;
-    }
-    final endpoint = tabRenderer['endpoint'] as Map?;
-    final browseEndpoint = endpoint?['browseEndpoint'] as Map?;
-    return browseEndpoint?['browseId'] as String?;
   }
 
   static final RegExp _bracketedNoise = RegExp(

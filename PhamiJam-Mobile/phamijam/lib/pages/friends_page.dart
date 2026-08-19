@@ -170,12 +170,10 @@ class _ReceivedRequestTileState extends State<_ReceivedRequestTile> {
                 IconButton(
                   icon: const Icon(Icons.check_circle_rounded),
                   color: Colors.green,
-                  tooltip: 'Accept',
                   onPressed: () => _respond(true),
                 ),
                 IconButton(
                   icon: const Icon(Icons.cancel_rounded),
-                  tooltip: 'Decline',
                   onPressed: () => _respond(false),
                 ),
               ],
@@ -199,7 +197,9 @@ class _SentRequestTileState extends State<_SentRequestTile> {
   Future<void> _cancel() async {
     setState(() => _busy = true);
     try {
-      await context.read<FriendsProvider>().cancelSentRequest(widget.request.otherUid);
+      await context.read<FriendsProvider>().cancelSentRequest(
+        widget.request.otherUid,
+      );
     } catch (error) {
       if (mounted) {
         AppFlushbar.error(context, "Couldn't cancel request: $error");
@@ -237,7 +237,9 @@ class _FriendTile extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Remove friend?'),
-        content: Text('You and ${friend.displayName} will no longer be friends.'),
+        content: Text(
+          'You and ${friend.displayName} will no longer be friends.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
