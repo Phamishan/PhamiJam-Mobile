@@ -137,7 +137,8 @@ class _PhamiJamPlaylistsRowState extends State<_PhamiJamPlaylistsRow> {
     final results = await Future.wait([
       ChartsService.fetchTopPlaylist(
         countryCode: 'DK',
-        displayTitle: 'Top 50: Denmark',
+        displayTitle: 'Top 10: Denmark',
+        targetSize: 10,
       ),
       ChartsService.fetchTopPlaylist(
         countryCode: 'ZZ',

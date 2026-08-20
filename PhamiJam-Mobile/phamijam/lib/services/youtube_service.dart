@@ -273,6 +273,42 @@ class YoutubeService {
     ];
   }
 
+  static Future<List<Track>> fetchRegionalMusicChart(
+    String regionCode, {
+    int maxResults = 50,
+  }) async {
+    final data = await _get('videos', {
+      'part': 'snippet,contentDetails',
+      'chart': 'mostPopular',
+      'regionCode': regionCode,
+      'videoCategoryId': '10',
+      'maxResults': '$maxResults',
+    });
+    final items = data['items'] as List? ?? [];
+    final tracks = <Track>[];
+    for (final item in items) {
+      final map = item as Map<String, dynamic>;
+      final videoId = map['id'] as String?;
+      if (videoId == null || videoId.isEmpty) continue;
+      final snippet = map['snippet'] as Map<String, dynamic>?;
+      final iso =
+          (map['contentDetails'] as Map<String, dynamic>?)?['duration']
+              as String?;
+      tracks.add(
+        Track(
+          id: 'chart-$regionCode-$videoId',
+          title: snippet?['title'] as String? ?? 'Unknown song',
+          artist: snippet?['channelTitle'] as String? ?? 'YouTube',
+          thumbnailUrl: _bestThumbnail(snippet),
+          duration: iso == null ? Duration.zero : _parseIsoDuration(iso),
+          videoId: videoId,
+          channelId: snippet?['channelId'] as String?,
+        ),
+      );
+    }
+    return tracks;
+  }
+
   static Future<Track?> fetchVideoById(String videoId) async {
     if (videoId.isEmpty) return null;
     final data = await _get('videos', {

@@ -93,8 +93,8 @@
   - Added social feature
   - Added customizable profile pages
 - 1.1.1.1 - 19/08/2026
-  - Profile widget fixes
-  - Lyrics fixes
+  - Fixed profile widget issues
+  - Fixed lyrics
 - 1.1.2 - 20/08/2026
   - Fixed the Settings page missing its background and back button
   - Changed profile widget editing to a long-press and drag gesture
