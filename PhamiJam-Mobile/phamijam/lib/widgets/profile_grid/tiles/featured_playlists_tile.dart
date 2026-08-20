@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:phamijam/models/playlist.dart';
+import 'package:phamijam/pages/playlist_detail_page.dart';
 import 'package:phamijam/services/profile_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
@@ -58,18 +59,51 @@ class FeaturedPlaylistsTile extends StatelessWidget {
               const SizedBox(height: 6),
               Expanded(
                 child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
                   itemCount: playlists.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  separatorBuilder: (_, _) => const SizedBox(height: 4),
                   itemBuilder: (context, index) {
                     final playlist = playlists[index];
-                    return SizedBox(
-                      width: 64,
-                      child: ClipRRect(
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
                         borderRadius: BorderRadius.circular(8),
-                        child: NetworkThumbnail(
-                          url: playlist.thumbnailUrl,
-                          fit: BoxFit.cover,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PlaylistDetailPage(
+                              playlist: playlist,
+                              onBack: () => Navigator.of(context).pop(),
+                            ),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: SizedBox(
+                                  width: 40,
+                                  height: 40,
+                                  child: NetworkThumbnail(
+                                    url: playlist.thumbnailUrl,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  playlist.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: colorScheme.onSurface,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );

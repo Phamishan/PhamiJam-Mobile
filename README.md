@@ -95,6 +95,10 @@
 - 1.1.1.1 - 19/08/2026
   - Profile widget fixes
   - Lyrics fixes
+- 1.1.2 - 20/08/2026
+  - Fixed the Settings page missing its background and back button
+  - Changed profile widget editing to a long-press and drag gesture
+  - Added PhamiJam Playlists, with Top 50: Denmark and Top 50: Global charts
 
 ## Screenshots:
 

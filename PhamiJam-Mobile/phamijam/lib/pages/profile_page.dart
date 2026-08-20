@@ -24,6 +24,12 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _saving = false;
 
   @override
+  void initState() {
+    super.initState();
+    context.read<ProfileProvider>().refresh();
+  }
+
+  @override
   void dispose() {
     _gridProvider?.dispose();
     super.dispose();
@@ -146,7 +152,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
               const SizedBox(height: 8),
-              if (!editing && profileProvider.profile.gridLayout.isEmpty)
+              if (!editing && !profileProvider.hasLoadedOnce)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (!editing && profileProvider.profile.gridLayout.isEmpty)
                 _EmptyGridHint(onEdit: () => _startEdit(profileProvider))
               else
                 ProfileGridView(

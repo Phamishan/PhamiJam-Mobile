@@ -5,7 +5,10 @@ import 'package:phamijam/widgets/profile_grid/profile_grid_view.dart';
 import 'package:phamijam/widgets/profile_grid/tiles/bio_header_tile.dart';
 import 'package:phamijam/widgets/profile_grid/tiles/featured_playlists_tile.dart';
 import 'package:phamijam/widgets/profile_grid/tiles/jamstats_highlights_tile.dart';
+import 'package:phamijam/widgets/profile_grid/tiles/liked_songs_tile.dart';
 import 'package:phamijam/widgets/profile_grid/tiles/recently_played_tile.dart';
+import 'package:phamijam/widgets/profile_grid/tiles/top_artists_tile.dart';
+import 'package:phamijam/widgets/profile_grid/tiles/top_tracks_tile.dart';
 
 class GridTileWidget extends StatelessWidget {
   const GridTileWidget({
@@ -37,8 +40,8 @@ class GridTileWidget extends StatelessWidget {
     final isDragging = editable && provider?.draggingTileId == tile.id;
     final isResizing = editable && provider?.resizingTileId == tile.id;
 
-    final col = isDragging ? provider!.previewCol ?? tile.col : tile.col;
-    final row = isDragging ? provider!.previewRow ?? tile.row : tile.row;
+    final col = tile.col;
+    final row = tile.row;
     final (colSpan, rowSpan) = isResizing
         ? provider!.previewSize ?? (tile.colSpan, tile.rowSpan)
         : (tile.colSpan, tile.rowSpan);
@@ -228,5 +231,8 @@ Widget _buildTileContent(GridTile tile, String profileUid) {
       profileUid: profileUid,
     ),
     GridWidgetType.recentlyPlayed => RecentlyPlayedTile(profileUid: profileUid),
+    GridWidgetType.likedSongs => LikedSongsTile(profileUid: profileUid),
+    GridWidgetType.topArtists => TopArtistsTile(profileUid: profileUid),
+    GridWidgetType.topTracks => TopTracksTile(profileUid: profileUid),
   };
 }

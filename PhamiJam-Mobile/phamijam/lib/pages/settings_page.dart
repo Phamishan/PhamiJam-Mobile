@@ -242,223 +242,224 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Settings', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 20),
-          Text('Appearance', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, _) {
-              return SegmentedButton<AppThemeMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: AppThemeMode.auto,
-                    label: Text('Auto'),
-                    icon: Icon(Icons.brightness_auto_rounded),
-                  ),
-                  ButtonSegment(
-                    value: AppThemeMode.light,
-                    label: Text('Light'),
-                    icon: Icon(Icons.light_mode_rounded),
-                  ),
-                  ButtonSegment(
-                    value: AppThemeMode.dark,
-                    label: Text('Dark'),
-                    icon: Icon(Icons.dark_mode_rounded),
-                  ),
-                ],
-                selected: {themeProvider.mode},
-                showSelectedIcon: false,
-                onSelectionChanged: (selection) =>
-                    themeProvider.setMode(selection.first),
-                style: SegmentedButton.styleFrom(
-                  backgroundColor: colorScheme.surfaceContainer,
-                  foregroundColor: colorScheme.onSurfaceVariant,
-                  selectedBackgroundColor: colorScheme.primary,
-                  selectedForegroundColor: colorScheme.onPrimary,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          Text('Accent color', style: Theme.of(context).textTheme.bodyLarge),
-          const SizedBox(height: 10),
-          _buildAccentColorPicker(colorScheme),
-          const SizedBox(height: 28),
-          Text(
-            'Search & Artists',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Choose search results from YouTube Music or YouTube',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          Consumer<SettingsProvider>(
-            builder: (context, settings, _) {
-              return Center(
-                child: SegmentedButton<SearchEngine>(
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Appearance', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            Consumer<ThemeProvider>(
+              builder: (context, themeProvider, _) {
+                return SegmentedButton<AppThemeMode>(
                   segments: const [
                     ButtonSegment(
-                      value: SearchEngine.youtubeMusic,
-                      label: Text('YouTube Music'),
-                      icon: Icon(Icons.music_note_rounded),
+                      value: AppThemeMode.auto,
+                      label: Text('Auto'),
+                      icon: Icon(Icons.brightness_auto_rounded),
                     ),
                     ButtonSegment(
-                      value: SearchEngine.youtube,
-                      label: Text('YouTube'),
-                      icon: Icon(Icons.smart_display_rounded),
+                      value: AppThemeMode.light,
+                      label: Text('Light'),
+                      icon: Icon(Icons.light_mode_rounded),
+                    ),
+                    ButtonSegment(
+                      value: AppThemeMode.dark,
+                      label: Text('Dark'),
+                      icon: Icon(Icons.dark_mode_rounded),
                     ),
                   ],
-                  selected: {settings.searchEngine},
+                  selected: {themeProvider.mode},
                   showSelectedIcon: false,
                   onSelectionChanged: (selection) =>
-                      settings.setSearchEngine(selection.first),
+                      themeProvider.setMode(selection.first),
                   style: SegmentedButton.styleFrom(
                     backgroundColor: colorScheme.surfaceContainer,
                     foregroundColor: colorScheme.onSurfaceVariant,
                     selectedBackgroundColor: colorScheme.primary,
                     selectedForegroundColor: colorScheme.onPrimary,
                   ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 28),
-          Text('Player', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
-          Consumer<SettingsProvider>(
-            builder: (context, settings, _) {
-              return _SettingsSwitchTile(
-                icon: Icons.swipe_rounded,
-                title: 'Swipe to dismiss mini player',
-                subtitle: 'Swipe the mini player away to stop playback',
-                value: settings.miniPlayerSwipeToDismiss,
-                onChanged: settings.setMiniPlayerSwipeToDismiss,
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          Consumer<SettingsProvider>(
-            builder: (context, settings, _) {
-              return _SettingsSwitchTile(
-                icon: Icons.playlist_remove_rounded,
-                title: 'Suggest removing skipped songs',
-                subtitle:
-                    "Get asked to remove a playlist song you've skipped early "
-                    'several times',
-                value: settings.suggestRemovingSkippedSongs,
-                onChanged: settings.setSuggestRemovingSkippedSongs,
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          Consumer<SettingsProvider>(
-            builder: (context, settings, _) {
-              return _SettingsSwitchTile(
-                icon: Icons.autorenew_rounded,
-                title: 'Autoplay',
-                subtitle: 'Keep playing similar songs when your queue ends',
-                value: settings.autoplayEnabled,
-                onChanged: settings.setAutoplayEnabled,
-              );
-            },
-          ),
-          const SizedBox(height: 28),
-          Text('Library', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
-          _SettingsTile(
-            icon: Icons.playlist_play_rounded,
-            title: 'Playlist Visibility',
-            subtitle: 'Choose which playlists show on Home and Library',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const ManagePlaylistVisibilityPage(),
-              ),
+                );
+              },
             ),
-            color: colorScheme.onSurface,
-          ),
-          const SizedBox(height: 28),
-          Text('Storage', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
-          Consumer<DownloadsProvider>(
-            builder: (context, downloads, _) {
-              return _SettingsTile(
-                icon: Icons.download_done_rounded,
-                title: 'Downloaded Songs',
-                subtitle:
-                    '${downloads.totalTracks} songs · '
-                    '${formatDownloadSize(downloads.totalSizeBytes)}',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const DownloadsPage()),
+            const SizedBox(height: 16),
+            Text('Accent color', style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 10),
+            _buildAccentColorPicker(colorScheme),
+            const SizedBox(height: 28),
+            Text(
+              'Search & Artists',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Choose search results from YouTube Music or YouTube',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return Center(
+                  child: SegmentedButton<SearchEngine>(
+                    segments: const [
+                      ButtonSegment(
+                        value: SearchEngine.youtubeMusic,
+                        label: Text('YouTube Music'),
+                        icon: Icon(Icons.music_note_rounded),
+                      ),
+                      ButtonSegment(
+                        value: SearchEngine.youtube,
+                        label: Text('YouTube'),
+                        icon: Icon(Icons.smart_display_rounded),
+                      ),
+                    ],
+                    selected: {settings.searchEngine},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (selection) =>
+                        settings.setSearchEngine(selection.first),
+                    style: SegmentedButton.styleFrom(
+                      backgroundColor: colorScheme.surfaceContainer,
+                      foregroundColor: colorScheme.onSurfaceVariant,
+                      selectedBackgroundColor: colorScheme.primary,
+                      selectedForegroundColor: colorScheme.onPrimary,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 28),
+            Text('Player', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return _SettingsSwitchTile(
+                  icon: Icons.swipe_rounded,
+                  title: 'Swipe to dismiss mini player',
+                  subtitle: 'Swipe the mini player away to stop playback',
+                  value: settings.miniPlayerSwipeToDismiss,
+                  onChanged: settings.setMiniPlayerSwipeToDismiss,
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return _SettingsSwitchTile(
+                  icon: Icons.playlist_remove_rounded,
+                  title: 'Suggest removing skipped songs',
+                  subtitle:
+                      "Get asked to remove a playlist song you've skipped early "
+                      'several times',
+                  value: settings.suggestRemovingSkippedSongs,
+                  onChanged: settings.setSuggestRemovingSkippedSongs,
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return _SettingsSwitchTile(
+                  icon: Icons.autorenew_rounded,
+                  title: 'Autoplay',
+                  subtitle: 'Keep playing similar songs when your queue ends',
+                  value: settings.autoplayEnabled,
+                  onChanged: settings.setAutoplayEnabled,
+                );
+              },
+            ),
+            const SizedBox(height: 28),
+            Text('Library', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            _SettingsTile(
+              icon: Icons.playlist_play_rounded,
+              title: 'Playlist Visibility',
+              subtitle: 'Choose which playlists show on Home and Library',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ManagePlaylistVisibilityPage(),
                 ),
-                color: colorScheme.onSurface,
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          Consumer<EditedSongsProvider>(
-            builder: (context, editedSongs, _) {
-              return _SettingsTile(
-                icon: Icons.content_cut_rounded,
-                title: 'Edited Songs',
-                subtitle: '${editedSongs.all.length} songs trimmed',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const EditedSongsPage()),
-                ),
-                color: colorScheme.onSurface,
-              );
-            },
-          ),
-          const SizedBox(height: 28),
-          Text('App', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
-          _SettingsTile(
-            icon: Icons.auto_awesome_rounded,
-            title: 'Jamstats ✨',
-            subtitle: 'Your year in PhamiJam, wrapped',
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const JamstatsPage())),
-            color: colorScheme.onSurface,
-          ),
-          const SizedBox(height: 10),
-          Consumer<LibraryProvider>(
-            builder: (context, library, _) {
-              return _SettingsTile(
-                icon: Icons.add_to_drive_rounded,
-                title: 'Google Drive folder',
-                subtitle: library.hasConnectedDriveFolder
-                    ? 'Connected · ${library.localFiles.length} songs'
-                    : 'Play songs from a "PhamiJam" folder in your Drive',
-                onTap: _connectDriveFolder,
-                onInfoTap: _showDriveInfo,
-                color: colorScheme.onSurface,
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          _SettingsTile(
-            icon: Icons.info_rounded,
-            title: 'About PhamiJam',
-            subtitle: 'Version 1.1.1.1',
-            onTap: () => showChangelogDialog(context),
-            color: colorScheme.onSurface,
-          ),
-          const SizedBox(height: 10),
-          _SettingsTile(
-            icon: Icons.logout_rounded,
-            title: _signingOut ? 'Signing out...' : 'Sign out',
-            subtitle: 'Sign out of PhamiJam on this device',
-            onTap: _signingOut ? null : _signOut,
-            color: colorScheme.error,
-          ),
-        ],
+              ),
+              color: colorScheme.onSurface,
+            ),
+            const SizedBox(height: 28),
+            Text('Storage', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            Consumer<DownloadsProvider>(
+              builder: (context, downloads, _) {
+                return _SettingsTile(
+                  icon: Icons.download_done_rounded,
+                  title: 'Downloaded Songs',
+                  subtitle:
+                      '${downloads.totalTracks} songs · '
+                      '${formatDownloadSize(downloads.totalSizeBytes)}',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DownloadsPage()),
+                  ),
+                  color: colorScheme.onSurface,
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            Consumer<EditedSongsProvider>(
+              builder: (context, editedSongs, _) {
+                return _SettingsTile(
+                  icon: Icons.content_cut_rounded,
+                  title: 'Edited Songs',
+                  subtitle: '${editedSongs.all.length} songs trimmed',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const EditedSongsPage()),
+                  ),
+                  color: colorScheme.onSurface,
+                );
+              },
+            ),
+            const SizedBox(height: 28),
+            Text('App', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            _SettingsTile(
+              icon: Icons.auto_awesome_rounded,
+              title: 'Jamstats ✨',
+              subtitle: 'Your year in PhamiJam, wrapped',
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const JamstatsPage())),
+              color: colorScheme.onSurface,
+            ),
+            const SizedBox(height: 10),
+            Consumer<LibraryProvider>(
+              builder: (context, library, _) {
+                return _SettingsTile(
+                  icon: Icons.add_to_drive_rounded,
+                  title: 'Google Drive folder',
+                  subtitle: library.hasConnectedDriveFolder
+                      ? 'Connected · ${library.localFiles.length} songs'
+                      : 'Play songs from a "PhamiJam" folder in your Drive',
+                  onTap: _connectDriveFolder,
+                  onInfoTap: _showDriveInfo,
+                  color: colorScheme.onSurface,
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            _SettingsTile(
+              icon: Icons.info_rounded,
+              title: 'About PhamiJam',
+              subtitle: 'Version 1.1.2',
+              onTap: () => showChangelogDialog(context),
+              color: colorScheme.onSurface,
+            ),
+            const SizedBox(height: 10),
+            _SettingsTile(
+              icon: Icons.logout_rounded,
+              title: _signingOut ? 'Signing out...' : 'Sign out',
+              subtitle: 'Sign out of PhamiJam on this device',
+              onTap: _signingOut ? null : _signOut,
+              color: colorScheme.error,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -87,6 +87,7 @@
   - Fixed the artist page's play button ignoring your shuffle setting
   - Reduced how often background listening stats sync, to save battery and data
 - 1.1.1 - 19/08/2026
+  - Fixed playback issues
   - Added a lyrics fallback for songs YouTube Music doesn't have lyrics for
   - Fixed share link "Listen on PhamiJam" redirect (needs testing)
   - Added social feature
@@ -94,6 +95,12 @@
 - 1.1.1.1 - 19/08/2026
   - Profile widget fixes
   - Lyrics fixes
+- 1.1.2 - 20/08/2026
+  - Fixed the Settings page missing its background and back button
+  - Added a way to feature your playlists on your profile
+  - Fixed featured playlists never showing on your profile
+  - Changed profile widget editing to a long-press and drag gesture
+  - Added PhamiJam Playlists, with Top 50: Denmark and Top 50: Global charts
 
 ## Screenshots:
 
