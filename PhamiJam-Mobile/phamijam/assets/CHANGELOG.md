@@ -97,8 +97,6 @@
   - Lyrics fixes
 - 1.1.2 - 20/08/2026
   - Fixed the Settings page missing its background and back button
-  - Added a way to feature your playlists on your profile
-  - Fixed featured playlists never showing on your profile
   - Changed profile widget editing to a long-press and drag gesture
   - Added PhamiJam Playlists, with Top 50: Denmark and Top 50: Global charts
 
