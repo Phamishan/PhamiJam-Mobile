@@ -99,6 +99,12 @@
   - Fixed the Settings page missing its background and back button
   - Changed profile widget editing to a long-press and drag gesture
   - Added PhamiJam Playlists, with Top 50: Denmark and Top 50: Global charts
+- 1.1.3 - 23/08/2026
+  - Removed PhamiJam Playlists
+  - Fixed profile widgets
+  - Fixed lyrics
+  - Fixed the sign-out button
+  - Fixed Google Drive connection not clearing on sign-out
 
 ## Screenshots:
 

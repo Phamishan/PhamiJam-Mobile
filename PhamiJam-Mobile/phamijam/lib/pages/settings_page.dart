@@ -12,7 +12,9 @@ import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/download_service.dart';
+import 'package:phamijam/services/drive_folder_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
+import 'package:phamijam/services/google_drive_auth_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 
@@ -228,7 +230,12 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _signingOut = true);
     try {
       await GoogleAuthService.signOut();
+      await GoogleDriveAuthService.signOut();
+      await DriveFolderService.clearFolderId();
       await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      context.read<LibraryProvider>().clearDriveConnection();
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (error) {
       if (mounted) {
         AppFlushbar.error(context, 'Failed to sign out: $error');
@@ -446,7 +453,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _SettingsTile(
               icon: Icons.info_rounded,
               title: 'About PhamiJam',
-              subtitle: 'Version 1.1.2',
+              subtitle: 'Version 1.1.3',
               onTap: () => showChangelogDialog(context),
               color: colorScheme.onSurface,
             ),

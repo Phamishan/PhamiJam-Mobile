@@ -50,6 +50,7 @@ class LyricsService {
       final browseId = watchPlaylist['lyrics'] as String?;
       if (browseId != null) {
         List<LyricLine>? synced;
+        String? source;
         try {
           final timed = await ytmusic.getLyrics(browseId, timestamps: true);
           final rawLines = timed?['lyrics'];
@@ -64,14 +65,13 @@ class LyricsService {
                 )
                 .toList();
           }
+          source = timed?['source'] as String?;
         } catch (_) {}
 
         String? plainText;
-        String? source;
         try {
           final plain = await ytmusic.getLyrics(browseId);
           plainText = plain?['lyrics'] as String?;
-          source = plain?['source'] as String?;
         } catch (_) {}
 
         if (synced != null || plainText != null) {

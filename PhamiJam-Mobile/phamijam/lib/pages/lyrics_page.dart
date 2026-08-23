@@ -25,6 +25,7 @@ class _LyricsPageState extends State<LyricsPage> {
   int _syncOffsetMs = 0;
   int _lastActiveIndex = -1;
   bool _userScrolling = false;
+  bool _isAutoScrolling = false;
   Timer? _resumeAutoScrollTimer;
 
   @override
@@ -44,8 +45,8 @@ class _LyricsPageState extends State<LyricsPage> {
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification is ScrollStartNotification &&
-        notification.dragDetails != null) {
+    if (_isAutoScrolling) return false;
+    if (notification is ScrollStartNotification) {
       _resumeAutoScrollTimer?.cancel();
       _userScrolling = true;
     } else if (notification is ScrollEndNotification) {
@@ -138,12 +139,13 @@ class _LyricsPageState extends State<LyricsPage> {
     if (_userScrolling) return;
     final lineContext = _lineKeys[index]?.currentContext;
     if (lineContext == null) return;
+    _isAutoScrolling = true;
     Scrollable.ensureVisible(
       lineContext,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
       alignment: 0.4,
-    );
+    ).then((_) => _isAutoScrolling = false);
   }
 
   Future<void> _adjustOffset(int deltaMs) async {
@@ -230,12 +232,9 @@ class _LyricsPageState extends State<LyricsPage> {
                                 if ((_lyrics?.source ?? '').isNotEmpty)
                                   Text(
                                     'Lyrics via ${_lyrics!.source}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
+                                    style: Theme.of(context).textTheme.bodySmall
                                         ?.copyWith(
-                                          color:
-                                              colorScheme.onSurfaceVariant,
+                                          color: colorScheme.onSurfaceVariant,
                                         ),
                                   ),
                               ],

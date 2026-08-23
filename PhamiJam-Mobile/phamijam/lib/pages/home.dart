@@ -8,7 +8,6 @@ import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
-import 'package:phamijam/services/charts_service.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/widgets/playlist_card.dart';
 import 'package:phamijam/widgets/recent_artists_row.dart';
@@ -71,7 +70,6 @@ class HomePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
-            _PhamiJamPlaylistsRow(onOpen: onOpenPlaylist),
             if (library.recentlyPlayed.isNotEmpty) ...[
               SectionHeader(title: 'Recently Played Artists'),
               RecentArtistsRow(tracks: library.recentlyPlayed),
@@ -117,76 +115,6 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _PhamiJamPlaylistsRow extends StatefulWidget {
-  final ValueChanged<Playlist> onOpen;
-
-  const _PhamiJamPlaylistsRow({required this.onOpen});
-
-  @override
-  State<_PhamiJamPlaylistsRow> createState() => _PhamiJamPlaylistsRowState();
-}
-
-class _PhamiJamPlaylistsRowState extends State<_PhamiJamPlaylistsRow> {
-  late final Future<List<Playlist>> _future = _load();
-
-  Future<List<Playlist>> _load() async {
-    final results = await Future.wait([
-      ChartsService.fetchTopPlaylist(
-        countryCode: 'DK',
-        displayTitle: 'Top 10: Denmark',
-        targetSize: 10,
-      ),
-      ChartsService.fetchTopPlaylist(
-        countryCode: 'ZZ',
-        displayTitle: 'Top 50: Global',
-      ),
-    ]);
-    return results.whereType<Playlist>().toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Playlist>>(
-      future: _future,
-      builder: (context, snapshot) {
-        final playlists = snapshot.data ?? const [];
-        if (snapshot.connectionState != ConnectionState.done ||
-            playlists.isNotEmpty) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SectionHeader(title: 'PhamiJam Playlists'),
-              if (snapshot.connectionState != ConnectionState.done)
-                const SizedBox(
-                  height: 240,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else
-                SizedBox(
-                  height: 240,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: playlists.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 14),
-                    itemBuilder: (context, index) {
-                      final playlist = playlists[index];
-                      return PlaylistCard(
-                        playlist: playlist,
-                        onTap: () => widget.onOpen(playlist),
-                      );
-                    },
-                  ),
-                ),
-              const SizedBox(height: 32),
-            ],
-          );
-        }
-        return const SizedBox.shrink();
-      },
     );
   }
 }
