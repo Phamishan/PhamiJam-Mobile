@@ -155,6 +155,7 @@ class GoogleAuthService {
   static Future<String?> ensureAccessToken({
     bool forceOnline = false,
     bool forceRefresh = false,
+    bool silentOnly = false,
   }) {
     if (!forceOnline &&
         !forceRefresh &&
@@ -169,6 +170,7 @@ class GoogleAuthService {
     final future = _ensureAccessTokenUncached(
       forceOnline: forceOnline,
       forceRefresh: forceRefresh,
+      silentOnly: silentOnly,
     );
     _pendingEnsure = future;
     future.whenComplete(() => _pendingEnsure = null);
@@ -178,6 +180,7 @@ class GoogleAuthService {
   static Future<String?> _ensureAccessTokenUncached({
     bool forceOnline = false,
     bool forceRefresh = false,
+    bool silentOnly = false,
   }) async {
     if (!forceOnline) {
       final restoredCredentials = await _tryRestoringCredentials();
@@ -218,6 +221,11 @@ class GoogleAuthService {
           return _accessToken;
         }
       }
+    }
+
+    if (silentOnly) {
+      debugPrint('$_logTag: silentOnly requested — not launching signInOnline().');
+      return null;
     }
 
     debugPrint('$_logTag: falling back to signInOnline() for a fresh token.');

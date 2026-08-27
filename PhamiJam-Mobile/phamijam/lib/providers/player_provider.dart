@@ -709,12 +709,15 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_queue.isEmpty) return;
     if (_queueIndex < _queue.length - 1) {
       _queueIndex++;
-    } else if (_repeatMode == PlayerRepeatMode.all) {
-      _queueIndex = 0;
     } else {
       final appended = await _tryAppendAutoplayContinuation();
-      if (!appended || _queueIndex >= _queue.length - 1) return;
-      _queueIndex++;
+      if (appended && _queueIndex < _queue.length - 1) {
+        _queueIndex++;
+      } else if (_repeatMode == PlayerRepeatMode.all) {
+        _queueIndex = 0;
+      } else {
+        return;
+      }
     }
     _currentTrack = _queue[_queueIndex];
     notifyListeners();
@@ -725,7 +728,8 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (skipAttempts < _queue.length) {
         await _localNext(skipAttempts: skipAttempts + 1);
       } else {
-        playbackErrorMessage = "Having trouble playing music - check your connection.";
+        playbackErrorMessage =
+            "Having trouble playing music - check your connection.";
         notifyListeners();
       }
     }

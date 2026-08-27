@@ -77,15 +77,24 @@ class _VideoSurfaceState extends State<VideoSurface> {
         videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
       );
       _controller = controller;
-      _loadedForTrackId = track.id;
       await controller.initialize();
+      if (!mounted || widget.player.currentTrack?.id != track.id) {
+        await controller.dispose();
+        if (_controller == controller) _controller = null;
+        return;
+      }
       await controller.setVolume(0);
       await controller.seekTo(widget.player.position);
       if (widget.player.isPlaying) {
         await controller.play();
       }
+      _loadedForTrackId = track.id;
       _driftTimer = Timer.periodic(_driftCheckInterval, (_) => _correctDrift());
       if (mounted) setState(() {});
+    } catch (error, stackTrace) {
+      debugPrint('VideoSurface: failed to load video for ${track.id}: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      await _teardown();
     } finally {
       _loading = false;
     }

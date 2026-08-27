@@ -83,7 +83,12 @@ class _LibraryPageState extends State<LibraryPage> {
                       library.likedSongs.isEmpty
                 ? _ErrorState(
                     message: library.errorMessage!,
-                    onRetry: library.refresh,
+                    onRetry: library.needsGoogleReconnect
+                        ? library.connectGoogleAccount
+                        : library.refresh,
+                    retryLabel: library.needsGoogleReconnect
+                        ? 'Connect Google Account'
+                        : 'Try again',
                   )
                 : _buildContent(context, library, savedPlaylists, settings),
           ),
@@ -467,8 +472,13 @@ class _EmptyState extends StatelessWidget {
 class _ErrorState extends StatelessWidget {
   final String message;
   final Future<void> Function() onRetry;
+  final String retryLabel;
 
-  const _ErrorState({required this.message, required this.onRetry});
+  const _ErrorState({
+    required this.message,
+    required this.onRetry,
+    this.retryLabel = 'Try again',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -491,7 +501,7 @@ class _ErrorState extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
-            OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
+            OutlinedButton(onPressed: onRetry, child: Text(retryLabel)),
           ],
         ),
       ),

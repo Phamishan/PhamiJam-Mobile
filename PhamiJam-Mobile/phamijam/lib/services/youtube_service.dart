@@ -21,6 +21,11 @@ class YoutubeApiException implements Exception {
 class YoutubeService {
   YoutubeService._();
 
+  static Future<bool> hasSilentAccess() async {
+    final token = await GoogleAuthService.ensureAccessToken(silentOnly: true);
+    return token != null && token.isNotEmpty;
+  }
+
   static Future<http.Response> _sendWithAutoRefresh(
     Future<http.Response> Function(String token) send,
   ) async {

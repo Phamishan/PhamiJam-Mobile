@@ -20,7 +20,12 @@ class ProfileProvider extends ChangeNotifier {
 
   Future<void> refresh() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      isLoading = false;
+      hasLoadedOnce = true;
+      notifyListeners();
+      return;
+    }
     isLoading = true;
     notifyListeners();
     try {

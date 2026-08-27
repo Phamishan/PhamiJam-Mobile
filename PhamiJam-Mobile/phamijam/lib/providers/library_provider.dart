@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/google_drive_service.dart';
 import 'package:phamijam/services/liked_songs_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
@@ -13,6 +14,7 @@ const String kLocalFilesPlaylistId = 'local-files';
 class LibraryProvider extends ChangeNotifier {
   bool isLoading = false;
   String? errorMessage;
+  bool needsGoogleReconnect = false;
   List<Playlist> madeForYou = [];
   List<Playlist> topMixes = [];
   List<Track> recentlyPlayed = [];
@@ -48,19 +50,46 @@ class LibraryProvider extends ChangeNotifier {
     return videoId != null && _likedVideoIds.contains(videoId);
   }
 
-  Future<void> refresh() async {
+  Future<void> refresh({bool silentOnly = false}) async {
+    isLoading = true;
+    errorMessage = null;
+    needsGoogleReconnect = false;
+    notifyListeners();
+
+    await _loadPinnedOrder();
+    await Future.wait([
+      _refreshYoutubePlaylists(silentOnly: silentOnly),
+      _refreshLikedSongs(),
+      _refreshRecentlyPlayed(),
+      refreshLocalFiles(),
+    ]);
+
+    isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> connectGoogleAccount() async {
     isLoading = true;
     errorMessage = null;
     notifyListeners();
 
-    await _loadPinnedOrder();
+    final token = await GoogleAuthService.ensureAccessToken(
+      forceOnline: true,
+    );
+    if (token == null || token.isEmpty) {
+      isLoading = false;
+      errorMessage = 'Could not connect your Google account. Please try again.';
+      notifyListeners();
+      return;
+    }
+
+    needsGoogleReconnect = false;
     await Future.wait([
       _refreshYoutubePlaylists(),
       _refreshLikedSongs(),
       _refreshRecentlyPlayed(),
       refreshLocalFiles(),
     ]);
-
     isLoading = false;
     notifyListeners();
   }
@@ -120,7 +149,16 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _refreshYoutubePlaylists() async {
+  Future<void> _refreshYoutubePlaylists({bool silentOnly = false}) async {
+    if (silentOnly && !await YoutubeService.hasSilentAccess()) {
+      needsGoogleReconnect = true;
+      errorMessage = 'Connect your Google account to view your Library.';
+      userPlaylists = [];
+      madeForYou = [];
+      topMixes = [];
+      return;
+    }
+
     try {
       userPlaylists = _applyPinState(await YoutubeService.fetchMyPlaylists());
       _splitPlaylists();

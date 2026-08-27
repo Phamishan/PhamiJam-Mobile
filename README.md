@@ -105,6 +105,10 @@
   - Fixed lyrics
   - Fixed the sign-out button
   - Fixed Google Drive connection not clearing on sign-out
+- 1.1.4 - 27/08/2026
+  - Fixed autoplay
+  - Fixed profile widgets stuck loading
+  - Fixed the fullscreen player
 
 ## Screenshots:
 

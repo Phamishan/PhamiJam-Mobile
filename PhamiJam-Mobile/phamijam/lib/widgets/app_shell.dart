@@ -50,7 +50,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<LibraryProvider>().refresh();
+      if (mounted) context.read<LibraryProvider>().refresh(silentOnly: true);
     });
     _player = context.read<PlayerProvider>();
     _player.bindEditedSongsLookup(context.read<EditedSongsProvider>().trimFor);
