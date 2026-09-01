@@ -109,6 +109,11 @@
   - Fixed autoplay
   - Fixed profile widgets stuck loading
   - Fixed the fullscreen player
+- 1.1.5 - 01/09/2026
+  - Added crossfade
+  - Added a "Find friends" search
+  - Fixed profile info being visible to people who aren't your friends
+  - Fixed remote control
 
 ## Screenshots:
 

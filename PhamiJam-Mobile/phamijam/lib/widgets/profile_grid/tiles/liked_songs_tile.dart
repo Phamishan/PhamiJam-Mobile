@@ -1,7 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/providers/friends_provider.dart';
 import 'package:phamijam/services/liked_songs_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/widgets/profile_grid/tiles/private_tile_placeholder.dart';
+import 'package:provider/provider.dart';
 
 class LikedSongsTile extends StatelessWidget {
   const LikedSongsTile({super.key, required this.profileUid});
@@ -10,6 +14,10 @@ class LikedSongsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOwner = profileUid == FirebaseAuth.instance.currentUser?.uid;
+    final isFriend = context.watch<FriendsProvider>().isFriend(profileUid);
+    if (!isOwner && !isFriend) return const PrivateTilePlaceholder();
+
     final colorScheme = Theme.of(context).colorScheme;
     return FutureBuilder<List<Track>>(
       future: LikedSongsService.fetchAllForUid(profileUid),

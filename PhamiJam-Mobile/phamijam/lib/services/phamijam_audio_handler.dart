@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/audio_stream_resolver.dart';
@@ -145,6 +146,70 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       autoPlay: autoPlay,
       requestId: requestId,
     );
+  }
+
+  Future<void> loadOnto(
+    AudioPlayer target,
+    Track track, {
+    Duration startAt = Duration.zero,
+  }) async {
+    final videoId = track.videoId;
+    if (videoId == null || videoId.isEmpty) return;
+
+    if (videoId.startsWith(driveTrackIdPrefix)) {
+      final fileId = videoId.substring(driveTrackIdPrefix.length);
+      final headers = await GoogleDriveService.streamHeaders(fileId);
+      await target.setAudioSource(
+        AudioSource.uri(GoogleDriveService.streamUri(fileId), headers: headers),
+        initialPosition: startAt,
+        preload: true,
+      );
+      return;
+    }
+
+    final localPath = resolveLocalPath?.call(videoId);
+    if (localPath != null) {
+      await target.setAudioSource(
+        AudioSource.uri(Uri.file(localPath)),
+        initialPosition: startAt,
+      );
+      return;
+    }
+
+    debugPrint('[crossfade] loadOnto: resolving stream for $videoId');
+    final resolveStopwatch = Stopwatch()..start();
+    final resolved = await _resolver.resolve(videoId);
+    debugPrint(
+      '[crossfade] loadOnto: resolved in ${resolveStopwatch.elapsedMilliseconds}ms, ${resolved.audioUrls.length} candidate(s)',
+    );
+    Object? lastError;
+    var candidateIndex = 0;
+    for (final url in resolved.audioUrls) {
+      candidateIndex++;
+      debugPrint(
+        '[crossfade] loadOnto: trying candidate $candidateIndex/${resolved.audioUrls.length}',
+      );
+      final candidateStopwatch = Stopwatch()..start();
+      try {
+        await target
+            .setAudioSource(
+              AudioSource.uri(url, headers: _youtubeHttpHeaders),
+              initialPosition: startAt,
+              preload: true,
+            )
+            .timeout(const Duration(seconds: 8));
+        debugPrint(
+          '[crossfade] loadOnto: candidate $candidateIndex succeeded in ${candidateStopwatch.elapsedMilliseconds}ms',
+        );
+        return;
+      } catch (error) {
+        debugPrint(
+          '[crossfade] loadOnto: candidate $candidateIndex failed after ${candidateStopwatch.elapsedMilliseconds}ms: $error',
+        );
+        lastError = error;
+      }
+    }
+    throw lastError ?? StateError('No playable audio candidates');
   }
 
   Future<void> reloadAfterStreamError(Track track) async {

@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:phamijam/models/grid_tile.dart';
 import 'package:phamijam/models/user_profile.dart';
 
+typedef ProfileSearchResult = ({String uid, UserProfile profile});
+
 class UsernameTakenException implements Exception {
   UsernameTakenException(this.username);
   final String username;
@@ -132,5 +134,30 @@ class ProfileService {
     final uid = _currentUid;
     if (uid == null) return;
     await _profilePlaylists(uid).doc(playlistId).delete();
+  }
+
+  static Future<List<ProfileSearchResult>> searchByUsername(
+    String query, {
+    int limit = 20,
+  }) async {
+    var normalized = query.trim().toLowerCase();
+    if (normalized.startsWith('@')) normalized = normalized.substring(1);
+    if (normalized.isEmpty) return [];
+    final snapshot = await FirebaseFirestore.instance
+        .collection('usernames')
+        .orderBy(FieldPath.documentId)
+        .startAt([normalized])
+        .endAt([normalized + String.fromCharCode(0xf8ff)])
+        .limit(limit)
+        .get();
+    final me = _currentUid;
+    final uids = snapshot.docs
+        .map((doc) => doc.data()['uid'] as String?)
+        .whereType<String>()
+        .where((uid) => uid != me)
+        .toList();
+    return Future.wait(
+      uids.map((uid) async => (uid: uid, profile: await fetchProfile(uid))),
+    );
   }
 }

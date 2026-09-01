@@ -376,6 +376,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 );
               },
             ),
+            const SizedBox(height: 10),
+            Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return _CrossfadeTile(
+                  enabled: settings.crossfadeEnabled,
+                  durationMs: settings.crossfadeDurationMs,
+                  onEnabledChanged: settings.setCrossfadeEnabled,
+                  onDurationChanged: settings.setCrossfadeDurationMs,
+                );
+              },
+            ),
             const SizedBox(height: 28),
             Text('Library', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
@@ -453,7 +464,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _SettingsTile(
               icon: Icons.info_rounded,
               title: 'About PhamiJam',
-              subtitle: 'Version 1.1.4',
+              subtitle: 'Version 1.1.5',
               onTap: () => showChangelogDialog(context),
               color: colorScheme.onSurface,
             ),
@@ -589,6 +600,95 @@ class _SettingsSwitchTile extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CrossfadeTile extends StatelessWidget {
+  final bool enabled;
+  final int durationMs;
+  final ValueChanged<bool> onEnabledChanged;
+  final ValueChanged<int> onDurationChanged;
+
+  const _CrossfadeTile({
+    required this.enabled,
+    required this.durationMs,
+    required this.onEnabledChanged,
+    required this.onDurationChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final seconds = (durationMs / 1000).round();
+    return Material(
+      color: colorScheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: () => onEnabledChanged(!enabled),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.compare_arrows_rounded,
+                    color: colorScheme.onSurface,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Crossfade',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        Text(
+                          'Smoothly fade between songs as your queue advances',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: enabled,
+                    onChanged: onEnabledChanged,
+                    activeThumbColor: colorScheme.onPrimary,
+                    inactiveThumbColor: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+            if (enabled)
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: durationMs.toDouble(),
+                      min: 1000,
+                      max: 12000,
+                      divisions: 11,
+                      label: '${seconds}s',
+                      onChanged: (value) => onDurationChanged(value.round()),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      '${seconds}s',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+          ],
         ),
       ),
     );

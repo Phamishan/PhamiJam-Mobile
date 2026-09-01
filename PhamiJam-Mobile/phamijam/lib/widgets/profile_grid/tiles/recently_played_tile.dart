@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/providers/friends_provider.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/widgets/profile_grid/tiles/private_tile_placeholder.dart';
 import 'package:provider/provider.dart';
 
 class RecentlyPlayedTile extends StatelessWidget {
@@ -44,6 +46,8 @@ class RecentlyPlayedTile extends StatelessWidget {
       final tracks = context.watch<LibraryProvider>().recentlyPlayed;
       return _RecentlyPlayedList(tracks: tracks.take(5).toList());
     }
+    final isFriend = context.watch<FriendsProvider>().isFriend(profileUid);
+    if (!isFriend) return const PrivateTilePlaceholder();
     return FutureBuilder<List<Track>>(
       future: _fetchFor(profileUid),
       builder: (context, snapshot) {

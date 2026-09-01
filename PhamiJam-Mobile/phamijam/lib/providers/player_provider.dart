@@ -14,6 +14,7 @@ import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/playback_session_sync_service.dart';
 import 'package:phamijam/services/playback_state_service.dart';
 import 'package:phamijam/services/autoplay_service.dart';
+import 'package:phamijam/services/crossfade_controller.dart';
 import 'package:phamijam/services/skip_tracking_service.dart';
 import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
 
@@ -36,6 +37,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _positionSub = _audioHandler.player.positionStream.listen((pos) {
       notifyListeners();
       _checkNearEndFallback(pos);
+      _checkCrossfadeTrigger(pos);
     });
     _durationSub = _audioHandler.player.durationStream.listen((liveDuration) {
       notifyListeners();
@@ -115,9 +117,20 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool Function()? _autoplayEnabledLookup;
   YTMusic? _ytmusic;
   String? _autoplayAttemptedSeedVideoId;
+  final CrossfadeController _crossfade = CrossfadeController();
+  bool Function()? _crossfadeEnabledLookup;
+  Duration Function()? _crossfadeDurationLookup;
 
   void bindAutoplayEnabled(bool Function() lookup) {
     _autoplayEnabledLookup = lookup;
+  }
+
+  void bindCrossfade({
+    required bool Function() isEnabled,
+    required Duration Function() duration,
+  }) {
+    _crossfadeEnabledLookup = isEnabled;
+    _crossfadeDurationLookup = duration;
   }
 
   Future<YTMusic?> _ensureYtMusic() async {
@@ -292,6 +305,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void _handleTrackEnded() {
     if (_endHandled) return;
+    if (_crossfade.isActive) return;
     _endHandled = true;
     final track = _currentTrack;
     final playlist = _currentSourcePlaylist;
@@ -311,6 +325,103 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       _localNext();
     }
+  }
+
+  static const Duration _crossfadeLeadIn = Duration(milliseconds: 2500);
+
+  void _checkCrossfadeTrigger(Duration pos) {
+    if (_isRemoteControlling || _endHandled || _isLoadingTrack) return;
+    if (_crossfade.isActive) return;
+    if (_repeatMode == PlayerRepeatMode.one) return;
+    if (_pauseAtTrackEndScheduled) return;
+    if (_crossfadeEnabledLookup?.call() != true) return;
+
+    final crossfadeDuration = _crossfadeDurationLookup?.call();
+    if (crossfadeDuration == null || crossfadeDuration <= Duration.zero) {
+      return;
+    }
+
+    final track = _currentTrack;
+    if (track == null) return;
+    final trackDuration = _trimEnd ?? duration;
+    if (trackDuration <= Duration.zero) return;
+    if (trackDuration <= crossfadeDuration + _crossfadeLeadIn) return;
+    if (!_loaded || !_audioHandler.player.playing) return;
+    if (pos <= Duration.zero) return;
+    final remaining = trackDuration - pos;
+    if (remaining > crossfadeDuration + _crossfadeLeadIn) return;
+
+    int? nextIndex;
+    if (_queueIndex < _queue.length - 1) {
+      nextIndex = _queueIndex + 1;
+    } else if (_repeatMode == PlayerRepeatMode.all && _queue.isNotEmpty) {
+      nextIndex = 0;
+    }
+    if (nextIndex == null) return;
+    final nextTrack = _queue[nextIndex];
+    if (nextTrack.videoId == null || nextTrack.videoId!.isEmpty) return;
+
+    debugPrint(
+      '[crossfade] trigger fired: remaining=$remaining crossfadeDuration=$crossfadeDuration next=${nextTrack.title}',
+    );
+    _recordOutgoingTrackCompleted();
+    unawaited(
+      _beginCrossfade(
+        nextIndex: nextIndex,
+        nextTrack: nextTrack,
+        crossfadeDuration: crossfadeDuration,
+      ),
+    );
+  }
+
+  void _recordOutgoingTrackCompleted() {
+    final track = _currentTrack;
+    final playlist = _currentSourcePlaylist;
+    final videoId = track?.videoId;
+    if (playlist == null || videoId == null || videoId.isEmpty) return;
+    SkipTrackingService.recordCompleted(playlist.id, videoId);
+  }
+
+  Future<void> _beginCrossfade({
+    required int nextIndex,
+    required Track nextTrack,
+    required Duration crossfadeDuration,
+  }) async {
+    final targetVolume = _volume;
+    await _crossfade.begin(
+      crossfadeDuration: crossfadeDuration,
+      targetVolume: targetVolume,
+      remainingOnMain: () {
+        final trackDuration = _trimEnd ?? duration;
+        if (trackDuration <= Duration.zero) return Duration.zero;
+        final rem = trackDuration - position;
+        return rem > Duration.zero ? rem : Duration.zero;
+      },
+      load: (fadePlayer) async {
+        final nextVideoId = nextTrack.videoId!;
+        final trim = _trimLookup?.call(nextVideoId, _currentSourcePlaylist?.id);
+        final start = trim != null
+            ? Duration(milliseconds: trim.startMs)
+            : Duration.zero;
+        await _audioHandler.loadOnto(fadePlayer, nextTrack, startAt: start);
+      },
+      setMainVolume: (volume) async {
+        try {
+          await _audioHandler.player.setVolume(volume);
+        } catch (_) {}
+      },
+      onComplete: (startAt) async {
+        _queueIndex = nextIndex;
+        _currentTrack = nextTrack;
+        notifyListeners();
+        final started = await _tryStartTrack(nextTrack, startAt: startAt);
+        notifyListeners();
+        _persistSession();
+        if (!started) {
+          await _localNext(skipAttempts: 1);
+        }
+      },
+    );
   }
 
   Future<void> _recordPotentialSkip() async {
@@ -401,6 +512,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> enterRemoteControl() async {
     if (_remoteSession == null) return;
+    _crossfade.cancel();
     if (_currentTrack != null) {
       await _audioHandler.player.pause();
     }
@@ -450,6 +562,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _handleIncomingCommands(List<RemoteCommand> commands) async {
+    if (commands.isNotEmpty) _crossfade.cancel();
     for (final command in commands) {
       switch (command.type) {
         case RemoteCommandType.play:
@@ -468,9 +581,26 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
           final value = command.value;
           if (value != null) _localSetVolume(value);
           break;
+        case RemoteCommandType.playTrack:
+          final track = command.track;
+          if (track != null) await _applyRemotePlayTrack(track);
+          break;
       }
       await PlaybackSessionSyncService.ackCommand(command.id);
     }
+  }
+
+  Future<void> _applyRemotePlayTrack(Track track) async {
+    _currentSourcePlaylist = null;
+    _originalQueue = [track];
+    _queue = [track];
+    _queueIndex = 0;
+    _currentTrack = track;
+    notifyListeners();
+    await _tryStartTrack(track);
+    notifyListeners();
+    _persistSession();
+    _pushSessionIfHosting();
   }
 
   Track? get currentTrack =>
@@ -611,12 +741,25 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     Playlist? sourcePlaylist,
   }) async {
     if (tracks.isEmpty) return;
+    _crossfade.cancel();
+    final clampedStart = startIndex.clamp(0, tracks.length - 1);
+    final startTrack = tracks[clampedStart];
+
+    if (_isRemoteControlling) {
+      final videoId = startTrack.videoId;
+      if (videoId != null && videoId.isNotEmpty) {
+        await PlaybackSessionSyncService.sendCommand(
+          RemoteCommandType.playTrack,
+          track: startTrack,
+        );
+        return;
+      }
+    }
+
     if (!_isRemoteControlling) unawaited(_recordPotentialSkip());
     _exitRemoteControl();
     _currentSourcePlaylist = sourcePlaylist;
     _originalQueue = List<Track>.from(tracks);
-    final clampedStart = startIndex.clamp(0, tracks.length - 1);
-    final startTrack = tracks[clampedStart];
 
     if (_shuffle) {
       final rest = tracks.where((t) => t.id != startTrack.id).toList()
@@ -696,6 +839,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> next({int skipAttempts = 0}) async {
+    _crossfade.cancel();
     if (_isRemoteControlling) {
       if (skipAttempts > 0) return;
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.next);
@@ -737,6 +881,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> playFromQueue(int index) async {
     if (index < 0 || index >= _queue.length) return;
+    _crossfade.cancel();
     if (!_isRemoteControlling) unawaited(_recordPotentialSkip());
     _exitRemoteControl();
     _queueIndex = index;
@@ -815,6 +960,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       position > _previousRestartThreshold;
 
   Future<void> previous() async {
+    _crossfade.cancel();
     if (_isRemoteControlling) {
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.previous);
       return;
@@ -847,6 +993,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> dismissPlayback() async {
+    _crossfade.cancel();
     _exitRemoteControl();
     _finalizeActivePlay();
     await _audioHandler.player.stop();
@@ -931,6 +1078,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void seek(Duration position) {
     if (_isRemoteControlling) return;
+    _crossfade.cancel();
     final clamped = _clampToTrim(position);
     _audioHandler.player.seek(clamped);
     if (!_loaded) _pendingResumePosition = clamped;
@@ -940,6 +1088,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _finalizeActivePlay();
+    _crossfade.dispose();
     _playerStateSub?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();

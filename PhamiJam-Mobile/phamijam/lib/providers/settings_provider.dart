@@ -9,6 +9,8 @@ const String _suggestRemovingSkippedSongsKey =
 const String _searchEngineKey = 'phamijam.search_engine';
 const String _hiddenPlaylistIdsKey = 'phamijam.hidden_playlist_ids';
 const String _autoplayEnabledKey = 'phamijam.autoplay_enabled';
+const String _crossfadeEnabledKey = 'phamijam.crossfade_enabled';
+const String _crossfadeDurationMsKey = 'phamijam.crossfade_duration_ms';
 
 enum SearchEngine {
   youtubeMusic,
@@ -26,11 +28,17 @@ class SettingsProvider extends ChangeNotifier {
   SearchEngine _searchEngine = SearchEngine.youtubeMusic;
   Set<String> _hiddenPlaylistIds = {};
   bool _autoplayEnabled = false;
+  bool _crossfadeEnabled = false;
+  int _crossfadeDurationMs = 4000;
 
   bool get miniPlayerSwipeToDismiss => _miniPlayerSwipeToDismiss;
   bool get suggestRemovingSkippedSongs => _suggestRemovingSkippedSongs;
   SearchEngine get searchEngine => _searchEngine;
   bool get autoplayEnabled => _autoplayEnabled;
+  bool get crossfadeEnabled => _crossfadeEnabled;
+  int get crossfadeDurationMs => _crossfadeDurationMs;
+  Duration get crossfadeDuration =>
+      Duration(milliseconds: _crossfadeDurationMs);
   bool isPlaylistHidden(String playlistId) =>
       _hiddenPlaylistIds.contains(playlistId);
 
@@ -56,6 +64,14 @@ class SettingsProvider extends ChangeNotifier {
     final savedAutoplay = prefs.getBool(_autoplayEnabledKey);
     if (savedAutoplay != null) {
       _autoplayEnabled = savedAutoplay;
+    }
+    final savedCrossfade = prefs.getBool(_crossfadeEnabledKey);
+    if (savedCrossfade != null) {
+      _crossfadeEnabled = savedCrossfade;
+    }
+    final savedCrossfadeDurationMs = prefs.getInt(_crossfadeDurationMsKey);
+    if (savedCrossfadeDurationMs != null) {
+      _crossfadeDurationMs = savedCrossfadeDurationMs.clamp(1000, 12000);
     }
     notifyListeners();
   }
@@ -90,6 +106,23 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoplayEnabledKey, value);
+  }
+
+  Future<void> setCrossfadeEnabled(bool value) async {
+    if (value == _crossfadeEnabled) return;
+    _crossfadeEnabled = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_crossfadeEnabledKey, value);
+  }
+
+  Future<void> setCrossfadeDurationMs(int value) async {
+    final clamped = value.clamp(1000, 12000);
+    if (clamped == _crossfadeDurationMs) return;
+    _crossfadeDurationMs = clamped;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_crossfadeDurationMsKey, clamped);
   }
 
   Future<void> refreshHiddenPlaylists() async {

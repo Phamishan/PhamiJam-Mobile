@@ -3,6 +3,7 @@ import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/friend.dart';
 import 'package:phamijam/models/friend_request.dart';
 import 'package:phamijam/pages/friend_profile_page.dart';
+import 'package:phamijam/pages/search_profiles_page.dart';
 import 'package:phamijam/providers/friends_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -14,7 +15,17 @@ class FriendsPage extends StatelessWidget {
     final friendsProvider = context.watch<FriendsProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Friends')),
+      appBar: AppBar(
+        title: const Text('Friends'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_search_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SearchProfilesPage()),
+            ),
+          ),
+        ],
+      ),
       body: !friendsProvider.hasLoadedOnce
           ? const Center(child: CircularProgressIndicator())
           : ListView(

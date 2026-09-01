@@ -57,6 +57,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _player.bindAutoplayEnabled(
       () => context.read<SettingsProvider>().autoplayEnabled,
     );
+    _player.bindCrossfade(
+      isEnabled: () => context.read<SettingsProvider>().crossfadeEnabled,
+      duration: () => context.read<SettingsProvider>().crossfadeDuration,
+    );
     unawaited(context.read<EditedSongsProvider>().refresh());
     unawaited(context.read<SavedPlaylistsProvider>().refresh());
     unawaited(context.read<ProfileProvider>().refresh());
