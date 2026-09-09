@@ -103,6 +103,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     child: Align(
                                       alignment: Alignment.centerLeft,
                                       child: IconButton(
+                                        tooltip: 'Close',
                                         onPressed: () =>
                                             Navigator.of(context).pop(),
                                         icon: Icon(
@@ -123,6 +124,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     child: Align(
                                       alignment: Alignment.centerRight,
                                       child: IconButton(
+                                        tooltip: 'Volume',
                                         onPressed: () =>
                                             showVolumeSheet(context),
                                         icon: Icon(
@@ -181,6 +183,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                                         _openFullscreen(
                                                           context,
                                                         ),
+                                                    tooltip: 'Fullscreen',
                                                   ),
                                                 if (showingVideo)
                                                   const SizedBox(width: 8),
@@ -191,6 +194,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                                             .smart_display_rounded,
                                                   onTap: () =>
                                                       _toggleVideoMode(player),
+                                                  tooltip: showingVideo
+                                                      ? 'Show artwork'
+                                                      : 'Show video',
                                                 ),
                                               ],
                                             ),
@@ -206,6 +212,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   IconButton(
+                                    tooltip: library.isLiked(track)
+                                        ? 'Unlike'
+                                        : 'Like',
                                     onPressed: () =>
                                         toggleTrackLike(context, track),
                                     icon: Icon(
@@ -218,6 +227,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   IconButton(
+                                    tooltip: 'Add to playlist',
                                     onPressed: track.isDriveSourced
                                         ? null
                                         : () => showAddToPlaylistSheet(
@@ -230,6 +240,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   PopupMenuButton<String>(
+                                    tooltip: 'More options',
                                     icon: Icon(
                                       Icons.more_vert_rounded,
                                       color: colorScheme.onSurface,
@@ -323,7 +334,11 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                       track.title,
                                       style,
                                     );
-                                    if (width <= constraints.maxWidth) {
+                                    final reduceMotion = MediaQuery.of(
+                                      context,
+                                    ).disableAnimations;
+                                    if (width <= constraints.maxWidth ||
+                                        reduceMotion) {
                                       return Text(
                                         track.title,
                                         maxLines: 1,
@@ -390,6 +405,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   IconButton(
+                                    tooltip: player.shuffle
+                                        ? 'Shuffle on'
+                                        : 'Shuffle off',
                                     onPressed: player.toggleShuffle,
                                     icon: Icon(
                                       Icons.shuffle_rounded,
@@ -399,6 +417,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   IconButton(
+                                    tooltip: 'Previous',
                                     onPressed: player.previous,
                                     iconSize: 34,
                                     icon: Icon(
@@ -406,33 +425,46 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                       color: colorScheme.onSurface,
                                     ),
                                   ),
-                                  GestureDetector(
-                                    onTap: player.togglePlayPause,
-                                    child: Container(
-                                      width: 64,
-                                      height: 64,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: colorScheme.primary,
-                                      ),
-                                      child: player.isLoadingTrack
-                                          ? Padding(
-                                              padding: const EdgeInsets.all(18),
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2.6,
+                                  Semantics(
+                                    button: true,
+                                    label: player.isLoadingTrack
+                                        ? 'Loading'
+                                        : (player.isPlaying
+                                              ? 'Pause'
+                                              : 'Play'),
+                                    child: GestureDetector(
+                                      onTap: player.togglePlayPause,
+                                      child: Container(
+                                        width: 64,
+                                        height: 64,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: colorScheme.primary,
+                                        ),
+                                        child: player.isLoadingTrack
+                                            ? Padding(
+                                                padding: const EdgeInsets.all(
+                                                  18,
+                                                ),
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2.6,
+                                                      color:
+                                                          colorScheme.onPrimary,
+                                                    ),
+                                              )
+                                            : Icon(
+                                                player.isPlaying
+                                                    ? Icons.pause_rounded
+                                                    : Icons.play_arrow_rounded,
                                                 color: colorScheme.onPrimary,
+                                                size: 34,
                                               ),
-                                            )
-                                          : Icon(
-                                              player.isPlaying
-                                                  ? Icons.pause_rounded
-                                                  : Icons.play_arrow_rounded,
-                                              color: colorScheme.onPrimary,
-                                              size: 34,
-                                            ),
+                                      ),
                                     ),
                                   ),
                                   IconButton(
+                                    tooltip: 'Next',
                                     onPressed: player.next,
                                     iconSize: 34,
                                     icon: Icon(
@@ -441,6 +473,11 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   IconButton(
+                                    tooltip: switch (player.repeatMode) {
+                                      PlayerRepeatMode.off => 'Repeat off',
+                                      PlayerRepeatMode.one => 'Repeat one',
+                                      PlayerRepeatMode.all => 'Repeat all',
+                                    },
                                     onPressed: player.cycleRepeatMode,
                                     icon: Icon(
                                       player.repeatMode == PlayerRepeatMode.one

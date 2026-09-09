@@ -18,15 +18,21 @@ import 'package:phamijam/services/google_drive_auth_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 
-const List<Color> _accentColorPresets = [
-  Color(0xFFE53935),
-  Color(0xFFF4511E),
-  Color(0xFF43A047),
-  Color(0xFF00897B),
-  Color(0xFF1E88E5),
-  Color(0xFF5E35B1),
-  Color(0xFF8E24AA),
-  Color(0xFFD81B60),
+class _AccentPreset {
+  final Color color;
+  final String name;
+  const _AccentPreset(this.color, this.name);
+}
+
+const List<_AccentPreset> _accentColorPresets = [
+  _AccentPreset(Color(0xFFE53935), 'Red'),
+  _AccentPreset(Color(0xFFF4511E), 'Orange'),
+  _AccentPreset(Color(0xFF43A047), 'Green'),
+  _AccentPreset(Color(0xFF00897B), 'Teal'),
+  _AccentPreset(Color(0xFF1E88E5), 'Blue'),
+  _AccentPreset(Color(0xFF5E35B1), 'Indigo'),
+  _AccentPreset(Color(0xFF8E24AA), 'Purple'),
+  _AccentPreset(Color(0xFFD81B60), 'Pink'),
 ];
 
 Color? _parseHexColor(String input) {
@@ -50,33 +56,46 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildAccentColorSwatch({
     required Color displayColor,
+    required String label,
     required bool selected,
     required VoidCallback onTap,
     required ColorScheme colorScheme,
     IconData? icon,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: displayColor,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected ? colorScheme.onSurface : Colors.transparent,
-            width: 2,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: displayColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? colorScheme.onSurface : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: icon != null
+                  ? Icon(icon, size: 16, color: Colors.white)
+                  : (selected
+                        ? const Icon(
+                            Icons.check_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          )
+                        : null),
+            ),
           ),
         ),
-        child: icon != null
-            ? Icon(icon, size: 16, color: Colors.white)
-            : (selected
-                  ? const Icon(
-                      Icons.check_rounded,
-                      size: 16,
-                      color: Colors.white,
-                    )
-                  : null),
       ),
     );
   }
@@ -86,28 +105,32 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context, themeProvider, _) {
         final current = themeProvider.accentColor;
         final isCustom =
-            current != null && !_accentColorPresets.contains(current);
+            current != null &&
+            !_accentColorPresets.any((preset) => preset.color == current);
         return Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 2,
+          runSpacing: 2,
           children: [
             _buildAccentColorSwatch(
               displayColor: kBrandGold,
+              label: 'Gold (default)',
               selected: current == null,
               onTap: () => themeProvider.setAccentColor(null),
               colorScheme: colorScheme,
             ),
             for (final preset in _accentColorPresets)
               _buildAccentColorSwatch(
-                displayColor: preset,
-                selected: current == preset,
-                onTap: () => themeProvider.setAccentColor(preset),
+                displayColor: preset.color,
+                label: preset.name,
+                selected: current == preset.color,
+                onTap: () => themeProvider.setAccentColor(preset.color),
                 colorScheme: colorScheme,
               ),
             _buildAccentColorSwatch(
               displayColor: isCustom
                   ? current
                   : colorScheme.onSurface.withValues(alpha: 0.12),
+              label: 'Custom color',
               selected: isCustom,
               icon: isCustom ? null : Icons.colorize_rounded,
               onTap: () => _showCustomColorDialog(
@@ -224,6 +247,31 @@ class _SettingsPageState extends State<SettingsPage> {
     if (connected == true) {
       await library.refreshLocalFiles();
     }
+  }
+
+  Future<void> _confirmAndSignOut() async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+          "You'll need to sign in again to access your library and playlists.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: colorScheme.error),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _signOut();
   }
 
   Future<void> _signOut() async {
@@ -464,7 +512,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _SettingsTile(
               icon: Icons.info_rounded,
               title: 'About PhamiJam',
-              subtitle: 'Version 1.1.5',
+              subtitle: 'Version 1.1.6',
               onTap: () => showChangelogDialog(context),
               color: colorScheme.onSurface,
             ),
@@ -473,7 +521,7 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: Icons.logout_rounded,
               title: _signingOut ? 'Signing out...' : 'Sign out',
               subtitle: 'Sign out of PhamiJam on this device',
-              onTap: _signingOut ? null : _signOut,
+              onTap: _signingOut ? null : _confirmAndSignOut,
               color: colorScheme.error,
             ),
           ],
@@ -519,7 +567,12 @@ class _SettingsTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.bodyLarge),
+                    Text(
+                      title,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(color: color),
+                    ),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodyMedium,
@@ -529,6 +582,7 @@ class _SettingsTile extends StatelessWidget {
               ),
               if (onInfoTap != null)
                 IconButton(
+                  tooltip: 'More info',
                   onPressed: onInfoTap,
                   visualDensity: VisualDensity.compact,
                   icon: Icon(

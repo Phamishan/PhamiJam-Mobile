@@ -86,6 +86,7 @@ class _RecentTrackCardState extends State<RecentTrackCard> {
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
                         onTap: widget.onToggleLike!,
+                        tooltip: widget.isLiked ? 'Unlike' : 'Like',
                       ),
                     ),
                   if (widget.onMore != null)
@@ -95,6 +96,7 @@ class _RecentTrackCardState extends State<RecentTrackCard> {
                       child: ScrimIconButton(
                         icon: Icons.playlist_add_rounded,
                         onTap: widget.onMore!,
+                        tooltip: 'Add to playlist',
                       ),
                     ),
                   if (widget.onToggleDownload != null)
@@ -106,6 +108,9 @@ class _RecentTrackCardState extends State<RecentTrackCard> {
                             ? Icons.download_done_rounded
                             : Icons.download_rounded,
                         onTap: widget.onToggleDownload!,
+                        tooltip: widget.isDownloaded
+                            ? 'Remove download'
+                            : 'Download',
                       ),
                     ),
                   AnimatedOpacity(

@@ -10,6 +10,7 @@ class CrossfadeController {
   Future<void> Function(double volume0to1)? _restoreMainVolume;
   double _targetVolume = 1;
   static const Duration _rampSafetyMargin = Duration(milliseconds: 150);
+  static const Duration _maxLoadWait = Duration(seconds: 12);
 
   bool get isActive => _active;
 
@@ -22,6 +23,18 @@ class CrossfadeController {
     required Future<void> Function(Duration startAt) onComplete,
   }) async {
     cancel();
+
+    final preLoadRemaining = remainingOnMain();
+    final loadBudget = preLoadRemaining - _rampSafetyMargin;
+    if (loadBudget <= Duration.zero) {
+      debugPrint(
+        '[crossfade] begin: no runway left before track/trim end '
+        '(remaining=$preLoadRemaining), skipping',
+      );
+      return;
+    }
+    final loadTimeout = loadBudget < _maxLoadWait ? loadBudget : _maxLoadWait;
+
     debugPrint('[crossfade] begin: opening next track on fade player');
     final fadePlayer = AudioPlayer();
     _fadePlayer = fadePlayer;
@@ -32,11 +45,12 @@ class CrossfadeController {
     final loadStopwatch = Stopwatch()..start();
     try {
       await fadePlayer.setVolume(0);
-      await load(fadePlayer).timeout(const Duration(seconds: 12));
+      await load(fadePlayer).timeout(loadTimeout);
       unawaited(fadePlayer.play());
     } catch (error, stackTrace) {
       debugPrint(
-        '[crossfade] load FAILED after ${loadStopwatch.elapsedMilliseconds}ms: $error\n$stackTrace',
+        '[crossfade] load FAILED/too slow after ${loadStopwatch.elapsedMilliseconds}ms '
+        '(budget ${loadTimeout.inMilliseconds}ms): $error\n$stackTrace',
       );
       if (identical(_fadePlayer, fadePlayer)) {
         _active = false;

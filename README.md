@@ -114,6 +114,10 @@
   - Added a "Find friends" search
   - Fixed profile info being visible to people who aren't your friends
   - Fixed remote control
+- 1.1.6 - 09/09/2026
+  - Added labels to the bottom navigation bar
+  - Added a confirmation before signing out
+  - Fixed crossfade sometimes cutting off near the end of a song
 
 ## Screenshots:
 

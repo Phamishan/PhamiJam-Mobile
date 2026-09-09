@@ -184,6 +184,7 @@ class _TrackTileState extends State<TrackTile> {
               ),
               if (widget.onToggleLike != null)
                 IconButton(
+                  tooltip: widget.isLiked ? 'Unlike' : 'Like',
                   onPressed: widget.onToggleLike,
                   icon: Icon(
                     widget.isLiked
@@ -195,9 +196,8 @@ class _TrackTileState extends State<TrackTile> {
                     size: 18,
                   ),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  visualDensity: VisualDensity.compact,
-                  splashRadius: 18,
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  splashRadius: 22,
                 ),
               if (widget.onMore != null ||
                   widget.onAddToQueue != null ||
@@ -219,6 +219,7 @@ class _TrackTileState extends State<TrackTile> {
                             ),
                           )
                         : IconButton(
+                            tooltip: 'Cancel download',
                             onPressed: widget.onCancelDownload,
                             splashRadius: 18,
                             padding: EdgeInsets.zero,
@@ -242,7 +243,9 @@ class _TrackTileState extends State<TrackTile> {
                   )
                 else
                   PopupMenuButton<String>(
-                    splashRadius: 18,
+                    tooltip: 'More options',
+                    padding: const EdgeInsets.all(13),
+                    splashRadius: 22,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -320,13 +323,10 @@ class _TrackTileState extends State<TrackTile> {
                           ),
                         ),
                     ],
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: Icon(
-                        Icons.more_horiz_rounded,
-                        color: colorScheme.onSurfaceVariant,
-                        size: 18,
-                      ),
+                    child: Icon(
+                      Icons.more_horiz_rounded,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 18,
                     ),
                   ),
               ],

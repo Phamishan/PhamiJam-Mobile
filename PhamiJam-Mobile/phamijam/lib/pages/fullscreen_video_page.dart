@@ -129,6 +129,7 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
                               ScrimIconButton(
                                 icon: Icons.fullscreen_exit_rounded,
                                 onTap: () => Navigator.of(context).maybePop(),
+                                tooltip: 'Exit fullscreen',
                               ),
                               const SizedBox(width: 12),
                               if (track != null)
@@ -150,6 +151,7 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
                                   _keepAlive();
                                   showVolumeSheet(context);
                                 },
+                                tooltip: 'Volume',
                               ),
                             ],
                           ),
