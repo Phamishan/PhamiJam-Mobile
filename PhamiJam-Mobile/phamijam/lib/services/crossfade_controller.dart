@@ -57,7 +57,7 @@ class CrossfadeController {
         _fadePlayer = null;
         _restoreMainVolume = null;
       }
-      unawaited(fadePlayer.dispose());
+      unawaited(_safeDispose(fadePlayer));
       return;
     }
     if (!_active || !identical(_fadePlayer, fadePlayer)) {
@@ -88,7 +88,7 @@ class CrossfadeController {
         return;
       }
       final t = (stopwatch.elapsedMilliseconds / totalMs).clamp(0.0, 1.0);
-      unawaited(fadePlayer.setVolume(t * targetVolume));
+      unawaited(_safeSetVolume(fadePlayer, t * targetVolume));
       unawaited(setMainVolume((1 - t) * targetVolume));
       if (t >= 1.0) {
         timer.cancel();
@@ -107,11 +107,28 @@ class CrossfadeController {
     );
     _fadePlayer = null;
     _restoreMainVolume = null;
-    await onComplete(startAt);
-    await setMainVolume(targetVolume);
-    _active = false;
+    try {
+      await onComplete(startAt);
+      await setMainVolume(targetVolume);
+    } catch (error, stackTrace) {
+      debugPrint('[crossfade] onComplete FAILED: $error\n$stackTrace');
+    } finally {
+      _active = false;
+    }
     debugPrint('[crossfade] handoff complete');
-    unawaited(fadePlayer.dispose());
+    unawaited(_safeDispose(fadePlayer));
+  }
+
+  Future<void> _safeSetVolume(AudioPlayer fadePlayer, double volume) async {
+    try {
+      await fadePlayer.setVolume(volume);
+    } catch (_) {}
+  }
+
+  Future<void> _safeDispose(AudioPlayer fadePlayer) async {
+    try {
+      await fadePlayer.dispose();
+    } catch (_) {}
   }
 
   void cancel() {
@@ -131,7 +148,7 @@ class CrossfadeController {
     final fadePlayer = _fadePlayer;
     _fadePlayer = null;
     if (fadePlayer != null) {
-      unawaited(fadePlayer.dispose());
+      unawaited(_safeDispose(fadePlayer));
     }
   }
 

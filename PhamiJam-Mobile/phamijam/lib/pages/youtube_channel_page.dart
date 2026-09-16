@@ -84,7 +84,15 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
+    final player = context.read<PlayerProvider>();
+    final isPlaying = context.select<PlayerProvider, bool>((p) => p.isPlaying);
+    final currentTrackId = context.select<PlayerProvider, String?>(
+      (p) => p.currentTrack?.id,
+    );
+    final isShuffled = context.select<PlayerProvider, bool>((p) => p.shuffle);
+    final repeatMode = context.select<PlayerProvider, PlayerRepeatMode>(
+      (p) => p.repeatMode,
+    );
     final library = context.watch<LibraryProvider>();
     final downloads = context.watch<DownloadsProvider>();
     final colorScheme = Theme.of(context).colorScheme;
@@ -98,9 +106,9 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
       ..sort((a, b) => (b.viewCount ?? 0).compareTo(a.viewCount ?? 0));
     final topStreamed = mostStreamed.take(5).toList();
     final isThisChannelPlaying =
-        player.isPlaying &&
-        player.currentTrack != null &&
-        _videos.any((t) => t.id == player.currentTrack!.id);
+        isPlaying &&
+        currentTrackId != null &&
+        _videos.any((t) => t.id == currentTrackId);
 
     return SwipeBack(
       child: Scaffold(
@@ -200,7 +208,7 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                               onPressed: player.toggleShuffle,
                               icon: Icon(
                                 Icons.shuffle_rounded,
-                                color: player.shuffle
+                                color: isShuffled
                                     ? colorScheme.primary
                                     : colorScheme.onSurfaceVariant,
                                 size: 24,
@@ -217,10 +225,10 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                             IconButton(
                               onPressed: player.cycleRepeatMode,
                               icon: Icon(
-                                player.repeatMode == PlayerRepeatMode.one
+                                repeatMode == PlayerRepeatMode.one
                                     ? Icons.repeat_one_rounded
                                     : Icons.repeat_rounded,
-                                color: player.repeatMode == PlayerRepeatMode.off
+                                color: repeatMode == PlayerRepeatMode.off
                                     ? colorScheme.onSurfaceVariant
                                     : colorScheme.primary,
                                 size: 24,
@@ -337,7 +345,7 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                       return TrackTile(
                         index: i + 1,
                         track: track,
-                        isActive: player.currentTrack?.id == track.id,
+                        isActive: currentTrackId == track.id,
                         onTap: () =>
                             player.playQueue(topStreamed, startIndex: i),
                         onPlayNext: () => player.playNext(track),
@@ -346,9 +354,7 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                         isLiked: library.isLiked(track),
                         onToggleLike: () => toggleTrackLike(context, track),
                         isDownloaded: downloads.isDownloaded(track.videoId),
-                        downloadProgress: downloads.progressFor(
-                          track.videoId,
-                        ),
+                        downloadProgress: downloads.progressFor(track.videoId),
                         onToggleDownload: () =>
                             toggleTrackDownload(context, track),
                         onCancelDownload: track.videoId == null
@@ -373,7 +379,7 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
                     return TrackTile(
                       index: i + 1,
                       track: track,
-                      isActive: player.currentTrack?.id == track.id,
+                      isActive: currentTrackId == track.id,
                       onTap: () => player.playQueue(_videos, startIndex: i),
                       onPlayNext: () => player.playNext(track),
                       onAddToQueue: () => player.addToQueue(track),

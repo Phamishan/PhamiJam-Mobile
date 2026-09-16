@@ -12,12 +12,21 @@ class ListeningHistoryService {
   ListeningHistoryService._();
 
   static const String _pendingKey = 'phamijam.play_history.pending';
+  static const String _yearCacheKeyPrefix = 'phamijam.play_history.year.';
+  static const String _earliestYearKeyPrefix =
+      'phamijam.play_history.earliest_year.';
   static const int _maxPending = 2000;
   static const int _minListenMs = 30000;
   static const Duration _syncTimeout = Duration(seconds: 8);
+  static const int _recentEventsLimit = 100;
+  static final Map<String, Future<List<PlayEvent>>> _yearInFlight = {};
+  static final Map<String, int> _cachedEarliestYearByUid = {};
+  static final Map<String, Future<int>> _earliestYearInFlightByUid = {};
+
+  static String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
 
   static CollectionReference<Map<String, dynamic>>? get _remotePlays {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _currentUid;
     if (uid == null) return null;
     return FirebaseFirestore.instance
         .collection('users')
@@ -108,7 +117,33 @@ class ListeningHistoryService {
     }
   }
 
+  static Future<List<PlayEvent>> _mergeWithPending(
+    List<PlayEvent> events,
+    int sinceMs,
+    int untilMs,
+  ) async {
+    final merged = List<PlayEvent>.from(events);
+    final seen = merged.map((e) => e.docId).toSet();
+    for (final event in await _loadPending()) {
+      final ms = event.startedAt.millisecondsSinceEpoch;
+      if (ms >= sinceMs && ms < untilMs && seen.add(event.docId)) {
+        merged.add(event);
+      }
+    }
+    merged.sort((a, b) => a.startedAt.compareTo(b.startedAt));
+    return merged;
+  }
+
   static Future<List<PlayEvent>> eventsSince(
+    DateTime since, {
+    DateTime? until,
+  }) {
+    final yearMatch = _matchYearRange(since, until);
+    if (yearMatch != null) return _eventsForYear(yearMatch);
+    return _eventsSinceInternal(since, until: until);
+  }
+
+  static Future<List<PlayEvent>> _eventsSinceInternal(
     DateTime since, {
     DateTime? until,
   }) async {
@@ -137,16 +172,158 @@ class ListeningHistoryService {
       }
     }
 
-    final seen = events.map((e) => e.docId).toSet();
-    for (final event in await _loadPending()) {
-      final ms = event.startedAt.millisecondsSinceEpoch;
-      if (ms >= sinceMs &&
-          (untilMs == null || ms < untilMs) &&
-          seen.add(event.docId)) {
-        events.add(event);
+    return _mergeWithPending(
+      events,
+      sinceMs,
+      untilMs ??
+          DateTime.now().add(const Duration(days: 3650)).millisecondsSinceEpoch,
+    );
+  }
+
+  static int? _matchYearRange(DateTime since, DateTime? until) {
+    if (until == null) return null;
+    final year = since.year;
+    if (since != DateTime(year)) return null;
+    if (until != DateTime(year + 1)) return null;
+    return year;
+  }
+
+  static Future<List<PlayEvent>> _eventsForYear(int year) {
+    final key = '$_currentUid|$year';
+    return _yearInFlight[key] ??= _eventsForYearInternal(
+      year,
+    ).whenComplete(() => _yearInFlight.remove(key));
+  }
+
+  static Future<List<PlayEvent>> _eventsForYearInternal(int year) async {
+    await flushPending();
+    final uid = _currentUid;
+    final sinceMs = DateTime(year).millisecondsSinceEpoch;
+    final untilMs = DateTime(year + 1).millisecondsSinceEpoch;
+    final isClosedYear = year < DateTime.now().year;
+
+    _YearCache? cache;
+    if (uid != null) {
+      cache = await _loadYearCache(uid, year);
+      if (cache != null && cache.closed) {
+        return _mergeWithPending(cache.events, sinceMs, untilMs);
       }
     }
-    events.sort((a, b) => a.startedAt.compareTo(b.startedAt));
+
+    final remote = _remotePlays;
+    if (remote == null) {
+      return _mergeWithPending(cache?.events ?? const [], sinceMs, untilMs);
+    }
+
+    var events = List<PlayEvent>.from(cache?.events ?? const []);
+    try {
+      final fetchFromMs = cache?.syncedThroughMs ?? sinceMs;
+      final snapshot = await remote
+          .where('s', isGreaterThanOrEqualTo: fetchFromMs)
+          .where('s', isLessThan: untilMs)
+          .get();
+      final seen = events.map((e) => e.docId).toSet();
+      for (final doc in snapshot.docs) {
+        final event = PlayEvent.fromJson(doc.data());
+        if (event != null && seen.add(event.docId)) events.add(event);
+      }
+      events.sort((a, b) => a.startedAt.compareTo(b.startedAt));
+
+      if (uid != null) {
+        await _saveYearCache(
+          uid,
+          year,
+          _YearCache(
+            events: events,
+            syncedThroughMs: isClosedYear
+                ? untilMs
+                : DateTime.now().millisecondsSinceEpoch,
+            closed: isClosedYear,
+          ),
+        );
+      }
+    } catch (error) {
+      debugPrint('ListeningHistoryService: year fetch failed: $error');
+    }
+
+    return _mergeWithPending(events, sinceMs, untilMs);
+  }
+
+  static String _yearCacheKey(String uid, int year) =>
+      '$_yearCacheKeyPrefix$uid.$year';
+
+  static Future<_YearCache?> _loadYearCache(String uid, int year) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_yearCacheKey(uid, year));
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+      final syncedThroughMs = decoded['syncedThroughMs'];
+      if (syncedThroughMs is! int) return null;
+      final rawEvents = decoded['events'];
+      final events = rawEvents is List
+          ? rawEvents
+                .whereType<Map<String, dynamic>>()
+                .map(PlayEvent.fromJson)
+                .whereType<PlayEvent>()
+                .toList()
+          : <PlayEvent>[];
+      return _YearCache(
+        events: events,
+        syncedThroughMs: syncedThroughMs,
+        closed: decoded['closed'] == true,
+      );
+    } catch (error) {
+      debugPrint('ListeningHistoryService: failed to parse year cache: $error');
+      return null;
+    }
+  }
+
+  static Future<void> _saveYearCache(
+    String uid,
+    int year,
+    _YearCache cache,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _yearCacheKey(uid, year),
+      jsonEncode({
+        'events': cache.events.map((e) => e.toJson()).toList(),
+        'syncedThroughMs': cache.syncedThroughMs,
+        'closed': cache.closed,
+      }),
+    );
+  }
+
+  static Future<List<PlayEvent>> recentEvents({
+    int limit = _recentEventsLimit,
+  }) async {
+    await flushPending();
+    final events = <PlayEvent>[];
+
+    final remote = _remotePlays;
+    if (remote != null) {
+      try {
+        final snapshot = await remote
+            .orderBy('s', descending: true)
+            .limit(limit)
+            .get();
+        for (final doc in snapshot.docs) {
+          final event = PlayEvent.fromJson(doc.data());
+          if (event != null) events.add(event);
+        }
+      } catch (error) {
+        debugPrint('ListeningHistoryService: recent fetch failed: $error');
+      }
+    }
+
+    final seen = events.map((e) => e.docId).toSet();
+    for (final event in await _loadPending()) {
+      if (seen.add(event.docId)) events.add(event);
+    }
+    events.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    if (events.length > limit) events.removeRange(limit, events.length);
     return events;
   }
 
@@ -181,8 +358,30 @@ class ListeningHistoryService {
     return events;
   }
 
-  static Future<int> earliestEventYear() async {
+  static Future<int> earliestEventYear() {
+    final uid = _currentUid;
+    if (uid == null) return _earliestEventYearInternal();
+
+    final cached = _cachedEarliestYearByUid[uid];
+    if (cached != null) return Future.value(cached);
+    return _earliestYearInFlightByUid[uid] ??= _earliestEventYearInternal()
+        .then((year) {
+          _cachedEarliestYearByUid[uid] = year;
+          return year;
+        })
+        .whenComplete(() => _earliestYearInFlightByUid.remove(uid));
+  }
+
+  static Future<int> _earliestEventYearInternal() async {
     await flushPending();
+    final uid = _currentUid;
+
+    if (uid != null) {
+      final prefs = await SharedPreferences.getInstance();
+      final persisted = prefs.getInt('$_earliestYearKeyPrefix$uid');
+      if (persisted != null) return persisted;
+    }
+
     DateTime? earliest;
 
     final remote = _remotePlays;
@@ -204,6 +403,23 @@ class ListeningHistoryService {
       }
     }
 
-    return (earliest ?? DateTime.now()).year;
+    final year = (earliest ?? DateTime.now()).year;
+    if (uid != null && earliest != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('$_earliestYearKeyPrefix$uid', year);
+    }
+    return year;
   }
+}
+
+class _YearCache {
+  _YearCache({
+    required this.events,
+    required this.syncedThroughMs,
+    required this.closed,
+  });
+
+  final List<PlayEvent> events;
+  final int syncedThroughMs;
+  final bool closed;
 }

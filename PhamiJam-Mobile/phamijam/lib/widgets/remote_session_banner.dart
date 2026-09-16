@@ -7,13 +7,20 @@ class RemoteSessionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
-    if (!player.shouldShowRemoteBanner) return const SizedBox.shrink();
+    final shouldShow = context.select<PlayerProvider, bool>(
+      (p) => p.shouldShowRemoteBanner,
+    );
+    if (!shouldShow) return const SizedBox.shrink();
 
-    final session = player.remoteSession;
-    if (session == null) return const SizedBox.shrink();
+    final deviceName = context.select<PlayerProvider, String?>(
+      (p) => p.remoteSession?.deviceName,
+    );
+    final trackTitle = context.select<PlayerProvider, String?>(
+      (p) => p.remoteSession?.currentTrack?.title,
+    );
+    if (deviceName == null) return const SizedBox.shrink();
+    final player = context.read<PlayerProvider>();
     final colorScheme = Theme.of(context).colorScheme;
-    final track = session.currentTrack;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(8, 0, 8, 6),
@@ -32,13 +39,13 @@ class RemoteSessionBanner extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Playing on ${session.deviceName}',
+                  'Playing on $deviceName',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 Text(
-                  track?.title ?? '',
+                  trackTitle ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(

@@ -155,63 +155,67 @@ class _SettingsPageState extends State<SettingsPage> {
           : '',
     );
     Color? preview = initial;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final colorScheme = Theme.of(context).colorScheme;
-            return AlertDialog(
-              title: const Text('Custom accent color'),
-              content: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: preview ?? colorScheme.surfaceContainerHighest,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: colorScheme.onSurfaceVariant),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      autofocus: true,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                        labelText: 'Hex color',
-                        hintText: '#DBA43A',
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              final colorScheme = Theme.of(context).colorScheme;
+              return AlertDialog(
+                title: const Text('Custom accent color'),
+                content: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: preview ?? colorScheme.surfaceContainerHighest,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colorScheme.onSurfaceVariant),
                       ),
-                      onChanged: (value) {
-                        setDialogState(() => preview = _parseHexColor(value));
-                      },
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        autofocus: true,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: 'Hex color',
+                          hintText: '#DBA43A',
+                        ),
+                        onChanged: (value) {
+                          setDialogState(() => preview = _parseHexColor(value));
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: preview == null
+                        ? null
+                        : () {
+                            themeProvider.setAccentColor(preview);
+                            Navigator.of(dialogContext).pop();
+                          },
+                    child: const Text('Apply'),
                   ),
                 ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: preview == null
-                      ? null
-                      : () {
-                          themeProvider.setAccentColor(preview);
-                          Navigator.of(dialogContext).pop();
-                        },
-                  child: const Text('Apply'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showDriveInfo() {
@@ -512,7 +516,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _SettingsTile(
               icon: Icons.info_rounded,
               title: 'About PhamiJam',
-              subtitle: 'Version 1.1.6',
+              subtitle: 'Version 1.1.7',
               onTap: () => showChangelogDialog(context),
               color: colorScheme.onSurface,
             ),

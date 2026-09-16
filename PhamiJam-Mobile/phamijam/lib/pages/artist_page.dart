@@ -346,7 +346,15 @@ class _ArtistPageState extends State<ArtistPage> {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
+    final player = context.read<PlayerProvider>();
+    final isPlaying = context.select<PlayerProvider, bool>((p) => p.isPlaying);
+    final currentTrackId = context.select<PlayerProvider, String?>(
+      (p) => p.currentTrack?.id,
+    );
+    final isShuffled = context.select<PlayerProvider, bool>((p) => p.shuffle);
+    final repeatMode = context.select<PlayerProvider, PlayerRepeatMode>(
+      (p) => p.repeatMode,
+    );
     final library = context.watch<LibraryProvider>();
     final downloads = context.watch<DownloadsProvider>();
     final colorScheme = Theme.of(context).colorScheme;
@@ -367,9 +375,9 @@ class _ArtistPageState extends State<ArtistPage> {
     final hasReleases =
         _songs.isNotEmpty || _albums.isNotEmpty || _singles.isNotEmpty;
     final isThisArtistPlaying =
-        player.isPlaying &&
-        player.currentTrack != null &&
-        _songs.any((t) => t.id == player.currentTrack!.id);
+        isPlaying &&
+        currentTrackId != null &&
+        _songs.any((t) => t.id == currentTrackId);
 
     return SwipeBack(
       child: Scaffold(
@@ -481,7 +489,7 @@ class _ArtistPageState extends State<ArtistPage> {
                               onPressed: player.toggleShuffle,
                               icon: Icon(
                                 Icons.shuffle_rounded,
-                                color: player.shuffle
+                                color: isShuffled
                                     ? colorScheme.primary
                                     : colorScheme.onSurfaceVariant,
                                 size: 24,
@@ -492,7 +500,7 @@ class _ArtistPageState extends State<ArtistPage> {
                               isPlaying: isThisArtistPlaying,
                               onTap: () => isThisArtistPlaying
                                   ? player.togglePlayPause()
-                                  : player.shuffle
+                                  : isShuffled
                                   ? player.shufflePlay(_songs)
                                   : player.playQueue(_songs),
                             ),
@@ -500,10 +508,10 @@ class _ArtistPageState extends State<ArtistPage> {
                             IconButton(
                               onPressed: player.cycleRepeatMode,
                               icon: Icon(
-                                player.repeatMode == PlayerRepeatMode.one
+                                repeatMode == PlayerRepeatMode.one
                                     ? Icons.repeat_one_rounded
                                     : Icons.repeat_rounded,
-                                color: player.repeatMode == PlayerRepeatMode.off
+                                color: repeatMode == PlayerRepeatMode.off
                                     ? colorScheme.onSurfaceVariant
                                     : colorScheme.primary,
                                 size: 24,
@@ -610,7 +618,7 @@ class _ArtistPageState extends State<ArtistPage> {
                                 return TrackTile(
                                   index: i + 1,
                                   track: track,
-                                  isActive: player.currentTrack?.id == track.id,
+                                  isActive: currentTrackId == track.id,
                                   onTap: () =>
                                       player.playQueue(_songs, startIndex: i),
                                   onPlayNext: () => player.playNext(track),

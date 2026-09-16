@@ -73,9 +73,7 @@ class LibraryProvider extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
 
-    final token = await GoogleAuthService.ensureAccessToken(
-      forceOnline: true,
-    );
+    final token = await GoogleAuthService.ensureAccessToken(forceOnline: true);
     if (token == null || token.isEmpty) {
       isLoading = false;
       errorMessage = 'Could not connect your Google account. Please try again.';
@@ -206,11 +204,10 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> _refreshRecentlyPlayed() async {
     try {
-      final since = DateTime.now().subtract(const Duration(days: 180));
-      final events = await ListeningHistoryService.eventsSince(since);
+      final events = await ListeningHistoryService.recentEvents(limit: 100);
       final seen = <String>{};
       final tracks = <Track>[];
-      for (final event in events.reversed) {
+      for (final event in events) {
         if (!seen.add(event.videoId)) continue;
         tracks.add(
           Track(

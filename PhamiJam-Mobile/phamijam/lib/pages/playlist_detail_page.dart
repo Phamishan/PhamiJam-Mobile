@@ -315,7 +315,15 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
+    final player = context.read<PlayerProvider>();
+    final isPlaying = context.select<PlayerProvider, bool>((p) => p.isPlaying);
+    final currentTrackId = context.select<PlayerProvider, String?>(
+      (p) => p.currentTrack?.id,
+    );
+    final isShuffled = context.select<PlayerProvider, bool>((p) => p.shuffle);
+    final repeatMode = context.select<PlayerProvider, PlayerRepeatMode>(
+      (p) => p.repeatMode,
+    );
     final library = context.watch<LibraryProvider>();
     final downloads = context.watch<DownloadsProvider>();
     final colorScheme = Theme.of(context).colorScheme;
@@ -336,9 +344,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
               .toList();
     final filteredTracks = _applySort(searchedTracks);
     final isThisPlaylistPlaying =
-        player.isPlaying &&
-        player.currentTrack != null &&
-        playlist.tracks.any((t) => t.id == player.currentTrack!.id);
+        isPlaying &&
+        currentTrackId != null &&
+        playlist.tracks.any((t) => t.id == currentTrackId);
 
     return SwipeBack(
       child: Scaffold(
@@ -624,7 +632,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                 : player.toggleShuffle,
                             icon: Icon(
                               Icons.shuffle_rounded,
-                              color: player.shuffle
+                              color: isShuffled
                                   ? colorScheme.primary
                                   : colorScheme.onSurfaceVariant,
                               size: 24,
@@ -637,7 +645,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                 ? null
                                 : () => isThisPlaylistPlaying
                                       ? player.togglePlayPause()
-                                      : player.shuffle
+                                      : isShuffled
                                       ? player.shufflePlay(
                                           playlist.tracks,
                                           sourcePlaylist: playlist,
@@ -651,10 +659,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                           IconButton(
                             onPressed: player.cycleRepeatMode,
                             icon: Icon(
-                              player.repeatMode == PlayerRepeatMode.one
+                              repeatMode == PlayerRepeatMode.one
                                   ? Icons.repeat_one_rounded
                                   : Icons.repeat_rounded,
-                              color: player.repeatMode == PlayerRepeatMode.off
+                              color: repeatMode == PlayerRepeatMode.off
                                   ? colorScheme.onSurfaceVariant
                                   : colorScheme.primary,
                               size: 24,
@@ -850,7 +858,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                     return TrackTile(
                       index: i + 1,
                       track: track,
-                      isActive: player.currentTrack?.id == track.id,
+                      isActive: currentTrackId == track.id,
                       selectionMode: _selectionMode,
                       selected: _selectedTrackIds.contains(track.id),
                       onTap: _selectionMode

@@ -118,6 +118,9 @@
   - Added labels to the bottom navigation bar
   - Added a confirmation before signing out
   - Fixed crossfade sometimes cutting off near the end of a song
+- 1.1.7 - 16/09/2026
+  - Fixed crossfade occasionally getting stuck
+  - Improved app performance
 
 ## Screenshots:
 

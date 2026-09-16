@@ -148,7 +148,15 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlayerProvider>();
+    final player = context.read<PlayerProvider>();
+    final isPlaying = context.select<PlayerProvider, bool>((p) => p.isPlaying);
+    final currentTrackId = context.select<PlayerProvider, String?>(
+      (p) => p.currentTrack?.id,
+    );
+    final isShuffled = context.select<PlayerProvider, bool>((p) => p.shuffle);
+    final repeatMode = context.select<PlayerProvider, PlayerRepeatMode>(
+      (p) => p.repeatMode,
+    );
     final library = context.watch<LibraryProvider>();
     final downloads = context.watch<DownloadsProvider>();
     final colorScheme = Theme.of(context).colorScheme;
@@ -161,9 +169,9 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
     final description = album != null ? readYtString(album['description']) : '';
     final artistLinks = _artistLinks(album);
     final isThisAlbumPlaying =
-        player.isPlaying &&
-        player.currentTrack != null &&
-        _tracks.any((t) => t.id == player.currentTrack!.id);
+        isPlaying &&
+        currentTrackId != null &&
+        _tracks.any((t) => t.id == currentTrackId);
 
     return SwipeBack(
       child: Scaffold(
@@ -267,7 +275,9 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                                 else
                                   Text(
                                     entry.key,
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                               if (year.isNotEmpty)
                                 Text(
@@ -298,7 +308,7 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                       onPressed: _tracks.isEmpty ? null : player.toggleShuffle,
                       icon: Icon(
                         Icons.shuffle_rounded,
-                        color: player.shuffle
+                        color: isShuffled
                             ? colorScheme.primary
                             : colorScheme.onSurfaceVariant,
                         size: 24,
@@ -311,7 +321,7 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                           ? null
                           : () => isThisAlbumPlaying
                                 ? player.togglePlayPause()
-                                : player.shuffle
+                                : isShuffled
                                 ? player.shufflePlay(_tracks)
                                 : player.playQueue(_tracks),
                     ),
@@ -319,10 +329,10 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                     IconButton(
                       onPressed: player.cycleRepeatMode,
                       icon: Icon(
-                        player.repeatMode == PlayerRepeatMode.one
+                        repeatMode == PlayerRepeatMode.one
                             ? Icons.repeat_one_rounded
                             : Icons.repeat_rounded,
-                        color: player.repeatMode == PlayerRepeatMode.off
+                        color: repeatMode == PlayerRepeatMode.off
                             ? colorScheme.onSurfaceVariant
                             : colorScheme.primary,
                         size: 24,
@@ -378,7 +388,7 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                     return TrackTile(
                       index: i + 1,
                       track: track,
-                      isActive: player.currentTrack?.id == track.id,
+                      isActive: currentTrackId == track.id,
                       selectionMode: _selectionMode,
                       selected: _selectedTrackIds.contains(track.id),
                       onTap: _selectionMode
