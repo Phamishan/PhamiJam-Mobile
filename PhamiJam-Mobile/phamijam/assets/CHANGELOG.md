@@ -121,6 +121,11 @@
 - 1.1.7 - 16/09/2026
   - Fixed crossfade occasionally getting stuck
   - Improved app performance
+- 1.1.8 - 16/10/2026
+  - Added "Listen along" and online status for friends
+  - Added a way to submit app logs for support
+  - Fixed offline access sometimes getting completely blocked
+  - Fixed remote control occasionally looping backward through songs
 
 ## Screenshots:
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -22,12 +23,14 @@ import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/jamstats_widget_service.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/app_shell.dart';
 import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LogService.instance.init();
   SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.manual,
     overlays: [SystemUiOverlay.bottom],
@@ -146,10 +149,36 @@ class _YoutubeConnectionGateState extends State<_YoutubeConnectionGate> {
       return;
     }
 
-    GoogleAuthService.tryRestoreSilently().then((connected) {
+    unawaited(_checkConnectionAsync());
+  }
+
+  Future<bool> _hasNetworkConnectivity() async {
+    try {
+      final result = await InternetAddress.lookup(
+        'google.com',
+      ).timeout(const Duration(seconds: 3));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _checkConnectionAsync() async {
+    if (!await _hasNetworkConnectivity()) {
       if (!mounted) return;
-      setState(() => _isConnected = connected);
-    });
+      setState(() => _isConnected = true);
+      return;
+    }
+
+    bool connected;
+    try {
+      connected = await GoogleAuthService.tryRestoreSilently();
+    } catch (error) {
+      debugPrint('_YoutubeConnectionGate: tryRestoreSilently threw: $error');
+      connected = false;
+    }
+    if (!mounted) return;
+    setState(() => _isConnected = connected);
   }
 
   @override

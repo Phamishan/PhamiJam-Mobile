@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/components/changelog_dialog.dart';
 import 'package:phamijam/pages/connect_drive_folder_page.dart';
@@ -8,6 +11,7 @@ import 'package:phamijam/pages/edited_songs_page.dart';
 import 'package:phamijam/pages/manage_playlist_visibility_page.dart';
 import 'package:phamijam/pages/jamstats_page.dart';
 import 'package:phamijam/providers/edited_songs_provider.dart';
+import 'package:phamijam/providers/friends_provider.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
@@ -15,8 +19,14 @@ import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/drive_folder_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/google_drive_auth_service.dart';
+import 'package:phamijam/services/log_service.dart';
+import 'package:phamijam/services/presence_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+const String _logSubmissionEmail = 'phamishan93@gmail.com';
+const int _maxLogEmailBodyChars = 6000;
 
 class _AccentPreset {
   final Color color;
@@ -278,8 +288,44 @@ class _SettingsPageState extends State<SettingsPage> {
     if (confirmed == true) await _signOut();
   }
 
+  Future<void> _submitLog() async {
+    final logText = await LogService.instance.fullLogText();
+    if (logText.trim().isEmpty) {
+      if (mounted) AppFlushbar.error(context, 'No log recorded yet.');
+      return;
+    }
+
+    final body = logText.length > _maxLogEmailBodyChars
+        ? '(showing the most recent part of the log)\n\n'
+              '${logText.substring(logText.length - _maxLogEmailBodyChars)}'
+        : logText;
+
+    final mailtoUri = Uri(
+      scheme: 'mailto',
+      path: _logSubmissionEmail,
+      queryParameters: {
+        'subject': 'PhamiJam Mobile log - ${DateTime.now().toIso8601String()}',
+        'body': 'Platform: ${Platform.operatingSystem}\n\n$body',
+      },
+    );
+
+    final launched = await launchUrl(mailtoUri);
+    if (!launched) {
+      await Clipboard.setData(ClipboardData(text: logText));
+      if (mounted) {
+        AppFlushbar.error(
+          context,
+          'No email app found - log copied to clipboard instead. '
+          'Paste it into an email to $_logSubmissionEmail.',
+        );
+      }
+    }
+  }
+
   Future<void> _signOut() async {
     setState(() => _signingOut = true);
+    context.read<FriendsProvider>().stop();
+    await PresenceService.goOffline();
     try {
       await GoogleAuthService.signOut();
       await GoogleDriveAuthService.signOut();
@@ -290,7 +336,9 @@ class _SettingsPageState extends State<SettingsPage> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (error) {
       if (mounted) {
-        AppFlushbar.error(context, 'Failed to sign out: $error');
+        try {
+          AppFlushbar.error(context, 'Failed to sign out: $error');
+        } catch (_) {}
       }
     } finally {
       if (mounted) setState(() => _signingOut = false);
@@ -516,8 +564,16 @@ class _SettingsPageState extends State<SettingsPage> {
             _SettingsTile(
               icon: Icons.info_rounded,
               title: 'About PhamiJam',
-              subtitle: 'Version 1.1.7',
+              subtitle: 'Version 1.1.8',
               onTap: () => showChangelogDialog(context),
+              color: colorScheme.onSurface,
+            ),
+            const SizedBox(height: 10),
+            _SettingsTile(
+              icon: Icons.bug_report_rounded,
+              title: 'Submit log',
+              subtitle: 'Send app logs to $_logSubmissionEmail',
+              onTap: _submitLog,
               color: colorScheme.onSurface,
             ),
             const SizedBox(height: 10),

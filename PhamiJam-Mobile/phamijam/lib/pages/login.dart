@@ -11,6 +11,7 @@ import 'package:phamijam/services/apple_auth_service.dart';
 import 'package:phamijam/services/drive_folder_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/google_drive_auth_service.dart';
+import 'package:phamijam/services/presence_service.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -270,6 +271,7 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _signOut() async {
+    await PresenceService.goOffline();
     await GoogleAuthService.signOut();
     await GoogleDriveAuthService.signOut();
     await DriveFolderService.clearFolderId();

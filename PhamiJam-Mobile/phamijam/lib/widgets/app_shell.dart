@@ -22,9 +22,11 @@ import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/deep_link_service.dart';
 import 'package:phamijam/services/jamstats_widget_service.dart';
+import 'package:phamijam/services/presence_service.dart';
 import 'package:phamijam/services/profile_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
+import 'package:phamijam/widgets/listen_along_banner.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/remote_session_banner.dart';
 import 'package:provider/provider.dart';
@@ -43,14 +45,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final FocusNode _searchFocusNode = FocusNode();
   bool _showingSkipSuggestion = false;
   late final PlayerProvider _player;
+  late final FriendsProvider _friends;
   String? _lastPushedNowPlayingVideoId;
   bool? _lastPushedNowPlayingIsPlaying;
 
   @override
   void initState() {
     super.initState();
+    final editedSongs = context.read<EditedSongsProvider>();
+    final savedPlaylists = context.read<SavedPlaylistsProvider>();
+    final profile = context.read<ProfileProvider>();
+    final settings = context.read<SettingsProvider>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<LibraryProvider>().refresh(silentOnly: true);
+      if (!mounted) return;
+      context.read<LibraryProvider>().refresh(silentOnly: true);
+      unawaited(editedSongs.refresh());
+      unawaited(savedPlaylists.refresh());
+      unawaited(profile.refresh());
+      unawaited(settings.refreshHiddenPlaylists());
     });
     _player = context.read<PlayerProvider>();
     _player.bindEditedSongsLookup(context.read<EditedSongsProvider>().trimFor);
@@ -61,11 +73,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       isEnabled: () => context.read<SettingsProvider>().crossfadeEnabled,
       duration: () => context.read<SettingsProvider>().crossfadeDuration,
     );
-    unawaited(context.read<EditedSongsProvider>().refresh());
-    unawaited(context.read<SavedPlaylistsProvider>().refresh());
-    unawaited(context.read<ProfileProvider>().refresh());
-    context.read<FriendsProvider>().start();
-    unawaited(context.read<SettingsProvider>().refreshHiddenPlaylists());
+    _friends = context.read<FriendsProvider>();
+    _friends.start();
+    PresenceService.startHeartbeat();
     _player.addListener(_handlePlayerChanged);
     WidgetsBinding.instance.addObserver(this);
     unawaited(_refreshWidgets());
@@ -119,10 +129,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(PresenceService.goOffline());
     _player.removeListener(_handlePlayerChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
-    context.read<FriendsProvider>().stop();
+    _friends.stop();
     super.dispose();
   }
 
@@ -136,6 +147,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed ||
         state == AppLifecycleState.paused) {
       unawaited(_refreshWidgets());
+    }
+    if (state == AppLifecycleState.resumed) {
+      PresenceService.startHeartbeat();
+    } else if (state == AppLifecycleState.detached) {
+      unawaited(PresenceService.goOffline());
     }
   }
 
@@ -286,6 +302,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         mainAxisSize: MainAxisSize.min,
         children: [
           const RemoteSessionBanner(),
+          const ListenAlongBanner(),
           const MiniPlayer(),
           AppBottomNavBar(currentIndex: _navIndex, onTap: _handleNavTap),
         ],

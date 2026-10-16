@@ -9,6 +9,7 @@ import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/drive_duration_cache_service.dart';
 import 'package:phamijam/services/google_drive_service.dart'
     show driveTrackIdPrefix;
+import 'package:phamijam/services/listen_along_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/playback_session_sync_service.dart';
@@ -79,6 +80,11 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _sleepTimer;
   DateTime? _sleepTimerEndsAt;
   bool _pauseAtTrackEndScheduled = false;
+
+  String? _listenAlongFriendUid;
+  String? _listenAlongFriendName;
+  StreamSubscription<FriendNowPlaying?>? _listenAlongSub;
+  String? _listenAlongLastAppliedVideoId;
 
   Track? _currentTrack;
   List<Track> _queue = [];
@@ -495,6 +501,109 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  bool get isListeningAlong => _listenAlongFriendUid != null;
+  String? get listenAlongFriendUid => _listenAlongFriendUid;
+  String? get listenAlongFriendName => _listenAlongFriendName;
+
+  Future<void> startListenAlong(
+    String friendUid, {
+    required String friendDisplayName,
+  }) async {
+    if (friendUid.isEmpty) return;
+    _crossfade.cancel();
+    _exitRemoteControl();
+    await _listenAlongSub?.cancel();
+    unawaited(ListenAlongService.clearNowPlaying());
+
+    _listenAlongFriendUid = friendUid;
+    _listenAlongFriendName = friendDisplayName;
+    _listenAlongLastAppliedVideoId = null;
+    notifyListeners();
+
+    _listenAlongSub = ListenAlongService.watchFriendNowPlaying(
+      friendUid,
+    ).listen(_applyFriendNowPlaying);
+  }
+
+  void stopListenAlong() {
+    if (_listenAlongFriendUid == null) return;
+    unawaited(_listenAlongSub?.cancel());
+    _listenAlongSub = null;
+    _listenAlongFriendUid = null;
+    _listenAlongFriendName = null;
+    _listenAlongLastAppliedVideoId = null;
+    notifyListeners();
+  }
+
+  void _exitListenAlongIfActive() {
+    if (_listenAlongFriendUid == null) return;
+    stopListenAlong();
+  }
+
+  Future<void> _applyFriendNowPlaying(FriendNowPlaying? data) async {
+    if (_listenAlongFriendUid == null) return;
+    final currentTrack = data?.currentTrack;
+    if (currentTrack == null) {
+      if (_listenAlongLastAppliedVideoId != null && isPlaying) {
+        await _localTogglePlayPause();
+      }
+      return;
+    }
+    final videoId = currentTrack.videoId;
+    if (videoId == null || videoId.isEmpty) return;
+
+    final estimatedPosition = data!.isPlaying
+        ? data.position + DateTime.now().difference(data.updatedAt)
+        : data.position;
+    final target = estimatedPosition < Duration.zero
+        ? Duration.zero
+        : estimatedPosition;
+
+    _currentSourcePlaylist = null;
+    _originalQueue = List<Track>.from(data.queue);
+    _queue = List<Track>.from(data.queue);
+    _queueIndex = data.queueIndex;
+
+    final isNewTrack = videoId != _listenAlongLastAppliedVideoId;
+    if (isNewTrack) {
+      _listenAlongLastAppliedVideoId = videoId;
+      _currentTrack = currentTrack;
+      notifyListeners();
+      await _tryStartTrack(currentTrack, startAt: target);
+      notifyListeners();
+      _persistSession();
+    } else {
+      _currentTrack = currentTrack;
+      notifyListeners();
+      _prefetchUpcomingTracks();
+      final drift = (target - position).abs();
+      if (drift > const Duration(seconds: 3)) {
+        _audioHandler.player.seek(target);
+      }
+    }
+
+    if (_listenAlongFriendUid == null) return;
+    if (data.isPlaying != isPlaying) {
+      await _localTogglePlayPause();
+    }
+  }
+
+  void _pushNowPlayingIfActive() {
+    if (_listenAlongFriendUid != null || _isRemoteControlling) return;
+    if (_queue.isEmpty || _queueIndex < 0 || _queueIndex >= _queue.length) {
+      return;
+    }
+    if (_queue[_queueIndex].videoId == null) return;
+    unawaited(
+      ListenAlongService.pushNowPlaying(
+        queue: _queue,
+        queueIndex: _queueIndex,
+        position: position,
+        isPlaying: isPlaying,
+      ),
+    );
+  }
+
   RemoteSession? get remoteSession => _remoteSession;
   bool get isRemoteControlling => _isRemoteControlling;
   bool get shouldShowRemoteBanner {
@@ -564,6 +673,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _handleIncomingCommands(List<RemoteCommand> commands) async {
     if (commands.isNotEmpty) _crossfade.cancel();
     for (final command in commands) {
+      await PlaybackSessionSyncService.ackCommand(command.id);
       switch (command.type) {
         case RemoteCommandType.play:
           if (!_audioHandler.player.playing) await _localTogglePlayPause();
@@ -586,7 +696,6 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
           if (track != null) await _applyRemotePlayTrack(track);
           break;
       }
-      await PlaybackSessionSyncService.ackCommand(command.id);
     }
   }
 
@@ -696,6 +805,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       await _audioHandler.player.setVolume(_volume);
       _prefetchUpcomingTracks();
       _pushSessionIfHosting();
+      _pushNowPlayingIfActive();
     } finally {
       _isLoadingTrack = false;
       notifyListeners();
@@ -758,6 +868,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     if (!_isRemoteControlling) unawaited(_recordPotentialSkip());
     _exitRemoteControl();
+    _exitListenAlongIfActive();
     _currentSourcePlaylist = sourcePlaylist;
     _originalQueue = List<Track>.from(tracks);
 
@@ -808,6 +919,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> togglePlayPause() async {
+    _exitListenAlongIfActive();
     if (_isRemoteControlling) {
       await PlaybackSessionSyncService.sendCommand(
         isPlaying ? RemoteCommandType.pause : RemoteCommandType.play,
@@ -828,6 +940,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       unawaited(_audioHandler.player.play());
     }
     _pushSessionIfHosting();
+    _pushNowPlayingIfActive();
   }
 
   Future<void> _resumeRestoredTrack() async {
@@ -840,6 +953,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> next({int skipAttempts = 0}) async {
     _crossfade.cancel();
+    _exitListenAlongIfActive();
     if (_isRemoteControlling) {
       if (skipAttempts > 0) return;
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.next);
@@ -884,6 +998,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _crossfade.cancel();
     if (!_isRemoteControlling) unawaited(_recordPotentialSkip());
     _exitRemoteControl();
+    _exitListenAlongIfActive();
     _queueIndex = index;
     _currentTrack = _queue[index];
     notifyListeners();
@@ -894,6 +1009,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void playNext(Track track) {
     _exitRemoteControl();
+    _exitListenAlongIfActive();
     if (_currentTrack == null || _queue.isEmpty) {
       playQueue([track]);
       return;
@@ -906,6 +1022,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void addToQueue(Track track) {
     _exitRemoteControl();
+    _exitListenAlongIfActive();
     if (_currentTrack == null || _queue.isEmpty) {
       playQueue([track]);
       return;
@@ -947,6 +1064,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   void clearQueue() {
     final current = _currentTrack;
     if (current == null) return;
+    _exitListenAlongIfActive();
     _queue = [current];
     _originalQueue = [current];
     _queueIndex = 0;
@@ -961,6 +1079,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> previous() async {
     _crossfade.cancel();
+    _exitListenAlongIfActive();
     if (_isRemoteControlling) {
       await PlaybackSessionSyncService.sendCommand(RemoteCommandType.previous);
       return;
@@ -995,6 +1114,8 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> dismissPlayback() async {
     _crossfade.cancel();
     _exitRemoteControl();
+    _exitListenAlongIfActive();
+    unawaited(ListenAlongService.clearNowPlaying());
     _finalizeActivePlay();
     await _audioHandler.player.stop();
     _currentTrack = null;
@@ -1014,6 +1135,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void toggleShuffle() {
     if (_isRemoteControlling) return;
+    _exitListenAlongIfActive();
     _shuffle = !_shuffle;
 
     if (_currentTrack != null && _originalQueue.isNotEmpty) {
@@ -1037,6 +1159,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void cycleRepeatMode() {
     if (_isRemoteControlling) return;
+    _exitListenAlongIfActive();
     _repeatMode = PlayerRepeatMode
         .values[(_repeatMode.index + 1) % PlayerRepeatMode.values.length];
     notifyListeners();
@@ -1079,6 +1202,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   void seek(Duration position) {
     if (_isRemoteControlling) return;
     _crossfade.cancel();
+    _exitListenAlongIfActive();
     final clamped = _clampToTrim(position);
     _audioHandler.player.seek(clamped);
     if (!_loaded) _pendingResumePosition = clamped;
@@ -1098,6 +1222,8 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _sessionHeartbeat?.cancel();
     _volumeCommandThrottle?.cancel();
     _sleepTimer?.cancel();
+    _listenAlongSub?.cancel();
+    unawaited(ListenAlongService.clearNowPlaying());
     super.dispose();
   }
 }

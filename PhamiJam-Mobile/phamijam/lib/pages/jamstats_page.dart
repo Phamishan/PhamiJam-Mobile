@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/wrapped_stats.dart';
@@ -14,15 +16,25 @@ class JamstatsPage extends StatefulWidget {
 
 class _JamstatsPageState extends State<JamstatsPage> {
   WrappedStats? _stats;
+  String? _loadError;
   int _slideIndex = 0;
   int _year = DateTime.now().year;
   int _earliestYear = DateTime.now().year;
+  Timer? _slowLoadTimer;
+  bool _showSlowLoadHint = false;
+  static const Duration _slowLoadHintDelay = Duration(seconds: 5);
 
   @override
   void initState() {
     super.initState();
     _loadStats();
     _loadEarliestYear();
+  }
+
+  @override
+  void dispose() {
+    _slowLoadTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadEarliestYear() async {
@@ -32,13 +44,29 @@ class _JamstatsPageState extends State<JamstatsPage> {
   }
 
   Future<void> _loadStats() async {
-    setState(() => _stats = null);
-    final events = await ListeningHistoryService.eventsSince(
-      DateTime(_year),
-      until: DateTime(_year + 1),
-    );
-    if (!mounted) return;
-    setState(() => _stats = WrappedStats.fromEvents(events));
+    _slowLoadTimer?.cancel();
+    _slowLoadTimer = Timer(_slowLoadHintDelay, () {
+      if (mounted) setState(() => _showSlowLoadHint = true);
+    });
+    setState(() {
+      _stats = null;
+      _loadError = null;
+      _showSlowLoadHint = false;
+    });
+    try {
+      final events = await ListeningHistoryService.eventsSince(
+        DateTime(_year),
+        until: DateTime(_year + 1),
+      );
+      if (!mounted) return;
+      setState(() => _stats = WrappedStats.fromEvents(events));
+    } catch (error, stackTrace) {
+      debugPrint('JamstatsPage: failed to load stats: $error\n$stackTrace');
+      if (!mounted) return;
+      setState(() => _loadError = "Couldn't load Jamstats.");
+    } finally {
+      _slowLoadTimer?.cancel();
+    }
   }
 
   void _selectYear(int year) {
@@ -85,10 +113,53 @@ class _JamstatsPageState extends State<JamstatsPage> {
   @override
   Widget build(BuildContext context) {
     final stats = _stats;
+    final loadError = _loadError;
 
     Widget body;
-    if (stats == null) {
-      body = const Center(child: CircularProgressIndicator(color: kBrandGold));
+    if (loadError != null) {
+      body = Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  loadError,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: _loadStats,
+                  child: const Text(
+                    'Try again',
+                    style: TextStyle(color: kBrandGold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else if (stats == null) {
+      body = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: kBrandGold),
+            if (_showSlowLoadHint) ...[
+              const SizedBox(height: 20),
+              const Text(
+                'Still loading',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ],
+        ),
+      );
     } else if (stats.isEmpty) {
       body = _EmptyState(year: _year);
     } else {

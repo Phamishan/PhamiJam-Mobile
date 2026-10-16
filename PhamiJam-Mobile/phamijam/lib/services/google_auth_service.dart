@@ -72,17 +72,23 @@ class GoogleAuthService {
       return null;
     }
 
-    final response = await http.post(
-      Uri.parse('https://oauth2.googleapis.com/token'),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {
-        'client_id': clientId,
-        if ((dotenv.env['CLIENT_SECRET'] ?? '').isNotEmpty)
-          'client_secret': dotenv.env['CLIENT_SECRET']!,
-        'grant_type': 'refresh_token',
-        'refresh_token': refreshToken,
-      },
-    );
+    http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('https://oauth2.googleapis.com/token'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'client_id': clientId,
+          if ((dotenv.env['CLIENT_SECRET'] ?? '').isNotEmpty)
+            'client_secret': dotenv.env['CLIENT_SECRET']!,
+          'grant_type': 'refresh_token',
+          'refresh_token': refreshToken,
+        },
+      );
+    } catch (error) {
+      debugPrint('$_logTag: refresh token request threw: $error');
+      return null;
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       debugPrint(
@@ -224,7 +230,9 @@ class GoogleAuthService {
     }
 
     if (silentOnly) {
-      debugPrint('$_logTag: silentOnly requested — not launching signInOnline().');
+      debugPrint(
+        '$_logTag: silentOnly requested — not launching signInOnline().',
+      );
       return null;
     }
 
