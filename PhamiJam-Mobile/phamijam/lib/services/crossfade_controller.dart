@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -88,8 +89,10 @@ class CrossfadeController {
         return;
       }
       final t = (stopwatch.elapsedMilliseconds / totalMs).clamp(0.0, 1.0);
-      unawaited(_safeSetVolume(fadePlayer, t * targetVolume));
-      unawaited(setMainVolume((1 - t) * targetVolume));
+      final fadeIn = sin(t * pi / 2);
+      final fadeOut = cos(t * pi / 2);
+      unawaited(_safeSetVolume(fadePlayer, fadeIn * targetVolume));
+      unawaited(setMainVolume(fadeOut * targetVolume));
       if (t >= 1.0) {
         timer.cancel();
         if (!completer.isCompleted) completer.complete();
@@ -107,6 +110,9 @@ class CrossfadeController {
     );
     _fadePlayer = null;
     _restoreMainVolume = null;
+    try {
+      await fadePlayer.pause();
+    } catch (_) {}
     try {
       await onComplete(startAt);
       await setMainVolume(targetVolume);

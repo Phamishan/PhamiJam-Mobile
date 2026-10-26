@@ -140,12 +140,29 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
 
     final resolved = await _resolver.resolve(videoId);
     if (requestId != _loadRequestId) return;
-    await _setYouTubeSource(
-      resolved.audioUrls,
-      position: startAt,
-      autoPlay: autoPlay,
-      requestId: requestId,
-    );
+    try {
+      await _setYouTubeSource(
+        resolved.audioUrls,
+        position: startAt,
+        autoPlay: autoPlay,
+        requestId: requestId,
+      );
+    } catch (error) {
+      if (requestId != _loadRequestId) return;
+      debugPrint(
+        'PhamiJamAudioHandler: cached stream URLs failed for $videoId, '
+        're-resolving: $error',
+      );
+      _resolver.invalidate(videoId);
+      final refreshed = await _resolver.resolve(videoId, forceRefresh: true);
+      if (requestId != _loadRequestId) return;
+      await _setYouTubeSource(
+        refreshed.audioUrls,
+        position: startAt,
+        autoPlay: autoPlay,
+        requestId: requestId,
+      );
+    }
   }
 
   Future<void> loadOnto(

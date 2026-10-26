@@ -25,7 +25,7 @@ import 'package:phamijam/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const String _logSubmissionEmail = 'phamishan93@gmail.com';
+const String _logSubmissionEmail = 'phamishan@phamishan.dk';
 const int _maxLogEmailBodyChars = 6000;
 
 class _AccentPreset {
@@ -564,7 +564,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _SettingsTile(
               icon: Icons.info_rounded,
               title: 'About PhamiJam',
-              subtitle: 'Version 1.1.8',
+              subtitle: 'Version 1.1.9',
               onTap: () => showChangelogDialog(context),
               color: colorScheme.onSurface,
             ),

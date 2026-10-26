@@ -264,6 +264,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _handleStreamError(Object error) async {
     final track = _currentTrack;
     if (track == null) return;
+    if (_isLoadingTrack || _crossfade.isActive) return;
     final last = _lastStreamErrorAt;
     if (last != null &&
         DateTime.now().difference(last) < const Duration(seconds: 2)) {
@@ -334,6 +335,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   static const Duration _crossfadeLeadIn = Duration(milliseconds: 2500);
+  String? _crossfadeAttemptedForTrackId;
 
   void _checkCrossfadeTrigger(Duration pos) {
     if (_isRemoteControlling || _endHandled || _isLoadingTrack) return;
@@ -341,6 +343,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_repeatMode == PlayerRepeatMode.one) return;
     if (_pauseAtTrackEndScheduled) return;
     if (_crossfadeEnabledLookup?.call() != true) return;
+    if (_crossfadeAttemptedForTrackId == _currentTrack?.id) return;
 
     final crossfadeDuration = _crossfadeDurationLookup?.call();
     if (crossfadeDuration == null || crossfadeDuration <= Duration.zero) {
@@ -370,6 +373,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     debugPrint(
       '[crossfade] trigger fired: remaining=$remaining crossfadeDuration=$crossfadeDuration next=${nextTrack.title}',
     );
+    _crossfadeAttemptedForTrackId = track.id;
     _recordOutgoingTrackCompleted();
     unawaited(
       _beginCrossfade(
@@ -983,7 +987,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _persistSession();
     if (!started) {
-      if (skipAttempts < _queue.length) {
+      if (skipAttempts < _maxConsecutiveStreamErrors) {
         await _localNext(skipAttempts: skipAttempts + 1);
       } else {
         playbackErrorMessage =

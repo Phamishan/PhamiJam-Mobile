@@ -126,6 +126,9 @@
   - Added a way to submit app logs
   - Fixed offline access
   - Fixed remote control
+- 1.1.9 - 26/10/2026
+  - Fixed crossfade
+  - Fixed playback skipping songs
 
 ## Screenshots:
 
