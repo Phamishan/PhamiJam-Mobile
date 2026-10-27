@@ -102,6 +102,14 @@ class ProfileService {
     }, SetOptions(merge: true));
   }
 
+  static Future<void> setShowActivity(bool enabled) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+    await _userDoc(uid).set({
+      'profile': {'showActivityEnabled': enabled},
+    }, SetOptions(merge: true));
+  }
+
   static Future<void> saveGridLayout(List<GridTile> tiles) async {
     final uid = _currentUid;
     if (uid == null) return;

@@ -428,7 +428,8 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifyListeners();
         _persistSession();
         if (!started) {
-          await _localNext(skipAttempts: 1);
+          _consecutiveStreamErrors++;
+          await _localNext();
         }
       },
     );
@@ -964,10 +965,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     if (skipAttempts == 0) unawaited(_recordPotentialSkip());
-    await _localNext(skipAttempts: skipAttempts);
+    await _localNext();
   }
 
-  Future<void> _localNext({int skipAttempts = 0}) async {
+  Future<void> _localNext() async {
     if (_queue.isEmpty) return;
     if (_queueIndex < _queue.length - 1) {
       _queueIndex++;
@@ -987,13 +988,17 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _persistSession();
     if (!started) {
-      if (skipAttempts < _maxConsecutiveStreamErrors) {
-        await _localNext(skipAttempts: skipAttempts + 1);
+      _consecutiveStreamErrors++;
+      if (_consecutiveStreamErrors < _maxConsecutiveStreamErrors) {
+        await _localNext();
       } else {
+        _consecutiveStreamErrors = 0;
         playbackErrorMessage =
             "Having trouble playing music - check your connection.";
         notifyListeners();
       }
+    } else {
+      _consecutiveStreamErrors = 0;
     }
   }
 

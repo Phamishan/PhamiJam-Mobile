@@ -21,6 +21,7 @@ import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/google_drive_auth_service.dart';
 import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/presence_service.dart';
+import 'package:phamijam/services/push_notification_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -326,6 +327,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _signingOut = true);
     context.read<FriendsProvider>().stop();
     await PresenceService.goOffline();
+    await PushNotificationService.clearToken();
     try {
       await GoogleAuthService.signOut();
       await GoogleDriveAuthService.signOut();
@@ -502,6 +504,32 @@ class _SettingsPageState extends State<SettingsPage> {
               color: colorScheme.onSurface,
             ),
             const SizedBox(height: 28),
+            Text('Social', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return _SettingsSwitchTile(
+                  icon: Icons.dynamic_feed_rounded,
+                  title: 'Show activity to friends',
+                  subtitle:
+                      "Let friends see what you've played in their Activity feed",
+                  value: settings.showActivityEnabled,
+                  onChanged: (value) async {
+                    try {
+                      await settings.setShowActivityEnabled(value);
+                    } catch (error) {
+                      if (mounted) {
+                        AppFlushbar.error(
+                          context,
+                          "Couldn't update activity visibility: $error",
+                        );
+                      }
+                    }
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 28),
             Text('Storage', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             Consumer<DownloadsProvider>(
@@ -564,7 +592,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _SettingsTile(
               icon: Icons.info_rounded,
               title: 'About PhamiJam',
-              subtitle: 'Version 1.1.9',
+              subtitle: 'Version 1.2.0',
               onTap: () => showChangelogDialog(context),
               color: colorScheme.onSurface,
             ),

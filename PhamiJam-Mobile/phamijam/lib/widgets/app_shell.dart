@@ -24,6 +24,7 @@ import 'package:phamijam/services/deep_link_service.dart';
 import 'package:phamijam/services/jamstats_widget_service.dart';
 import 'package:phamijam/services/presence_service.dart';
 import 'package:phamijam/services/profile_service.dart';
+import 'package:phamijam/services/push_notification_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/bottom_nav_bar.dart';
 import 'package:phamijam/widgets/listen_along_banner.dart';
@@ -63,6 +64,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       unawaited(savedPlaylists.refresh());
       unawaited(profile.refresh());
       unawaited(settings.refreshHiddenPlaylists());
+      unawaited(settings.refreshShowActivityEnabled());
     });
     _player = context.read<PlayerProvider>();
     _player.bindEditedSongsLookup(context.read<EditedSongsProvider>().trimFor);
@@ -80,6 +82,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     unawaited(_refreshWidgets());
     unawaited(DeepLinkService.init(_handleDeepLink));
+    unawaited(
+      PushNotificationService.init(
+        onActivityNotificationTapped: _handleActivityNotificationTapped,
+      ),
+    );
+  }
+
+  void _handleActivityNotificationTapped(String friendUid) {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => FriendProfilePage(uid: friendUid)),
+    );
   }
 
   Future<void> _handleDeepLink(DeepLinkTarget target) async {

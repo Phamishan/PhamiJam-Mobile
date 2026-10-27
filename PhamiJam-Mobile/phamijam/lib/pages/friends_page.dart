@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/friend.dart';
 import 'package:phamijam/models/friend_request.dart';
+import 'package:phamijam/pages/friend_activity_page.dart';
 import 'package:phamijam/pages/friend_profile_page.dart';
 import 'package:phamijam/pages/search_profiles_page.dart';
 import 'package:phamijam/providers/friends_provider.dart';
@@ -21,6 +22,13 @@ class FriendsPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Friends'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.dynamic_feed_rounded),
+            tooltip: 'Activity',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const FriendActivityPage()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.person_search_rounded),
             onPressed: () => Navigator.of(context).push(

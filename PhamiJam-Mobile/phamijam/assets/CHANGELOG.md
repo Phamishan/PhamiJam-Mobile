@@ -129,6 +129,10 @@
 - 1.1.9 - 26/10/2026
   - Fixed crossfade
   - Fixed playback skipping songs
+- 1.2.0 - 27/10/2026
+  - Added a friend activity feed
+  - Added push notifications for friend activity
+  - Added a setting to hide your activity from friends
 
 ## Screenshots:
 

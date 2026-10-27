@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +25,7 @@ import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/jamstats_widget_service.dart';
 import 'package:phamijam/services/log_service.dart';
+import 'package:phamijam/services/push_notification_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/app_shell.dart';
 import 'package:provider/provider.dart';
@@ -40,6 +42,7 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await dotenv.load(fileName: '.env');
 
   final sharedResolver = AudioStreamResolver();
