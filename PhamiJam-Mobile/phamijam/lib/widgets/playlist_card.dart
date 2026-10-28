@@ -58,7 +58,7 @@ class _PlaylistCardState extends State<PlaylistCard> {
                     child: AspectRatio(
                       aspectRatio: 1,
                       child: NetworkThumbnail(
-                        url: widget.playlist.thumbnailUrl,
+                        url: widget.playlist.coverImageUrl,
                         fit: BoxFit.cover,
                         iconSize: 36,
                       ),

@@ -161,7 +161,7 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
                         controlAffinity: ListTileControlAffinity.trailing,
                         contentPadding: EdgeInsets.zero,
                         secondary: NetworkThumbnail(
-                          url: playlist.thumbnailUrl,
+                          url: playlist.coverImageUrl,
                           width: 44,
                           height: 44,
                           borderRadius: BorderRadius.circular(6),

@@ -894,12 +894,18 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistSession();
   }
 
-  Future<void> _startCurrentIndexWithFallback({int attempt = 0}) async {
+  Future<void> _startCurrentIndexWithFallback() async {
     final track = _currentTrack;
     if (track == null) return;
     final started = await _tryStartTrack(track);
-    if (started) return;
-    if (attempt + 1 >= _queue.length || _queueIndex >= _queue.length - 1) {
+    if (started) {
+      _consecutiveStreamErrors = 0;
+      return;
+    }
+    _consecutiveStreamErrors++;
+    if (_consecutiveStreamErrors >= _maxConsecutiveStreamErrors ||
+        _queueIndex >= _queue.length - 1) {
+      _consecutiveStreamErrors = 0;
       playbackErrorMessage = 'Couldn\'t play "${track.title}".';
       notifyListeners();
       return;
@@ -907,7 +913,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _queueIndex++;
     _currentTrack = _queue[_queueIndex];
     notifyListeners();
-    await _startCurrentIndexWithFallback(attempt: attempt + 1);
+    await _startCurrentIndexWithFallback();
   }
 
   String? playbackErrorMessage;

@@ -5,6 +5,7 @@ class Playlist {
   final String title;
   final String subtitle;
   final String thumbnailUrl;
+  final String? customCoverUrl;
   final List<Track> tracks;
   final bool isFromYoutube;
   final bool isPinned;
@@ -17,6 +18,7 @@ class Playlist {
     required this.title,
     required this.subtitle,
     required this.thumbnailUrl,
+    this.customCoverUrl,
     this.tracks = const [],
     this.isFromYoutube = true,
     this.isPinned = false,
@@ -27,9 +29,16 @@ class Playlist {
 
   bool get isPrivate => privacyStatus == 'private';
 
+  String get coverImageUrl =>
+      (customCoverUrl != null && customCoverUrl!.isNotEmpty)
+      ? customCoverUrl!
+      : thumbnailUrl;
+
   Playlist copyWith({
     String? title,
     String? subtitle,
+    String? customCoverUrl,
+    bool clearCustomCover = false,
     List<Track>? tracks,
     int? itemCount,
     bool? isPinned,
@@ -39,6 +48,9 @@ class Playlist {
     title: title ?? this.title,
     subtitle: subtitle ?? this.subtitle,
     thumbnailUrl: thumbnailUrl,
+    customCoverUrl: clearCustomCover
+        ? null
+        : (customCoverUrl ?? this.customCoverUrl),
     tracks: tracks ?? this.tracks,
     isFromYoutube: isFromYoutube,
     isPinned: isPinned ?? this.isPinned,

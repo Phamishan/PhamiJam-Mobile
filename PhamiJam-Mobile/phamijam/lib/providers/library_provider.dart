@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
@@ -5,6 +7,7 @@ import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/google_drive_service.dart';
 import 'package:phamijam/services/liked_songs_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
+import 'package:phamijam/services/playlist_cover_service.dart';
 import 'package:phamijam/services/playlist_pin_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 
@@ -26,6 +29,7 @@ class LibraryProvider extends ChangeNotifier {
   List<String> _pinnedOrder = [];
   Set<String> get _pinnedIds => _pinnedOrder.toSet();
   bool isPinned(String playlistId) => _pinnedIds.contains(playlistId);
+  Map<String, String> _coverOverrides = {};
 
   Playlist get likedSongsPlaylist => Playlist(
     id: kLikedSongsPlaylistId,
@@ -57,6 +61,7 @@ class LibraryProvider extends ChangeNotifier {
     notifyListeners();
 
     await _loadPinnedOrder();
+    await _loadCoverOverrides();
     await Future.wait([
       _refreshYoutubePlaylists(silentOnly: silentOnly),
       _refreshLikedSongs(),
@@ -82,6 +87,7 @@ class LibraryProvider extends ChangeNotifier {
     }
 
     needsGoogleReconnect = false;
+    await _loadCoverOverrides();
     await Future.wait([
       _refreshYoutubePlaylists(),
       _refreshLikedSongs(),
@@ -101,13 +107,27 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadCoverOverrides() async {
+    try {
+      _coverOverrides = await PlaylistCoverService.fetchAll();
+    } catch (error, stackTrace) {
+      debugPrint('LibraryProvider: cover overrides refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
   List<Playlist> _applyPinState(List<Playlist> playlists) {
     final pinnedIds = _pinnedIds;
     final pinnedIndex = {
       for (var i = 0; i < _pinnedOrder.length; i++) _pinnedOrder[i]: i,
     };
     final withFlags = playlists
-        .map((p) => p.copyWith(isPinned: pinnedIds.contains(p.id)))
+        .map(
+          (p) => p.copyWith(
+            isPinned: pinnedIds.contains(p.id),
+            customCoverUrl: _coverOverrides[p.id],
+          ),
+        )
         .toList();
     final pinned = withFlags.where((p) => p.isPinned).toList()
       ..sort(
@@ -115,6 +135,42 @@ class LibraryProvider extends ChangeNotifier {
       );
     final rest = withFlags.where((p) => !p.isPinned).toList();
     return [...pinned, ...rest];
+  }
+
+  Playlist _findPlaylist(String playlistId) => userPlaylists.firstWhere(
+    (p) => p.id == playlistId,
+    orElse: () => throw StateError('Playlist not found: $playlistId'),
+  );
+
+  void _replaceInLists(Playlist updated) {
+    userPlaylists = userPlaylists
+        .map((p) => p.id == updated.id ? updated : p)
+        .toList();
+    _splitPlaylists();
+  }
+
+  Future<Playlist> setPlaylistCover(Playlist playlist, File imageFile) async {
+    final url = await PlaylistCoverService.upload(playlist.id, imageFile);
+    _coverOverrides = {..._coverOverrides, playlist.id: url};
+    final updated = playlist.copyWith(customCoverUrl: url);
+    try {
+      _replaceInLists(_findPlaylist(playlist.id).copyWith(customCoverUrl: url));
+    } catch (_) {}
+    notifyListeners();
+    return updated;
+  }
+
+  Future<Playlist> removePlaylistCover(Playlist playlist) async {
+    await PlaylistCoverService.remove(playlist.id);
+    _coverOverrides = {..._coverOverrides}..remove(playlist.id);
+    final updated = playlist.copyWith(clearCustomCover: true);
+    try {
+      _replaceInLists(
+        _findPlaylist(playlist.id).copyWith(clearCustomCover: true),
+      );
+    } catch (_) {}
+    notifyListeners();
+    return updated;
   }
 
   Future<void> togglePin(Playlist playlist) async {

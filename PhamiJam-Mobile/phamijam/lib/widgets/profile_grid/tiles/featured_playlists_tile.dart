@@ -85,7 +85,7 @@ class FeaturedPlaylistsTile extends StatelessWidget {
                                   width: 40,
                                   height: 40,
                                   child: NetworkThumbnail(
-                                    url: playlist.thumbnailUrl,
+                                    url: playlist.coverImageUrl,
                                     fit: BoxFit.cover,
                                   ),
                                 ),

@@ -587,7 +587,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                         child: AspectRatio(
                           aspectRatio: 1,
                           child: NetworkThumbnail(
-                            url: playlist.thumbnailUrl,
+                            url: playlist.coverImageUrl,
                             fit: BoxFit.cover,
                             borderRadius: BorderRadius.circular(12),
                             iconSize: 40,

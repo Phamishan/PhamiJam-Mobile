@@ -219,7 +219,7 @@ class _LibraryPlaylistTile extends StatelessWidget {
                   children: [
                     Positioned.fill(
                       child: NetworkThumbnail(
-                        url: playlist.thumbnailUrl,
+                        url: playlist.coverImageUrl,
                         width: double.infinity,
                         fit: BoxFit.cover,
                         borderRadius: BorderRadius.circular(8),

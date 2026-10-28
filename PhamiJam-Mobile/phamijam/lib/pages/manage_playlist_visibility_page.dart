@@ -62,7 +62,7 @@ class ManagePlaylistVisibilityPage extends StatelessWidget {
                             for (final playlist in playlists)
                               CheckboxListTile(
                                 secondary: NetworkThumbnail(
-                                  url: playlist.thumbnailUrl,
+                                  url: playlist.coverImageUrl,
                                   width: 44,
                                   height: 44,
                                   borderRadius: BorderRadius.circular(4),

@@ -133,6 +133,8 @@
   - Added a friend activity feed
   - Added push notifications for friend activity
   - Added a setting to hide your activity from friends
+- 1.2.1 - 28/10/2026
+  - Added edit playlist cover image
 
 ## Screenshots:
 
