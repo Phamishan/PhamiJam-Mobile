@@ -16,7 +16,7 @@ class GoogleDriveAuthService {
   static const String driveScope = 'https://www.googleapis.com/auth/drive.file';
 
   static const String _androidRedirectUri =
-      'https://phamijam-share.phamijam.workers.dev/drive-oauth-callback';
+      'https://phamijam-share.phamishan.workers.dev/drive-oauth-callback';
 
   static const String _prefsRefreshTokenKey = 'phamijam.drive_refresh_token';
 

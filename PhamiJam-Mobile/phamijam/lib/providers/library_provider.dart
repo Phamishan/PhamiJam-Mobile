@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -107,6 +108,8 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
+  StreamSubscription<Map<String, String>>? _coverOverridesSub;
+
   Future<void> _loadCoverOverrides() async {
     try {
       _coverOverrides = await PlaylistCoverService.fetchAll();
@@ -114,6 +117,29 @@ class LibraryProvider extends ChangeNotifier {
       debugPrint('LibraryProvider: cover overrides refresh failed: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
+    _watchCoverOverrides();
+  }
+
+  void _watchCoverOverrides() {
+    _coverOverridesSub?.cancel();
+    _coverOverridesSub = PlaylistCoverService.watchAll().listen((overrides) {
+      _coverOverrides = overrides;
+      userPlaylists = userPlaylists.map((p) {
+        final override = overrides[p.id];
+        return p.copyWith(
+          customCoverUrl: override,
+          clearCustomCover: override == null,
+        );
+      }).toList();
+      _splitPlaylists();
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _coverOverridesSub?.cancel();
+    super.dispose();
   }
 
   List<Playlist> _applyPinState(List<Playlist> playlists) {

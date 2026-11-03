@@ -846,6 +846,15 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       return true;
     } catch (error) {
       debugPrint('PlayerProvider: failed to start "${track.title}": $error');
+    }
+    await Future.delayed(const Duration(milliseconds: 700));
+    try {
+      await _startTrack(track, startAt: startAt);
+      return true;
+    } catch (error) {
+      debugPrint(
+        'PlayerProvider: retry also failed to start "${track.title}": $error',
+      );
       return false;
     }
   }
@@ -894,26 +903,37 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistSession();
   }
 
-  Future<void> _startCurrentIndexWithFallback() async {
+  Future<void> _startCurrentIndexWithFallback({
+    List<String>? failedTitles,
+  }) async {
     final track = _currentTrack;
     if (track == null) return;
+    final titles = failedTitles ?? <String>[];
     final started = await _tryStartTrack(track);
     if (started) {
       _consecutiveStreamErrors = 0;
       return;
     }
+    titles.add(track.title);
     _consecutiveStreamErrors++;
     if (_consecutiveStreamErrors >= _maxConsecutiveStreamErrors ||
         _queueIndex >= _queue.length - 1) {
       _consecutiveStreamErrors = 0;
-      playbackErrorMessage = 'Couldn\'t play "${track.title}".';
+      playbackErrorMessage = _formatCouldNotPlayMessage(titles);
       notifyListeners();
       return;
     }
     _queueIndex++;
     _currentTrack = _queue[_queueIndex];
     notifyListeners();
-    await _startCurrentIndexWithFallback();
+    await _startCurrentIndexWithFallback(failedTitles: titles);
+  }
+
+  String _formatCouldNotPlayMessage(List<String> titles) {
+    if (titles.isEmpty) return "Couldn't play this song.";
+    if (titles.length == 1) return 'Couldn\'t play "${titles.first}".';
+    final list = titles.map((t) => '"$t"').join(', ');
+    return "Couldn't play $list.";
   }
 
   String? playbackErrorMessage;

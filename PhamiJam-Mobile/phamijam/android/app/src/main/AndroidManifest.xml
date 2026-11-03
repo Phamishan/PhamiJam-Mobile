@@ -30,7 +30,7 @@
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="phamijam-share.phamijam.workers.dev"/>
+                <data android:scheme="https" android:host="phamijam-share.phamishan.workers.dev"/>
             </intent-filter>
         </activity>
 

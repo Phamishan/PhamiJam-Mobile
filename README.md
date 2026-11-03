@@ -135,6 +135,10 @@
   - Added a setting to hide your activity from friends
 - 1.2.1 - 28/10/2026
   - Added edit playlist cover image
+- 1.2.2 - 03/11/2026
+  - Fixed playback
+  - Fixed share links
+  - Fixed playlist cover images not updating on other devices
 
 ## Screenshots:
 

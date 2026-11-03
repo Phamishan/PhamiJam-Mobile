@@ -5,7 +5,7 @@ import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:share_plus/share_plus.dart';
 
-const String shareBaseHost = 'phamijam-share.phamijam.workers.dev';
+const String shareBaseHost = 'phamijam-share.phamishan.workers.dev';
 
 class ShareLinkService {
   ShareLinkService._();
