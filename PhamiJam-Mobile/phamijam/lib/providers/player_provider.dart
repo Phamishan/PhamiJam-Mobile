@@ -63,6 +63,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _sessionHeartbeat = Timer.periodic(const Duration(seconds: 45), (_) {
       if (!_isRemoteControlling && isPlaying) _pushSessionIfHosting();
     });
+    _nowPlayingHeartbeat = Timer.periodic(const Duration(seconds: 12), (_) {
+      _pushNowPlayingIfActive();
+    });
     _restoreVolume();
     _restoreSession();
   }
@@ -75,6 +78,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription<RemoteSession?>? _remoteSessionSub;
   StreamSubscription<List<RemoteCommand>>? _incomingCommandsSub;
   Timer? _sessionHeartbeat;
+  Timer? _nowPlayingHeartbeat;
   Timer? _volumeCommandThrottle;
   double? _pendingVolumeCommandValue;
   Timer? _sleepTimer;
@@ -314,17 +318,22 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_endHandled) return;
     if (_crossfade.isActive) return;
     _endHandled = true;
+
+    if (_pauseAtTrackEndScheduled) {
+      _pauseAtTrackEndScheduled = false;
+      _exitListenAlongIfActive();
+      _audioHandler.player.pause();
+      notifyListeners();
+      return;
+    }
+
+    if (_listenAlongFriendUid != null) return;
+
     final track = _currentTrack;
     final playlist = _currentSourcePlaylist;
     final videoId = track?.videoId;
     if (playlist != null && videoId != null && videoId.isNotEmpty) {
       SkipTrackingService.recordCompleted(playlist.id, videoId);
-    }
-    if (_pauseAtTrackEndScheduled) {
-      _pauseAtTrackEndScheduled = false;
-      _audioHandler.player.pause();
-      notifyListeners();
-      return;
     }
     if (_autoAdvanceRateLimited()) return;
     if (_repeatMode == PlayerRepeatMode.one) {
@@ -340,6 +349,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   void _checkCrossfadeTrigger(Duration pos) {
     if (_isRemoteControlling || _endHandled || _isLoadingTrack) return;
     if (_crossfade.isActive) return;
+    if (_listenAlongFriendUid != null) return;
     if (_repeatMode == PlayerRepeatMode.one) return;
     if (_pauseAtTrackEndScheduled) return;
     if (_crossfadeEnabledLookup?.call() != true) return;
@@ -472,6 +482,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _sleepTimer = Timer(duration, () {
       _sleepTimer = null;
       _sleepTimerEndsAt = null;
+      _exitListenAlongIfActive();
       _audioHandler.player.pause();
       notifyListeners();
     });
@@ -574,7 +585,13 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       _listenAlongLastAppliedVideoId = videoId;
       _currentTrack = currentTrack;
       notifyListeners();
-      await _tryStartTrack(currentTrack, startAt: target);
+      await _tryStartTrack(
+        currentTrack,
+        startAt: target,
+        overrideTrim: true,
+        trimStartOverride: data.trimStart,
+        trimEndOverride: data.trimEnd,
+      );
       notifyListeners();
       _persistSession();
     } else {
@@ -605,6 +622,8 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
         queueIndex: _queueIndex,
         position: position,
         isPlaying: isPlaying,
+        trimStart: _trimStart,
+        trimEnd: _trimEnd,
       ),
     );
   }
@@ -788,18 +807,26 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _startTrack(
     Track track, {
     Duration startAt = Duration.zero,
+    bool overrideTrim = false,
+    Duration? trimStartOverride,
+    Duration? trimEndOverride,
   }) async {
     _finalizeActivePlay();
     _beginActivePlay(track);
     _loaded = true;
     _isLoadingTrack = true;
 
-    final videoId = track.videoId;
-    final trim = (videoId != null && videoId.isNotEmpty)
-        ? _trimLookup?.call(videoId, _currentSourcePlaylist?.id)
-        : null;
-    _trimStart = trim != null ? Duration(milliseconds: trim.startMs) : null;
-    _trimEnd = trim != null ? Duration(milliseconds: trim.endMs) : null;
+    if (overrideTrim) {
+      _trimStart = trimStartOverride;
+      _trimEnd = trimEndOverride;
+    } else {
+      final videoId = track.videoId;
+      final trim = (videoId != null && videoId.isNotEmpty)
+          ? _trimLookup?.call(videoId, _currentSourcePlaylist?.id)
+          : null;
+      _trimStart = trim != null ? Duration(milliseconds: trim.startMs) : null;
+      _trimEnd = trim != null ? Duration(milliseconds: trim.endMs) : null;
+    }
     final effectiveStartAt = _clampToTrim(
       startAt == Duration.zero && _trimStart != null ? _trimStart! : startAt,
     );
@@ -840,16 +867,31 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> _tryStartTrack(
     Track track, {
     Duration startAt = Duration.zero,
+    bool overrideTrim = false,
+    Duration? trimStartOverride,
+    Duration? trimEndOverride,
   }) async {
     try {
-      await _startTrack(track, startAt: startAt);
+      await _startTrack(
+        track,
+        startAt: startAt,
+        overrideTrim: overrideTrim,
+        trimStartOverride: trimStartOverride,
+        trimEndOverride: trimEndOverride,
+      );
       return true;
     } catch (error) {
       debugPrint('PlayerProvider: failed to start "${track.title}": $error');
     }
     await Future.delayed(const Duration(milliseconds: 700));
     try {
-      await _startTrack(track, startAt: startAt);
+      await _startTrack(
+        track,
+        startAt: startAt,
+        overrideTrim: overrideTrim,
+        trimStartOverride: trimStartOverride,
+        trimEndOverride: trimEndOverride,
+      );
       return true;
     } catch (error) {
       debugPrint(
@@ -1255,6 +1297,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _remoteSessionSub?.cancel();
     _incomingCommandsSub?.cancel();
     _sessionHeartbeat?.cancel();
+    _nowPlayingHeartbeat?.cancel();
     _volumeCommandThrottle?.cancel();
     _sleepTimer?.cancel();
     _listenAlongSub?.cancel();

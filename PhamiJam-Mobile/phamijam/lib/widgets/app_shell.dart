@@ -129,6 +129,32 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
 
+    if (target.type == DeepLinkType.listenAlong) {
+      final resolvedUid = await ProfileService.resolveProfileLinkId(target.id);
+      if (!mounted || resolvedUid.isEmpty) return;
+      final ownUid = FirebaseAuth.instance.currentUser?.uid;
+      if (resolvedUid == ownUid) return;
+      if (!_friends.isFriend(resolvedUid)) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => FriendProfilePage(uid: resolvedUid),
+          ),
+        );
+        AppFlushbar.error(context, 'Add them as a friend first to listen along.');
+        return;
+      }
+      final profile = await ProfileService.fetchProfile(resolvedUid);
+      if (!mounted) return;
+      final displayName =
+          (profile.displayNameOverride?.trim().isNotEmpty ?? false)
+          ? profile.displayNameOverride!.trim()
+          : 'PhamiJam User';
+      await _player.startListenAlong(resolvedUid, friendDisplayName: displayName);
+      if (!mounted) return;
+      AppFlushbar.success(context, 'Listening along with $displayName');
+      return;
+    }
+
     try {
       final playlist = await YoutubeService.fetchPlaylistById(target.id);
       if (playlist == null || !mounted) return;

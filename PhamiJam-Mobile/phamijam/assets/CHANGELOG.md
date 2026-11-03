@@ -139,6 +139,8 @@
   - Fixed playback
   - Fixed share links
   - Fixed playlist cover images not updating on other devices
+  - Fixed Listen Along
+  - Listen Along links from Discord now open directly in the app
 
 ## Screenshots:
 
