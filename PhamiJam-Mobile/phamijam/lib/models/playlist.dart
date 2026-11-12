@@ -29,6 +29,8 @@ class Playlist {
 
   bool get isPrivate => privacyStatus == 'private';
 
+  bool get isMixed => id.startsWith('mixed-');
+
   String get coverImageUrl =>
       (customCoverUrl != null && customCoverUrl!.isNotEmpty)
       ? customCoverUrl!

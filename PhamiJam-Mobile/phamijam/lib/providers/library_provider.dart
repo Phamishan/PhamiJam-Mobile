@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
@@ -8,6 +9,7 @@ import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/google_drive_service.dart';
 import 'package:phamijam/services/liked_songs_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
+import 'package:phamijam/services/mixed_playlist_service.dart';
 import 'package:phamijam/services/playlist_cover_service.dart';
 import 'package:phamijam/services/playlist_pin_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
@@ -63,6 +65,7 @@ class LibraryProvider extends ChangeNotifier {
 
     await _loadPinnedOrder();
     await _loadCoverOverrides();
+    _watchMixedPlaylists();
     await Future.wait([
       _refreshYoutubePlaylists(silentOnly: silentOnly),
       _refreshLikedSongs(),
@@ -89,6 +92,7 @@ class LibraryProvider extends ChangeNotifier {
 
     needsGoogleReconnect = false;
     await _loadCoverOverrides();
+    _watchMixedPlaylists();
     await Future.wait([
       _refreshYoutubePlaylists(),
       _refreshLikedSongs(),
@@ -106,6 +110,88 @@ class LibraryProvider extends ChangeNotifier {
       debugPrint('LibraryProvider: pinned playlists refresh failed: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
+  }
+
+  List<Playlist> mixedPlaylists = [];
+  StreamSubscription<List<Playlist>>? _mixedPlaylistsSub;
+  String? _mixedPlaylistsUid;
+
+  Playlist _withCover(Playlist playlist) {
+    final override = _coverOverrides[playlist.id];
+    return override == null
+        ? playlist.copyWith(clearCustomCover: true)
+        : playlist.copyWith(customCoverUrl: override);
+  }
+
+  void _reapplyCoversToMixed() {
+    mixedPlaylists = mixedPlaylists.map(_withCover).toList();
+  }
+
+  Playlist? mixedPlaylistById(String id) {
+    for (final playlist in mixedPlaylists) {
+      if (playlist.id == id) return playlist;
+    }
+    return null;
+  }
+
+  void _watchMixedPlaylists() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    if (_mixedPlaylistsSub != null && _mixedPlaylistsUid == uid) return;
+    _mixedPlaylistsSub?.cancel();
+    _mixedPlaylistsUid = uid;
+    _mixedPlaylistsSub = MixedPlaylistService.watchAll().listen(
+      (playlists) {
+        mixedPlaylists = playlists.map(_withCover).toList();
+        notifyListeners();
+      },
+      onError: (Object error) {
+        debugPrint('LibraryProvider: mixed playlists watch failed: $error');
+      },
+    );
+  }
+
+  void clearMixedPlaylists() {
+    _mixedPlaylistsSub?.cancel();
+    _mixedPlaylistsSub = null;
+    _mixedPlaylistsUid = null;
+    mixedPlaylists = [];
+    notifyListeners();
+  }
+
+  Future<Playlist> createMixedPlaylist(String title) async {
+    final id = await MixedPlaylistService.create(title);
+    return Playlist(
+      id: id,
+      title: title,
+      subtitle: '0 songs',
+      thumbnailUrl: '',
+      isFromYoutube: false,
+      isOwnedByUser: true,
+      itemCount: 0,
+      privacyStatus: 'private',
+    );
+  }
+
+  Future<void> renameMixedPlaylist(Playlist playlist, String title) =>
+      MixedPlaylistService.rename(playlist.id, title);
+
+  Future<void> deleteMixedPlaylist(Playlist playlist) async {
+    await MixedPlaylistService.delete(playlist.id);
+    if (_coverOverrides.containsKey(playlist.id)) {
+      try {
+        await PlaylistCoverService.remove(playlist.id);
+      } catch (_) {}
+    }
+  }
+
+  Future<int> addTracksToMixedPlaylist(Playlist playlist, List<Track> tracks) =>
+      MixedPlaylistService.addTracks(playlist.id, tracks);
+
+  Future<void> removeTrackFromMixedPlaylist(Playlist playlist, Track track) {
+    final videoId = track.videoId;
+    if (videoId == null || videoId.isEmpty) return Future.value();
+    return MixedPlaylistService.removeVideoId(playlist.id, videoId);
   }
 
   StreamSubscription<Map<String, String>>? _coverOverridesSub;
@@ -132,12 +218,14 @@ class LibraryProvider extends ChangeNotifier {
         );
       }).toList();
       _splitPlaylists();
+      _reapplyCoversToMixed();
       notifyListeners();
     });
   }
 
   @override
   void dispose() {
+    _mixedPlaylistsSub?.cancel();
     _coverOverridesSub?.cancel();
     super.dispose();
   }
@@ -182,6 +270,7 @@ class LibraryProvider extends ChangeNotifier {
     try {
       _replaceInLists(_findPlaylist(playlist.id).copyWith(customCoverUrl: url));
     } catch (_) {}
+    _reapplyCoversToMixed();
     notifyListeners();
     return updated;
   }
@@ -195,6 +284,7 @@ class LibraryProvider extends ChangeNotifier {
         _findPlaylist(playlist.id).copyWith(clearCustomCover: true),
       );
     } catch (_) {}
+    _reapplyCoversToMixed();
     notifyListeners();
     return updated;
   }

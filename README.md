@@ -141,6 +141,10 @@
   - Fixed playlist cover images not updating on other devices
   - Fixed Listen Along
   - Listen Along links from Discord now open directly in the app
+- 1.2.3 - 12/11/2026
+  - Added mixed playlists
+  - Reduced Firestore usage on friends' profiles and the activity feed
+  - Updated the dark app icon
 
 ## Screenshots:
 

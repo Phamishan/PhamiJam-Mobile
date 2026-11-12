@@ -56,8 +56,12 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
     await Future.wait(
       targets.map((playlist) async {
         try {
-          for (final track in widget.tracks) {
-            await library.addTrackToPlaylist(playlist, track);
+          if (playlist.isMixed) {
+            await library.addTracksToMixedPlaylist(playlist, widget.tracks);
+          } else {
+            for (final track in widget.tracks) {
+              await library.addTrackToPlaylist(playlist, track);
+            }
           }
         } catch (_) {
           failures.add(playlist.title);
@@ -88,7 +92,12 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final playlists = context.watch<LibraryProvider>().userPlaylists;
+    final library = context.watch<LibraryProvider>();
+    final hasDriveTrack = widget.tracks.any((t) => t.isDriveSourced);
+    final playlists = [
+      if (!hasDriveTrack) ...library.userPlaylists,
+      ...library.mixedPlaylists,
+    ];
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -141,7 +150,11 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Text(
-                    'No playlists yet. Create one to begin.',
+                    hasDriveTrack
+                        ? 'Google Drive songs can only go in a PhamiJam '
+                              'playlist. Create a Mixed playlist in your '
+                              'Library first.'
+                        : 'No playlists yet. Create one to begin.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 )
@@ -172,7 +185,11 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
-                        subtitle: Text('${playlist.itemCount} videos'),
+                        subtitle: Text(
+                          playlist.isMixed
+                              ? '${playlist.itemCount} songs · PhamiJam playlist'
+                              : '${playlist.itemCount} videos',
+                        ),
                       );
                     },
                   ),

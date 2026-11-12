@@ -228,12 +228,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                   ),
                                   IconButton(
                                     tooltip: 'Add to playlist',
-                                    onPressed: track.isDriveSourced
-                                        ? null
-                                        : () => showAddToPlaylistSheet(
-                                            context,
-                                            track,
-                                          ),
+                                    onPressed: () =>
+                                        showAddToPlaylistSheet(context, track),
                                     icon: Icon(
                                       Icons.playlist_add_rounded,
                                       color: colorScheme.onSurface,
@@ -429,9 +425,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     button: true,
                                     label: player.isLoadingTrack
                                         ? 'Loading'
-                                        : (player.isPlaying
-                                              ? 'Pause'
-                                              : 'Play'),
+                                        : (player.isPlaying ? 'Pause' : 'Play'),
                                     child: GestureDetector(
                                       onTap: player.togglePlayPause,
                                       child: Container(

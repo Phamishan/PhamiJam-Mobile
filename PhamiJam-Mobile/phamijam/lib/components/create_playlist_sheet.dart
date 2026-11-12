@@ -28,6 +28,7 @@ class _CreatePlaylistSheetState extends State<_CreatePlaylistSheet> {
   final _descriptionController = TextEditingController();
   String _privacy = 'private';
   bool _creating = false;
+  bool _mixed = false;
 
   @override
   void dispose() {
@@ -43,14 +44,19 @@ class _CreatePlaylistSheetState extends State<_CreatePlaylistSheet> {
     setState(() => _creating = true);
     final library = context.read<LibraryProvider>();
     try {
-      final playlist = await library.createPlaylist(
-        title,
-        description: _descriptionController.text.trim(),
-        privacyStatus: _privacy,
-      );
+      final playlist = _mixed
+          ? await library.createMixedPlaylist(title)
+          : await library.createPlaylist(
+              title,
+              description: _descriptionController.text.trim(),
+              privacyStatus: _privacy,
+            );
       if (!mounted) return;
       Navigator.of(context).pop(playlist);
-      AppFlushbar.success(context, 'Created "$title" on YouTube');
+      AppFlushbar.success(
+        context,
+        _mixed ? 'Created "$title"' : 'Created "$title" on YouTube',
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _creating = false);
@@ -82,10 +88,38 @@ class _CreatePlaylistSheetState extends State<_CreatePlaylistSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              'This creates a real playlist on your YouTube account.',
+              _mixed
+                  ? 'A PhamiJam playlist can mix YouTube songs and Google '
+                        'Drive songs. It lives in PhamiJam, not on YouTube.'
+                  : 'This creates a real playlist on your YouTube account.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                  value: false,
+                  label: Text('YouTube'),
+                  icon: Icon(Icons.smart_display_rounded),
+                ),
+                ButtonSegment(
+                  value: true,
+                  label: Text('Mixed'),
+                  icon: Icon(Icons.library_music_rounded),
+                ),
+              ],
+              selected: {_mixed},
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) =>
+                  setState(() => _mixed = selection.first),
+              style: SegmentedButton.styleFrom(
+                backgroundColor: colorScheme.surfaceContainerHigh,
+                foregroundColor: colorScheme.onSurfaceVariant,
+                selectedBackgroundColor: colorScheme.primary,
+                selectedForegroundColor: colorScheme.onPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _titleController,
               autofocus: true,
@@ -101,52 +135,54 @@ class _CreatePlaylistSheetState extends State<_CreatePlaylistSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _descriptionController,
-              textCapitalization: TextCapitalization.sentences,
-              minLines: 1,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: 'Description (optional)',
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHigh,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            if (!_mixed) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _descriptionController,
+                textCapitalization: TextCapitalization.sentences,
+                minLines: 1,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Description (optional)',
+                  filled: true,
+                  fillColor: colorScheme.surfaceContainerHigh,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'private',
-                  label: Text('Private'),
-                  icon: Icon(Icons.lock_rounded),
+              const SizedBox(height: 16),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'private',
+                    label: Text('Private'),
+                    icon: Icon(Icons.lock_rounded),
+                  ),
+                  ButtonSegment(
+                    value: 'unlisted',
+                    label: Text('Unlisted'),
+                    icon: Icon(Icons.link_rounded),
+                  ),
+                  ButtonSegment(
+                    value: 'public',
+                    label: Text('Public'),
+                    icon: Icon(Icons.public_rounded),
+                  ),
+                ],
+                selected: {_privacy},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) =>
+                    setState(() => _privacy = selection.first),
+                style: SegmentedButton.styleFrom(
+                  backgroundColor: colorScheme.surfaceContainerHigh,
+                  foregroundColor: colorScheme.onSurfaceVariant,
+                  selectedBackgroundColor: colorScheme.primary,
+                  selectedForegroundColor: colorScheme.onPrimary,
                 ),
-                ButtonSegment(
-                  value: 'unlisted',
-                  label: Text('Unlisted'),
-                  icon: Icon(Icons.link_rounded),
-                ),
-                ButtonSegment(
-                  value: 'public',
-                  label: Text('Public'),
-                  icon: Icon(Icons.public_rounded),
-                ),
-              ],
-              selected: {_privacy},
-              showSelectedIcon: false,
-              onSelectionChanged: (selection) =>
-                  setState(() => _privacy = selection.first),
-              style: SegmentedButton.styleFrom(
-                backgroundColor: colorScheme.surfaceContainerHigh,
-                foregroundColor: colorScheme.onSurfaceVariant,
-                selectedBackgroundColor: colorScheme.primary,
-                selectedForegroundColor: colorScheme.onPrimary,
               ),
-            ),
+            ],
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

@@ -16,14 +16,13 @@ class RecentlyPlayedTile extends StatelessWidget {
   bool get _isOwner => profileUid == FirebaseAuth.instance.currentUser?.uid;
 
   static Future<List<Track>> _fetchFor(String uid) async {
-    final since = DateTime.now().subtract(const Duration(days: 180));
-    final events = await ListeningHistoryService.eventsSinceForUid(
+    final events = await ListeningHistoryService.recentEventsForUid(
       uid,
-      since,
+      limit: 25,
     );
     final seen = <String>{};
     final tracks = <Track>[];
-    for (final event in events.reversed) {
+    for (final event in events) {
       if (!seen.add(event.videoId)) continue;
       tracks.add(
         Track(
@@ -81,9 +80,9 @@ class _RecentlyPlayedList extends StatelessWidget {
         children: [
           Text(
             'Recently played',
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 6),
           Expanded(

@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/components/download_action.dart';
@@ -201,7 +204,127 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     }
   }
 
+  Future<void> _handleRenameMixed() async {
+    final controller = TextEditingController(text: _playlist.title);
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename playlist'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(labelText: 'Title'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (newTitle == null || newTitle.isEmpty || !mounted) return;
+    try {
+      await context.read<LibraryProvider>().renameMixedPlaylist(
+        _playlist,
+        newTitle,
+      );
+    } catch (error) {
+      if (mounted) {
+        AppFlushbar.error(context, "Couldn't rename playlist: $error");
+      }
+    }
+  }
+
+  Future<void> _handleChangeMixedCover() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+    try {
+      await context.read<LibraryProvider>().setPlaylistCover(
+        _playlist,
+        File(picked.path),
+      );
+    } catch (error) {
+      if (mounted) {
+        AppFlushbar.error(context, "Couldn't update cover image: $error");
+      }
+    }
+  }
+
+  Future<void> _handleRemoveMixedCover() async {
+    try {
+      await context.read<LibraryProvider>().removePlaylistCover(_playlist);
+    } catch (error) {
+      if (mounted) {
+        AppFlushbar.error(context, "Couldn't remove cover image: $error");
+      }
+    }
+  }
+
+  Future<void> _handleDeleteMixed() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete playlist?'),
+        content: Text(
+          'This deletes "${_playlist.title}" from PhamiJam. The songs '
+          'themselves are not deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<LibraryProvider>().deleteMixedPlaylist(_playlist);
+      if (!mounted) return;
+      widget.onBack();
+    } catch (error) {
+      if (mounted) {
+        AppFlushbar.error(context, "Couldn't delete playlist: $error");
+      }
+    }
+  }
+
   Future<bool> _handleRemoveTrack(Track track) async {
+    if (_playlist.isMixed) {
+      try {
+        await context.read<LibraryProvider>().removeTrackFromMixedPlaylist(
+          _playlist,
+          track,
+        );
+        if (!mounted) return false;
+        AppFlushbar.success(context, 'Removed from playlist');
+        return true;
+      } catch (error) {
+        if (!mounted) return false;
+        AppFlushbar.error(context, "Couldn't remove track: $error");
+        return false;
+      }
+    }
     if (!_playlist.isFromYoutube) {
       try {
         await context.read<LibraryProvider>().toggleLike(track);
@@ -327,6 +450,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     final library = context.watch<LibraryProvider>();
     final downloads = context.watch<DownloadsProvider>();
     final colorScheme = Theme.of(context).colorScheme;
+    if (_playlist.isMixed) {
+      final live = library.mixedPlaylistById(_playlist.id);
+      if (live != null) _playlist = live;
+    }
     final playlist = _playlist;
     final songCount = playlist.tracks.isNotEmpty
         ? playlist.tracks.length
@@ -426,7 +553,66 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                       color: colorScheme.onSurface,
                                     ),
                                   ),
-                                ] else if ((playlist.isFromYoutube &&
+                                ] else if (playlist.isMixed)
+                                  PopupMenuButton<String>(
+                                    icon: Icon(
+                                      Icons.more_horiz_rounded,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    onSelected: (value) {
+                                      if (value == 'rename') {
+                                        _handleRenameMixed();
+                                      } else if (value == 'cover') {
+                                        _handleChangeMixedCover();
+                                      } else if (value == 'remove_cover') {
+                                        _handleRemoveMixedCover();
+                                      } else if (value == 'delete') {
+                                        _handleDeleteMixed();
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'rename',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(Icons.edit_rounded),
+                                          title: Text('Rename'),
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'cover',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(Icons.image_rounded),
+                                          title: Text('Change cover image'),
+                                        ),
+                                      ),
+                                      if (playlist.customCoverUrl != null &&
+                                          playlist.customCoverUrl!.isNotEmpty)
+                                        const PopupMenuItem(
+                                          value: 'remove_cover',
+                                          child: ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              Icons.hide_image_rounded,
+                                            ),
+                                            title: Text('Remove custom cover'),
+                                          ),
+                                        ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Icon(Icons.delete_rounded),
+                                          title: Text('Delete playlist'),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else if ((playlist.isFromYoutube &&
                                         playlist.isOwnedByUser) ||
                                     playlist.tracks.isNotEmpty)
                                   Builder(
@@ -821,7 +1007,12 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                     ],
                                   )
                                 : Text(
-                                    playlist.isFromYoutube
+                                    playlist.isMixed
+                                        ? 'No songs yet. Use the playlist-add '
+                                              'button on any song, including '
+                                              'Google Drive songs, to add it '
+                                              'here.'
+                                        : playlist.isFromYoutube
                                         ? 'No videos in this playlist'
                                         : 'No liked songs yet. Tap the heart '
                                               'on any track to add it here.',
@@ -876,11 +1067,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                       onRemove: playlist.isOwnedByUser
                           ? () => _handleRemoveTrack(track)
                           : null,
-                      onMore: track.isDriveSourced
-                          ? null
-                          : () => _selectionMode && _selectedTrackIds.isNotEmpty
-                                ? _addSelectedToPlaylist()
-                                : showAddToPlaylistSheet(context, track),
+                      onMore: () =>
+                          _selectionMode && _selectedTrackIds.isNotEmpty
+                          ? _addSelectedToPlaylist()
+                          : showAddToPlaylistSheet(context, track),
                       isLiked: library.isLiked(track),
                       onToggleLike: () => toggleTrackLike(context, track),
                       isDownloaded: downloads.isDownloaded(track.videoId),

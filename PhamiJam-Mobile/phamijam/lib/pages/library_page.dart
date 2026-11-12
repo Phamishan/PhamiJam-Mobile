@@ -106,6 +106,7 @@ class _LibraryPageState extends State<LibraryPage> {
     if (library.userPlaylists.isEmpty &&
         library.likedSongs.isEmpty &&
         library.localFiles.isEmpty &&
+        library.mixedPlaylists.isEmpty &&
         savedPlaylists.playlists.isEmpty) {
       return _EmptyState(onRefresh: library.refresh);
     }
@@ -151,6 +152,29 @@ class _LibraryPageState extends State<LibraryPage> {
               );
             }, childCount: playlists.length + 2),
           ),
+          if (library.mixedPlaylists.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 24),
+                child: SectionHeader(title: 'PhamiJam Playlists'),
+              ),
+            ),
+            SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 0.82,
+              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final playlist = library.mixedPlaylists[index];
+                return _LibraryPlaylistTile(
+                  playlist: playlist,
+                  onTap: () => widget.onOpenPlaylist(playlist),
+                );
+              }, childCount: library.mixedPlaylists.length),
+            ),
+          ],
           if (saved.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: Padding(
@@ -320,7 +344,7 @@ class _LibraryPlaylistTile extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               Text(
-                '${playlist.itemCount} videos',
+                '${playlist.itemCount} ${playlist.isMixed ? 'songs' : 'videos'}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],

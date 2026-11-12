@@ -260,7 +260,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     final library = context.read<LibraryProvider>();
     try {
-      if (playlist.isFromYoutube) {
+      if (playlist.isMixed) {
+        await library.removeTrackFromMixedPlaylist(playlist, track);
+      } else if (playlist.isFromYoutube) {
         await library.removeTrackFromPlaylist(playlist, track);
       } else {
         await library.toggleLike(track);

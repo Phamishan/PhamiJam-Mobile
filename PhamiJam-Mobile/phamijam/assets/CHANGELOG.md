@@ -123,9 +123,9 @@
   - Improved app performance
 - 1.1.8 - 16/10/2026
   - Added "Listen along" and online status for friends
-  - Added a way to submit app logs for support
-  - Fixed offline access sometimes getting completely blocked
-  - Fixed remote control occasionally looping backward through songs
+  - Added a way to submit app logs
+  - Fixed offline access
+  - Fixed remote control
 - 1.1.9 - 26/10/2026
   - Fixed crossfade
   - Fixed playback skipping songs
@@ -141,6 +141,10 @@
   - Fixed playlist cover images not updating on other devices
   - Fixed Listen Along
   - Listen Along links from Discord now open directly in the app
+- 1.2.3 - 12/11/2026
+  - Added mixed playlists
+  - Reduced Firestore usage on friends' profiles and the activity feed
+  - Updated the dark app icon
 
 ## Screenshots:
 

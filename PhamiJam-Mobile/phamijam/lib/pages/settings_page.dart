@@ -335,6 +335,7 @@ class _SettingsPageState extends State<SettingsPage> {
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
       context.read<LibraryProvider>().clearDriveConnection();
+      context.read<LibraryProvider>().clearMixedPlaylists();
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (error) {
       if (mounted) {
