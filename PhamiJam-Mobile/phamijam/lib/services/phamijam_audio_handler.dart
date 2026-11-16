@@ -32,6 +32,7 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
   StreamSubscription<PlayerState>? _playerStateSub;
   StreamSubscription<PlaybackEvent>? _eventSub;
   int _loadRequestId = 0;
+  int get loadRequestId => _loadRequestId;
 
   void _wirePlayerStreams() {
     _playerStateSub = player.playerStateStream.listen((state) {
@@ -280,6 +281,9 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
 
   Future<Uri?> videoOnlyUrlFor(String videoId) =>
       _resolver.videoOnlyUrlFor(videoId);
+
+  Future<List<Uri>> videoOnlyUrlsFor(String videoId) =>
+      _resolver.videoOnlyUrlsFor(videoId);
 
   @override
   Future<void> play() async => onPlayRequested?.call();

@@ -145,6 +145,15 @@
   - Added mixed playlists
   - Reduced Firestore usage on friends' profiles and the activity feed
   - Updated the dark app icon
+- 1.2.4 - 16/11/2026
+  - Added "Play next" to the song menu
+  - Added Download and Edit song to the Now Playing menu
+  - Added a full menu to Recently Played songs
+  - Added Remove to the song menu and sharing for saved playlists
+  - Added a Jamstats shortcut to the profile page
+  - Fixed Jamstats loading slowly
+  - Fixed crossfade pausing for a moment between songs
+  - Fixed the video view showing nothing
 
 ## Screenshots:
 

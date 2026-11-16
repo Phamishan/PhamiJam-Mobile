@@ -200,6 +200,8 @@ class _TrackTileState extends State<TrackTile> {
                   splashRadius: 22,
                 ),
               if (widget.onMore != null ||
+                  widget.onPlayNext != null ||
+                  widget.onRemove != null ||
                   widget.onAddToQueue != null ||
                   widget.onToggleDownload != null ||
                   _canEdit) ...[
@@ -252,6 +254,11 @@ class _TrackTileState extends State<TrackTile> {
                     onSelected: (value) {
                       if (value == 'add_to_playlist') {
                         widget.onMore?.call();
+                      } else if (value == 'play_next') {
+                        widget.onPlayNext?.call();
+                        AppFlushbar.success(context, 'Playing next');
+                      } else if (value == 'remove') {
+                        widget.onRemove?.call();
                       } else if (value == 'add_to_queue') {
                         widget.onAddToQueue?.call();
                         AppFlushbar.success(context, 'Added to queue');
@@ -269,6 +276,15 @@ class _TrackTileState extends State<TrackTile> {
                       }
                     },
                     itemBuilder: (context) => [
+                      if (widget.onPlayNext != null)
+                        const PopupMenuItem(
+                          value: 'play_next',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.playlist_play_rounded),
+                            title: Text('Play next'),
+                          ),
+                        ),
                       if (widget.onMore != null)
                         const PopupMenuItem(
                           value: 'add_to_playlist',
@@ -320,6 +336,21 @@ class _TrackTileState extends State<TrackTile> {
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(Icons.share_rounded),
                             title: Text('Share'),
+                          ),
+                        ),
+                      if (widget.onRemove != null)
+                        PopupMenuItem(
+                          value: 'remove',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              Icons.remove_circle_outline_rounded,
+                              color: colorScheme.error,
+                            ),
+                            title: Text(
+                              'Remove',
+                              style: TextStyle(color: colorScheme.error),
+                            ),
                           ),
                         ),
                     ],
@@ -381,7 +412,7 @@ class _TrackTileState extends State<TrackTile> {
             Icon(Icons.playlist_play_rounded, color: colorScheme.primary),
             const SizedBox(width: 8),
             Text(
-              'Add to play next',
+              'Play next',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: colorScheme.primary,
                 fontWeight: FontWeight.w600,

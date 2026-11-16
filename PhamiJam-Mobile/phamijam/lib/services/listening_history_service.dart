@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -106,24 +107,41 @@ class ListeningHistoryService {
     await flushPending();
   }
 
-  static Future<void> flushPending() async {
+  static const int _batchChunkSize = 450;
+  static Future<void>? _flushInProgress;
+
+  static Future<void> flushPending() {
+    return _flushInProgress ??= _flushPendingInternal().whenComplete(() {
+      _flushInProgress = null;
+    });
+  }
+
+  static Future<void> _flushPendingInternal() async {
     final remote = _remotePlays;
     if (remote == null) return;
     final pending = await _loadPending();
     if (pending.isEmpty) return;
 
-    final remaining = List<PlayEvent>.from(pending);
-    for (final event in pending) {
+    var syncedCount = 0;
+    for (var offset = 0; offset < pending.length; offset += _batchChunkSize) {
+      final chunk = pending.sublist(
+        offset,
+        min(offset + _batchChunkSize, pending.length),
+      );
       try {
-        await remote.doc(event.docId).set(event.toJson()).timeout(_syncTimeout);
-        remaining.remove(event);
+        final batch = FirebaseFirestore.instance.batch();
+        for (final event in chunk) {
+          batch.set(remote.doc(event.docId), event.toJson());
+        }
+        await batch.commit().timeout(_syncTimeout);
+        syncedCount += chunk.length;
       } catch (error) {
         debugPrint('ListeningHistoryService: sync paused: $error');
         break;
       }
     }
-    if (remaining.length != pending.length) {
-      await _savePending(remaining);
+    if (syncedCount > 0) {
+      await _savePending(pending.sublist(syncedCount));
     }
   }
 
@@ -157,7 +175,7 @@ class ListeningHistoryService {
     DateTime since, {
     DateTime? until,
   }) async {
-    await flushPending();
+    unawaited(flushPending());
     final sinceMs = since.millisecondsSinceEpoch;
     final untilMs = until?.millisecondsSinceEpoch;
     final events = <PlayEvent>[];
@@ -206,7 +224,7 @@ class ListeningHistoryService {
   }
 
   static Future<List<PlayEvent>> _eventsForYearInternal(int year) async {
-    await flushPending();
+    unawaited(flushPending());
     final uid = _currentUid;
     final sinceMs = DateTime(year).millisecondsSinceEpoch;
     final untilMs = DateTime(year + 1).millisecondsSinceEpoch;
@@ -439,7 +457,7 @@ class ListeningHistoryService {
   }
 
   static Future<int> _earliestEventYearInternal() async {
-    await flushPending();
+    unawaited(flushPending());
     final uid = _currentUid;
 
     if (uid != null) {

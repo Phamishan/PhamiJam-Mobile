@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/components/changelog_dialog.dart';
 import 'package:phamijam/pages/connect_drive_folder_page.dart';
@@ -64,6 +65,15 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _signingOut = false;
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = info.version);
+    });
+  }
 
   Widget _buildAccentColorSwatch({
     required Color displayColor,
@@ -593,7 +603,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _SettingsTile(
               icon: Icons.info_rounded,
               title: 'About PhamiJam',
-              subtitle: 'Version 1.2.2',
+              subtitle: _version.isEmpty ? 'Version' : 'Version $_version',
               onTap: () => showChangelogDialog(context),
               color: colorScheme.onSurface,
             ),

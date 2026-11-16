@@ -430,7 +430,20 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
           await _audioHandler.player.setVolume(volume);
         } catch (_) {}
       },
-      onComplete: (startAt) async {
+      onHandoff: (fadePlayer, crossRamp) async {
+        _queueIndex = nextIndex;
+        _currentTrack = nextTrack;
+        notifyListeners();
+        final handedOff = await _startTrackFromFadePlayer(
+          nextTrack,
+          fadePlayer,
+          crossRamp,
+        );
+        notifyListeners();
+        _persistSession();
+        return handedOff;
+      },
+      onFallback: (startAt) async {
         _queueIndex = nextIndex;
         _currentTrack = nextTrack;
         notifyListeners();
@@ -792,10 +805,14 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool get isLoadingTrack => _isRemoteControlling ? false : _isLoadingTrack;
   VideoSurfaceHost get videoSurfaceHost => _videoSurfaceHost;
 
-  Future<Uri?> videoOnlyUrlForCurrentTrack() {
-    final videoId = _currentTrack?.videoId;
-    if (videoId == null || videoId.isEmpty) return Future.value(null);
-    return _audioHandler.videoOnlyUrlFor(videoId);
+  Future<List<Uri>> videoOnlyUrlsForCurrentTrack() {
+    final track = _currentTrack;
+    final videoId = track?.videoId;
+    if (track == null || videoId == null || videoId.isEmpty) {
+      return Future.value(const []);
+    }
+    if (track.isDriveSourced) return Future.value(const []);
+    return _audioHandler.videoOnlyUrlsFor(videoId);
   }
 
   void setVideoSurfaceHost(VideoSurfaceHost host) {
@@ -838,6 +855,56 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       _prefetchUpcomingTracks();
       _pushSessionIfHosting();
       _pushNowPlayingIfActive();
+    } finally {
+      _isLoadingTrack = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> _startTrackFromFadePlayer(
+    Track track,
+    AudioPlayer fadePlayer,
+    Future<void> Function() crossRamp,
+  ) async {
+    _finalizeActivePlay();
+    _beginActivePlay(track);
+    _loaded = true;
+    _isLoadingTrack = true;
+
+    final videoId = track.videoId;
+    final trim = (videoId != null && videoId.isNotEmpty)
+        ? _trimLookup?.call(videoId, _currentSourcePlaylist?.id)
+        : null;
+    _trimStart = trim != null ? Duration(milliseconds: trim.startMs) : null;
+    _trimEnd = trim != null ? Duration(milliseconds: trim.endMs) : null;
+    notifyListeners();
+
+    try {
+      final preloadAt = _clampToTrim(
+        fadePlayer.position + const Duration(milliseconds: 400),
+      );
+      final loading = _audioHandler.loadTrack(
+        track,
+        startAt: preloadAt,
+        autoPlay: false,
+      );
+      final requestId = _audioHandler.loadRequestId;
+      await loading;
+      if (_audioHandler.loadRequestId != requestId) return true;
+
+      await _audioHandler.player.setVolume(0);
+      await _audioHandler.player.seek(
+        _clampToTrim(fadePlayer.position + const Duration(milliseconds: 120)),
+      );
+      unawaited(_audioHandler.player.play());
+      await crossRamp();
+      _prefetchUpcomingTracks();
+      _pushSessionIfHosting();
+      _pushNowPlayingIfActive();
+      return true;
+    } catch (error) {
+      debugPrint('[crossfade] handoff to main player failed: $error');
+      return false;
     } finally {
       _isLoadingTrack = false;
       notifyListeners();

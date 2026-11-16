@@ -100,6 +100,12 @@ class DownloadsPage extends StatelessWidget {
                                       [for (final d in tracks) d.track],
                                       startIndex: i,
                                     ),
+                                onPlayNext: () => context
+                                    .read<PlayerProvider>()
+                                    .playNext(tracks[i].track),
+                                onAddToQueue: () => context
+                                    .read<PlayerProvider>()
+                                    .addToQueue(tracks[i].track),
                                 isDownloaded: true,
                                 onToggleDownload: () =>
                                     downloads.remove(tracks[i].track.videoId!),

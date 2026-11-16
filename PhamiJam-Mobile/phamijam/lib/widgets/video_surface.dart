@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -16,7 +16,10 @@ class _VideoSurfaceState extends State<VideoSurface> {
   Timer? _driftTimer;
   String? _loadedForTrackId;
   bool _loading = false;
+  bool _failed = false;
+  String? _failedForTrackId;
 
+  static const _candidateTimeout = Duration(seconds: 12);
   static const _driftCheckInterval = Duration(seconds: 2);
   static const _driftTolerance = Duration(milliseconds: 350);
 
@@ -59,34 +62,50 @@ class _VideoSurfaceState extends State<VideoSurface> {
       return;
     }
     if (track.id == _loadedForTrackId && _controller != null) return;
+    if (track.id == _failedForTrackId) return;
     if (_loading) return;
     _loading = true;
+    if (_failed) {
+      _failed = false;
+      if (mounted) setState(() {});
+    }
 
     try {
-      final url = await widget.player.videoOnlyUrlForCurrentTrack();
+      final urls = await widget.player.videoOnlyUrlsForCurrentTrack();
       if (!mounted || widget.player.currentTrack?.id != track.id) return;
-      if (url == null) {
-        await _teardown();
-        return;
-      }
 
       await _teardown();
-      final controller = VideoPlayerController.networkUrl(
-        url,
-        httpHeaders: _youtubeHttpHeaders,
-        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-      );
-      _controller = controller;
-      await controller.initialize();
-      if (!mounted || widget.player.currentTrack?.id != track.id) {
-        await controller.dispose();
-        if (_controller == controller) _controller = null;
+      VideoPlayerController? ready;
+      for (final url in urls) {
+        final controller = VideoPlayerController.networkUrl(
+          url,
+          httpHeaders: _youtubeHttpHeaders,
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
+        try {
+          await controller.initialize().timeout(_candidateTimeout);
+          ready = controller;
+          break;
+        } catch (error) {
+          debugPrint('VideoSurface: candidate failed for ${track.id}: $error');
+          await controller.dispose();
+          if (!mounted || widget.player.currentTrack?.id != track.id) return;
+        }
+      }
+
+      if (ready == null) {
+        _markFailed(track.id);
         return;
       }
-      await controller.setVolume(0);
-      await controller.seekTo(widget.player.position);
+      if (!mounted || widget.player.currentTrack?.id != track.id) {
+        await ready.dispose();
+        return;
+      }
+      _controller = ready;
+      await ready.setVolume(0);
+      await ready.seekTo(widget.player.position);
       if (widget.player.isPlaying) {
-        await controller.play();
+        await ready.play();
       }
       _loadedForTrackId = track.id;
       _driftTimer = Timer.periodic(_driftCheckInterval, (_) => _correctDrift());
@@ -95,9 +114,16 @@ class _VideoSurfaceState extends State<VideoSurface> {
       debugPrint('VideoSurface: failed to load video for ${track.id}: $error');
       debugPrintStack(stackTrace: stackTrace);
       await _teardown();
+      _markFailed(track.id);
     } finally {
       _loading = false;
     }
+  }
+
+  void _markFailed(String trackId) {
+    _failedForTrackId = trackId;
+    _failed = true;
+    if (mounted) setState(() {});
   }
 
   Future<void> _correctDrift() async {
@@ -143,7 +169,26 @@ class _VideoSurfaceState extends State<VideoSurface> {
   Widget build(BuildContext context) {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) {
-      return const SizedBox.shrink();
+      final colorScheme = Theme.of(context).colorScheme;
+      return ColoredBox(
+        color: colorScheme.surfaceContainerHigh,
+        child: Center(
+          child: _failed
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Video isn\'t available for this song',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                )
+              : const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+        ),
+      );
     }
     return ClipRect(
       child: Transform.scale(

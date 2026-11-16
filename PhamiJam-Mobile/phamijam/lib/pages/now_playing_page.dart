@@ -2,6 +2,8 @@ import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
+import 'package:phamijam/components/download_action.dart';
+import 'package:phamijam/components/edit_track_dialog.dart';
 import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/pages/fullscreen_video_page.dart';
@@ -13,6 +15,7 @@ import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/pull_down_to_dismiss.dart';
 import 'package:phamijam/widgets/remote_control_badge.dart';
 import 'package:phamijam/components/sleep_timer_sheet.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/scrim_icon_button.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
@@ -261,6 +264,10 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                           );
                                         case 'sleep_timer':
                                           showSleepTimerSheet(context);
+                                        case 'download':
+                                          toggleTrackDownload(context, track);
+                                        case 'edit_trim':
+                                          showEditTrackDialog(context, track);
                                         case 'share':
                                           ShareLinkService.shareTrack(
                                             context,
@@ -303,6 +310,44 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                           ),
                                         ),
                                       ),
+                                      if ((track.videoId ?? '').isNotEmpty &&
+                                          !track.isDriveSourced)
+                                        PopupMenuItem(
+                                          value: 'download',
+                                          child: ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              context
+                                                      .read<DownloadsProvider>()
+                                                      .isDownloaded(
+                                                        track.videoId,
+                                                      )
+                                                  ? Icons.download_done_rounded
+                                                  : Icons.download_rounded,
+                                            ),
+                                            title: Text(
+                                              context
+                                                      .read<DownloadsProvider>()
+                                                      .isDownloaded(
+                                                        track.videoId,
+                                                      )
+                                                  ? 'Remove download'
+                                                  : 'Download',
+                                            ),
+                                          ),
+                                        ),
+                                      if ((track.videoId ?? '').isNotEmpty &&
+                                          !track.isDriveSourced)
+                                        const PopupMenuItem(
+                                          value: 'edit_trim',
+                                          child: ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: Icon(
+                                              Icons.content_cut_rounded,
+                                            ),
+                                            title: Text('Edit song'),
+                                          ),
+                                        ),
                                       if ((track.videoId ?? '').isNotEmpty &&
                                           !track.isDriveSourced)
                                         const PopupMenuItem(

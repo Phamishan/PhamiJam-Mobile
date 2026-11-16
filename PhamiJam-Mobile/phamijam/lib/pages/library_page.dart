@@ -7,6 +7,7 @@ import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/saved_playlists_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
+import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/section_header.dart';
 import 'package:provider/provider.dart';
@@ -197,6 +198,8 @@ class _LibraryPageState extends State<LibraryPage> {
                   onLongPress: () => savedPlaylists.unsave(playlist.id),
                   onTogglePin: null,
                   onUnsave: () => savedPlaylists.unsave(playlist.id),
+                  onShare: () =>
+                      ShareLinkService.sharePlaylist(context, playlist),
                 );
               }, childCount: saved.length),
             ),
@@ -214,6 +217,7 @@ class _LibraryPlaylistTile extends StatelessWidget {
   final VoidCallback? onLongPress;
   final VoidCallback? onTogglePin;
   final VoidCallback? onUnsave;
+  final VoidCallback? onShare;
 
   const _LibraryPlaylistTile({
     required this.playlist,
@@ -221,6 +225,7 @@ class _LibraryPlaylistTile extends StatelessWidget {
     this.onLongPress,
     this.onTogglePin,
     this.onUnsave,
+    this.onShare,
   });
 
   @override
@@ -275,7 +280,9 @@ class _LibraryPlaylistTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                    if (onTogglePin != null || onUnsave != null)
+                    if (onTogglePin != null ||
+                        onUnsave != null ||
+                        onShare != null)
                       Positioned(
                         top: 4,
                         right: 4,
@@ -291,8 +298,18 @@ class _LibraryPlaylistTile extends StatelessWidget {
                             onSelected: (value) {
                               if (value == 'toggle_pin') onTogglePin?.call();
                               if (value == 'unsave') onUnsave?.call();
+                              if (value == 'share') onShare?.call();
                             },
                             itemBuilder: (context) => [
+                              if (onShare != null)
+                                const PopupMenuItem(
+                                  value: 'share',
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(Icons.share_rounded),
+                                    title: Text('Share playlist'),
+                                  ),
+                                ),
                               if (onUnsave != null)
                                 const PopupMenuItem(
                                   value: 'unsave',

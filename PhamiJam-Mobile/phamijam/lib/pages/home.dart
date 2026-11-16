@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:phamijam/components/add_to_playlist_sheet.dart';
+import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/components/download_action.dart';
+import 'package:phamijam/components/edit_track_dialog.dart';
 import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/components/playlist_pin_action.dart';
 import 'package:phamijam/models/playlist.dart';
@@ -9,6 +11,7 @@ import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/services/download_service.dart';
+import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/playlist_card.dart';
 import 'package:phamijam/widgets/recent_artists_row.dart';
 import 'package:phamijam/widgets/recent_track_card.dart';
@@ -101,6 +104,17 @@ class HomePage extends StatelessWidget {
                           startIndex: index,
                         ),
                         onMore: () => showAddToPlaylistSheet(context, track),
+                        onPlayNext: () {
+                          player.playNext(track);
+                          AppFlushbar.success(context, 'Playing next');
+                        },
+                        onAddToQueue: () {
+                          player.addToQueue(track);
+                          AppFlushbar.success(context, 'Added to queue');
+                        },
+                        onEditSong: () => showEditTrackDialog(context, track),
+                        onShare: () =>
+                            ShareLinkService.shareTrack(context, track),
                         isLiked: library.isLiked(track),
                         onToggleLike: () => toggleTrackLike(context, track),
                         isDownloaded: downloads.isDownloaded(track.videoId),

@@ -5,13 +5,15 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 class ResolvedStreams {
   const ResolvedStreams({
     required this.audioUrls,
-    required this.videoOnlyUrl,
+    required this.videoOnlyUrls,
     required this.expiresAt,
   });
 
   final List<Uri> audioUrls;
-  final Uri? videoOnlyUrl;
+  final List<Uri> videoOnlyUrls;
   final DateTime expiresAt;
+
+  Uri? get videoOnlyUrl => videoOnlyUrls.isEmpty ? null : videoOnlyUrls.first;
 
   Uri get audioUrl => audioUrls.first;
 
@@ -153,34 +155,43 @@ class AudioStreamResolver {
   ResolvedStreams _pickStreams(StreamManifest manifest) {
     final audioUrls = _pickAudioCandidates(manifest);
 
-    final mp4VideoCandidates = manifest.videoOnly
-        .where((s) => s.container == StreamContainer.mp4)
-        .where((s) => s.videoResolution.height <= 480)
-        .toList()
-        .sortByBitrate();
-    final anyVideoCandidates = manifest.videoOnly
-        .where((s) => s.videoResolution.height <= 480)
-        .toList()
-        .sortByBitrate();
-    final videoCandidates = mp4VideoCandidates.isNotEmpty
-        ? mp4VideoCandidates
-        : anyVideoCandidates;
-    final video = videoCandidates.isNotEmpty
-        ? videoCandidates.first
-        : (manifest.videoOnly.isNotEmpty
-              ? manifest.videoOnly.sortByBitrate().last
-              : null);
-
     return ResolvedStreams(
       audioUrls: audioUrls,
-      videoOnlyUrl: video?.url,
+      videoOnlyUrls: _pickVideoCandidates(manifest),
       expiresAt: DateTime.now().add(const Duration(hours: 4)),
     );
+  }
+
+  static int _videoRank(VideoOnlyStreamInfo s) {
+    final codec = s.videoCodec.toLowerCase();
+    final isMp4 = s.container == StreamContainer.mp4;
+    if (codec.startsWith('avc1') && isMp4) return 0;
+    if (isMp4 && !codec.startsWith('av01')) return 1;
+    if (!codec.startsWith('av01') && !codec.startsWith('vp09')) return 2;
+    if (codec.startsWith('vp09')) return 3;
+    return 4;
+  }
+
+  List<Uri> _pickVideoCandidates(StreamManifest manifest) {
+    final all = manifest.videoOnly.toList();
+    final small = all.where((s) => s.videoResolution.height <= 480).toList();
+    final pool = small.isNotEmpty ? small : all;
+    pool.sort((a, b) {
+      final byRank = _videoRank(a).compareTo(_videoRank(b));
+      if (byRank != 0) return byRank;
+      return b.bitrate.compareTo(a.bitrate);
+    });
+    return pool.map((s) => s.url).toList();
   }
 
   Future<Uri?> videoOnlyUrlFor(String videoId) async {
     final resolved = await resolve(videoId);
     return resolved.videoOnlyUrl;
+  }
+
+  Future<List<Uri>> videoOnlyUrlsFor(String videoId) async {
+    final resolved = await resolve(videoId);
+    return resolved.videoOnlyUrls;
   }
 
   void invalidate(String videoId) => _cache.remove(videoId);

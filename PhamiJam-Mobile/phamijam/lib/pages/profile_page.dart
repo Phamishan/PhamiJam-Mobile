@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/pages/friends_page.dart';
+import 'package:phamijam/pages/jamstats_page.dart';
 import 'package:phamijam/pages/settings_page.dart';
 import 'package:phamijam/providers/friends_provider.dart';
 import 'package:phamijam/providers/profile_grid_provider.dart';
@@ -112,6 +113,13 @@ class _ProfilePageState extends State<ProfilePage> {
               ]
             : [
                 _FriendsIconButton(),
+                IconButton(
+                  tooltip: 'Jamstats',
+                  icon: const Icon(Icons.insights_rounded),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const JamstatsPage()),
+                  ),
+                ),
                 IconButton(
                   icon: const Icon(Icons.ios_share_rounded),
                   onPressed: () => ShareLinkService.shareProfile(

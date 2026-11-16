@@ -21,7 +21,12 @@ class CrossfadeController {
     required double targetVolume,
     required Duration Function() remainingOnMain,
     required Future<void> Function(double volume0to1) setMainVolume,
-    required Future<void> Function(Duration startAt) onComplete,
+    required Future<bool> Function(
+      AudioPlayer fadePlayer,
+      Future<void> Function() crossRamp,
+    )
+    onHandoff,
+    required Future<void> Function(Duration startAt) onFallback,
   }) async {
     cancel();
 
@@ -104,25 +109,57 @@ class CrossfadeController {
       debugPrint('[crossfade] cancelled during ramp, aborting handoff');
       return;
     }
-    final startAt = fadePlayer.position;
     debugPrint(
-      '[crossfade] ramp complete in ${stopwatch.elapsedMilliseconds}ms, handing off at $startAt',
+      '[crossfade] ramp complete in ${stopwatch.elapsedMilliseconds}ms, '
+      'handing off at ${fadePlayer.position}',
     );
     _fadePlayer = null;
     _restoreMainVolume = null;
     try {
-      await fadePlayer.pause();
-    } catch (_) {}
-    try {
-      await onComplete(startAt);
+      var handedOff = false;
+      try {
+        handedOff = await onHandoff(
+          fadePlayer,
+          () => _crossRamp(fadePlayer, setMainVolume, targetVolume),
+        );
+      } catch (error, stackTrace) {
+        debugPrint('[crossfade] onHandoff FAILED: $error\n$stackTrace');
+      }
+      if (!handedOff) {
+        final startAt = fadePlayer.position;
+        try {
+          await fadePlayer.pause();
+        } catch (_) {}
+        await onFallback(startAt);
+      } else {
+        try {
+          await fadePlayer.pause();
+        } catch (_) {}
+      }
       await setMainVolume(targetVolume);
     } catch (error, stackTrace) {
-      debugPrint('[crossfade] onComplete FAILED: $error\n$stackTrace');
+      debugPrint('[crossfade] handoff cleanup FAILED: $error\n$stackTrace');
     } finally {
       _active = false;
     }
     debugPrint('[crossfade] handoff complete');
     unawaited(_safeDispose(fadePlayer));
+  }
+
+  Future<void> _crossRamp(
+    AudioPlayer fadePlayer,
+    Future<void> Function(double) setMainVolume,
+    double targetVolume,
+  ) async {
+    const steps = 8;
+    for (var i = 1; i <= steps; i++) {
+      final t = i / steps;
+      await Future.wait([
+        setMainVolume(sin(t * pi / 2) * targetVolume),
+        _safeSetVolume(fadePlayer, cos(t * pi / 2) * targetVolume),
+      ]);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
   }
 
   Future<void> _safeSetVolume(AudioPlayer fadePlayer, double volume) async {

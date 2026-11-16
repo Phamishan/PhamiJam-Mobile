@@ -13,6 +13,10 @@ class RecentTrackCard extends StatefulWidget {
   final VoidCallback? onToggleLike;
   final bool isDownloaded;
   final VoidCallback? onToggleDownload;
+  final VoidCallback? onPlayNext;
+  final VoidCallback? onAddToQueue;
+  final VoidCallback? onEditSong;
+  final VoidCallback? onShare;
 
   const RecentTrackCard({
     super.key,
@@ -24,6 +28,10 @@ class RecentTrackCard extends StatefulWidget {
     this.onToggleLike,
     this.isDownloaded = false,
     this.onToggleDownload,
+    this.onPlayNext,
+    this.onAddToQueue,
+    this.onEditSong,
+    this.onShare,
     this.width = 140,
   });
 
@@ -93,10 +101,104 @@ class _RecentTrackCardState extends State<RecentTrackCard> {
                     Positioned(
                       top: 4,
                       right: 4,
-                      child: ScrimIconButton(
-                        icon: Icons.playlist_add_rounded,
-                        onTap: widget.onMore!,
-                        tooltip: 'Add to playlist',
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        shape: const CircleBorder(),
+                        child: PopupMenuButton<String>(
+                          tooltip: 'More options',
+                          padding: EdgeInsets.zero,
+                          splashRadius: 16,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          onSelected: (value) {
+                            switch (value) {
+                              case 'play_next':
+                                widget.onPlayNext?.call();
+                              case 'add_to_queue':
+                                widget.onAddToQueue?.call();
+                              case 'add_to_playlist':
+                                widget.onMore?.call();
+                              case 'download':
+                                widget.onToggleDownload?.call();
+                              case 'edit_trim':
+                                widget.onEditSong?.call();
+                              case 'share':
+                                widget.onShare?.call();
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            if (widget.onPlayNext != null)
+                              const PopupMenuItem(
+                                value: 'play_next',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(Icons.playlist_play_rounded),
+                                  title: Text('Play next'),
+                                ),
+                              ),
+                            if (widget.onAddToQueue != null)
+                              const PopupMenuItem(
+                                value: 'add_to_queue',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(Icons.queue_music_rounded),
+                                  title: Text('Add to queue'),
+                                ),
+                              ),
+                            const PopupMenuItem(
+                              value: 'add_to_playlist',
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.playlist_add_rounded),
+                                title: Text('Add to playlist'),
+                              ),
+                            ),
+                            if (widget.onToggleDownload != null)
+                              PopupMenuItem(
+                                value: 'download',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(
+                                    widget.isDownloaded
+                                        ? Icons.download_done_rounded
+                                        : Icons.download_rounded,
+                                  ),
+                                  title: Text(
+                                    widget.isDownloaded
+                                        ? 'Remove download'
+                                        : 'Download',
+                                  ),
+                                ),
+                              ),
+                            if (widget.onEditSong != null)
+                              const PopupMenuItem(
+                                value: 'edit_trim',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(Icons.content_cut_rounded),
+                                  title: Text('Edit song'),
+                                ),
+                              ),
+                            if (widget.onShare != null)
+                              const PopupMenuItem(
+                                value: 'share',
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(Icons.share_rounded),
+                                  title: Text('Share'),
+                                ),
+                              ),
+                          ],
+                          child: const Padding(
+                            padding: EdgeInsets.all(7),
+                            child: Icon(
+                              Icons.more_horiz_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   if (widget.onToggleDownload != null)
