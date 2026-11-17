@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/models/play_event.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ListeningHistoryService {
@@ -53,7 +54,7 @@ class ListeningHistoryService {
             .toList();
       }
     } catch (error) {
-      debugPrint('ListeningHistoryService: failed to parse buffer: $error');
+      Log.w('history', 'failed to parse buffer', error);
     }
     return [];
   }
@@ -68,7 +69,7 @@ class ListeningHistoryService {
         jsonEncode(events.map((e) => e.toJson()).toList()),
       );
     } catch (error) {
-      debugPrint('ListeningHistoryService: failed to save buffer: $error');
+      Log.w('history', 'failed to save buffer', error);
     }
   }
 
@@ -88,6 +89,11 @@ class ListeningHistoryService {
     if (listenedMs < threshold) return;
     if (durationMs > 0) listenedMs = min(listenedMs, durationMs);
 
+    Log.i(
+      'history',
+      'recording play of "${track.title}" '
+          '(${(listenedMs / 1000).round()}s listened)',
+    );
     final pending = List<PlayEvent>.from(await _loadPending())
       ..add(
         PlayEvent(
@@ -121,6 +127,7 @@ class ListeningHistoryService {
     if (remote == null) return;
     final pending = await _loadPending();
     if (pending.isEmpty) return;
+    Log.i('history', 'syncing ${pending.length} unsynced plays');
 
     var syncedCount = 0;
     for (var offset = 0; offset < pending.length; offset += _batchChunkSize) {
@@ -136,12 +143,20 @@ class ListeningHistoryService {
         await batch.commit().timeout(_syncTimeout);
         syncedCount += chunk.length;
       } catch (error) {
-        debugPrint('ListeningHistoryService: sync paused: $error');
+        Log.w(
+          'history',
+          'sync paused after $syncedCount of ${pending.length} plays',
+          error,
+        );
         break;
       }
     }
     if (syncedCount > 0) {
       await _savePending(pending.sublist(syncedCount));
+      Log.i(
+        'history',
+        'synced $syncedCount plays, ${pending.length - syncedCount} left',
+      );
     }
   }
 
@@ -196,7 +211,7 @@ class ListeningHistoryService {
           if (event != null) events.add(event);
         }
       } catch (error) {
-        debugPrint('ListeningHistoryService: remote fetch failed: $error');
+        Log.w('history', 'remote fetch failed', error);
       }
     }
 
@@ -272,7 +287,7 @@ class ListeningHistoryService {
         );
       }
     } catch (error) {
-      debugPrint('ListeningHistoryService: year fetch failed: $error');
+      Log.w('history', 'year fetch failed', error);
     }
 
     return _mergeWithPending(events, sinceMs, untilMs);
@@ -306,7 +321,7 @@ class ListeningHistoryService {
         closed: decoded['closed'] == true,
       );
     } catch (error) {
-      debugPrint('ListeningHistoryService: failed to parse year cache: $error');
+      Log.w('history', 'failed to parse year cache', error);
       return null;
     }
   }
@@ -329,7 +344,7 @@ class ListeningHistoryService {
         }),
       );
     } catch (error) {
-      debugPrint('ListeningHistoryService: failed to save year cache: $error');
+      Log.w('history', 'failed to save year cache', error);
     }
   }
 
@@ -352,7 +367,7 @@ class ListeningHistoryService {
           if (event != null) events.add(event);
         }
       } catch (error) {
-        debugPrint('ListeningHistoryService: recent fetch failed: $error');
+        Log.w('history', 'recent fetch failed', error);
       }
     }
 
@@ -411,7 +426,7 @@ class ListeningHistoryService {
         if (event != null) events.add(event);
       }
     } catch (error) {
-      debugPrint('ListeningHistoryService: remote fetch failed: $error');
+      Log.w('history', 'remote fetch failed', error);
     }
 
     events.sort((a, b) => a.startedAt.compareTo(b.startedAt));
@@ -437,7 +452,7 @@ class ListeningHistoryService {
         if (event != null) events.add(event);
       }
     } catch (error) {
-      debugPrint('ListeningHistoryService: recent fetch failed: $error');
+      Log.w('history', 'recent fetch failed', error);
     }
     return events;
   }
@@ -489,7 +504,7 @@ class ListeningHistoryService {
           if (event != null) earliest = event.startedAt;
         }
       } catch (error) {
-        debugPrint('ListeningHistoryService: earliest fetch failed: $error');
+        Log.w('history', 'earliest fetch failed', error);
       }
     }
 

@@ -20,11 +20,13 @@ import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/drive_folder_service.dart';
 import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/google_drive_auth_service.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/presence_service.dart';
 import 'package:phamijam/services/push_notification_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const String _logSubmissionEmail = 'phamishan@phamishan.dk';
@@ -300,29 +302,43 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _submitLog() async {
-    final logText = await LogService.instance.fullLogText();
-    if (logText.trim().isEmpty) {
+    Log.i('settings', 'submit log pressed');
+    final fullReport = await LogService.instance.buildReport();
+    if (fullReport.trim().isEmpty) {
       if (mounted) AppFlushbar.error(context, 'No log recorded yet.');
       return;
     }
+    final subject = 'PhamiJam Mobile log - ${DateTime.now().toIso8601String()}';
 
-    final body = logText.length > _maxLogEmailBodyChars
-        ? '(showing the most recent part of the log)\n\n'
-              '${logText.substring(logText.length - _maxLogEmailBodyChars)}'
-        : logText;
+    try {
+      final dir = await getTemporaryDirectory();
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${dir.path}/phamijam_log_$stamp.txt');
+      await file.writeAsString(fullReport, flush: true);
+      final result = await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'text/plain')],
+          subject: subject,
+          text: 'PhamiJam log report - sent to $_logSubmissionEmail',
+        ),
+      );
+      if (result.status != ShareResultStatus.unavailable) return;
+    } catch (error) {
+      Log.w('settings', 'sharing the log file failed, using email', error);
+    }
 
+    final body = await LogService.instance.buildReport(
+      maxChars: _maxLogEmailBodyChars,
+    );
     final mailtoUri = Uri(
       scheme: 'mailto',
       path: _logSubmissionEmail,
-      queryParameters: {
-        'subject': 'PhamiJam Mobile log - ${DateTime.now().toIso8601String()}',
-        'body': 'Platform: ${Platform.operatingSystem}\n\n$body',
-      },
+      queryParameters: {'subject': subject, 'body': body},
     );
 
     final launched = await launchUrl(mailtoUri);
     if (!launched) {
-      await Clipboard.setData(ClipboardData(text: logText));
+      await Clipboard.setData(ClipboardData(text: fullReport));
       if (mounted) {
         AppFlushbar.error(
           context,
@@ -681,7 +697,6 @@ class _SettingsTile extends StatelessWidget {
               ),
               if (onInfoTap != null)
                 IconButton(
-                  tooltip: 'More info',
                   onPressed: onInfoTap,
                   visualDensity: VisualDensity.compact,
                   icon: Icon(

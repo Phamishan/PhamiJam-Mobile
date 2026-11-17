@@ -11,6 +11,7 @@ import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
@@ -102,9 +103,16 @@ class _SearchPageState extends State<SearchPage> {
       _error = null;
     });
     final engine = context.read<SettingsProvider>().searchEngine;
+    final searchWatch = Stopwatch()..start();
+    Log.i('search', 'searching ${engine.name} (query length ${query.length})');
     try {
       if (engine == SearchEngine.youtube) {
         final results = await YoutubeService.searchVideos(query);
+        Log.i(
+          'search',
+          'YouTube returned ${results.length} results in '
+              '${searchWatch.elapsedMilliseconds} ms',
+        );
         if (!mounted || query != widget.query) return;
         setState(() {
           _results = results;
@@ -121,6 +129,12 @@ class _SearchPageState extends State<SearchPage> {
           ytmusic.search(query, filter: SearchFilterType.artists, limit: 6),
           ytmusic.search(query, filter: SearchFilterType.albums, limit: 6),
         ]);
+        Log.i(
+          'search',
+          'YouTube Music returned ${lists[0].length} songs, '
+              '${lists[1].length} artists, ${lists[2].length} albums in '
+              '${searchWatch.elapsedMilliseconds} ms',
+        );
         if (!mounted || query != widget.query) return;
         final songs = lists[0]
             .whereType<Map>()
@@ -149,7 +163,8 @@ class _SearchPageState extends State<SearchPage> {
           _searchedQuery = query;
         });
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
+      Log.e('search', 'search failed (${engine.name})', error, stackTrace);
       if (!mounted || query != widget.query) return;
       setState(() {
         _loading = false;
@@ -483,6 +498,12 @@ class _BrowseViewState extends State<_BrowseView> {
         }),
       ]);
 
+      Log.i(
+        'search',
+        'browse loaded: ${newReleases.length} new releases, '
+            '${forYou.length} for you'
+            '${firstError == null ? '' : ' (partial error: $firstError)'}',
+      );
       if (!mounted) return;
       if (newReleases.isEmpty && forYou.isEmpty && firstError != null) {
         setState(() {
@@ -505,7 +526,9 @@ class _BrowseViewState extends State<_BrowseView> {
           subscriberCounts = await YoutubeService.fetchChannelSubscriberCounts(
             artistIds,
           );
-        } catch (_) {}
+        } catch (error) {
+          Log.w('search', 'subscriber counts failed', error);
+        }
       }
 
       if (!mounted) return;
@@ -515,7 +538,8 @@ class _BrowseViewState extends State<_BrowseView> {
         _artistSubscriberCounts = subscriberCounts;
         _loading = false;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
+      Log.e('search', 'browse load failed', error, stackTrace);
       if (!mounted) return;
       setState(() {
         _loading = false;

@@ -7,6 +7,7 @@ import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/drive_duration_cache_service.dart';
 import 'package:phamijam/services/drive_folder_service.dart';
 import 'package:phamijam/services/google_drive_auth_service.dart';
+import 'package:phamijam/services/log_service.dart';
 
 const String phamiJamFolderName = 'PhamiJam';
 
@@ -174,6 +175,7 @@ class GoogleDriveService {
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       return payload['mimeType'] == 'application/vnd.google-apps.folder';
     } catch (error) {
+      Log.e('drive', 'can access folder failed', error);
       debugPrint('$_logTag: folder access check failed: $error');
       return false;
     }

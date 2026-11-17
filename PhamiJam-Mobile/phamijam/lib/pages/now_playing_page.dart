@@ -6,6 +6,7 @@ import 'package:phamijam/components/download_action.dart';
 import 'package:phamijam/components/edit_track_dialog.dart';
 import 'package:phamijam/components/like_action.dart';
 import 'package:phamijam/pages/artist_page.dart';
+import 'package:phamijam/widgets/artist_line.dart';
 import 'package:phamijam/pages/fullscreen_video_page.dart';
 import 'package:phamijam/pages/lyrics_page.dart';
 import 'package:phamijam/pages/queue_page.dart';
@@ -106,7 +107,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     child: Align(
                                       alignment: Alignment.centerLeft,
                                       child: IconButton(
-                                        tooltip: 'Close',
                                         onPressed: () =>
                                             Navigator.of(context).pop(),
                                         icon: Icon(
@@ -127,7 +127,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     child: Align(
                                       alignment: Alignment.centerRight,
                                       child: IconButton(
-                                        tooltip: 'Volume',
                                         onPressed: () =>
                                             showVolumeSheet(context),
                                         icon: Icon(
@@ -186,7 +185,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                                         _openFullscreen(
                                                           context,
                                                         ),
-                                                    tooltip: 'Fullscreen',
                                                   ),
                                                 if (showingVideo)
                                                   const SizedBox(width: 8),
@@ -197,9 +195,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                                             .smart_display_rounded,
                                                   onTap: () =>
                                                       _toggleVideoMode(player),
-                                                  tooltip: showingVideo
-                                                      ? 'Show artwork'
-                                                      : 'Show video',
                                                 ),
                                               ],
                                             ),
@@ -215,9 +210,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   IconButton(
-                                    tooltip: library.isLiked(track)
-                                        ? 'Unlike'
-                                        : 'Like',
                                     onPressed: () =>
                                         toggleTrackLike(context, track),
                                     icon: Icon(
@@ -230,7 +222,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   IconButton(
-                                    tooltip: 'Add to playlist',
                                     onPressed: () =>
                                         showAddToPlaylistSheet(context, track),
                                     icon: Icon(
@@ -239,7 +230,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   PopupMenuButton<String>(
-                                    tooltip: 'More options',
                                     icon: Icon(
                                       Icons.more_vert_rounded,
                                       color: colorScheme.onSurface,
@@ -407,14 +397,15 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     channelId: track.channelId,
                                     artistName: track.artist,
                                   );
-                                  final artistText = Text(
-                                    track.artist,
-                                    style: Theme.of(context).textTheme.bodyLarge
-                                        ?.copyWith(
-                                          decoration: onArtistTap == null
-                                              ? null
-                                              : TextDecoration.underline,
-                                        ),
+                                  final artistText = ArtistLine(
+                                    artist: track.artist,
+                                    title: track.title,
+                                    videoId: track.videoId,
+                                    maxLines: 2,
+                                    underlineArtist: onArtistTap != null,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge,
                                   );
                                   return onArtistTap == null
                                       ? artistText
@@ -446,9 +437,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   IconButton(
-                                    tooltip: player.shuffle
-                                        ? 'Shuffle on'
-                                        : 'Shuffle off',
                                     onPressed: player.toggleShuffle,
                                     icon: Icon(
                                       Icons.shuffle_rounded,
@@ -458,7 +446,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   IconButton(
-                                    tooltip: 'Previous',
                                     onPressed: player.previous,
                                     iconSize: 34,
                                     icon: Icon(
@@ -503,7 +490,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   IconButton(
-                                    tooltip: 'Next',
                                     onPressed: player.next,
                                     iconSize: 34,
                                     icon: Icon(
@@ -512,11 +498,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   IconButton(
-                                    tooltip: switch (player.repeatMode) {
-                                      PlayerRepeatMode.off => 'Repeat off',
-                                      PlayerRepeatMode.one => 'Repeat one',
-                                      PlayerRepeatMode.all => 'Repeat all',
-                                    },
                                     onPressed: player.cycleRepeatMode,
                                     icon: Icon(
                                       player.repeatMode == PlayerRepeatMode.one

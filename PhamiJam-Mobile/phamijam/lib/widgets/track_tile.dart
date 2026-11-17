@@ -3,6 +3,7 @@ import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/components/edit_track_dialog.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/share_link_service.dart';
+import 'package:phamijam/widgets/artist_line.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 
 class TrackTile extends StatefulWidget {
@@ -156,22 +157,20 @@ class _TrackTileState extends State<TrackTile> {
                       ),
                     ),
                     widget.onArtistTap == null
-                        ? Text(
-                            widget.track.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        ? ArtistLine(
+                            artist: widget.track.artist,
+                            title: widget.track.title,
+                            videoId: widget.track.videoId,
                             style: Theme.of(context).textTheme.bodySmall,
                           )
                         : GestureDetector(
                             onTap: widget.onArtistTap,
-                            child: Text(
-                              widget.track.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    decoration: TextDecoration.underline,
-                                  ),
+                            child: ArtistLine(
+                              artist: widget.track.artist,
+                              title: widget.track.title,
+                              videoId: widget.track.videoId,
+                              underlineArtist: true,
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ),
                   ],
@@ -184,7 +183,6 @@ class _TrackTileState extends State<TrackTile> {
               ),
               if (widget.onToggleLike != null)
                 IconButton(
-                  tooltip: widget.isLiked ? 'Unlike' : 'Like',
                   onPressed: widget.onToggleLike,
                   icon: Icon(
                     widget.isLiked
@@ -196,7 +194,10 @@ class _TrackTileState extends State<TrackTile> {
                     size: 18,
                   ),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
                   splashRadius: 22,
                 ),
               if (widget.onMore != null ||
@@ -221,7 +222,6 @@ class _TrackTileState extends State<TrackTile> {
                             ),
                           )
                         : IconButton(
-                            tooltip: 'Cancel download',
                             onPressed: widget.onCancelDownload,
                             splashRadius: 18,
                             padding: EdgeInsets.zero,
@@ -245,7 +245,6 @@ class _TrackTileState extends State<TrackTile> {
                   )
                 else
                   PopupMenuButton<String>(
-                    tooltip: 'More options',
                     padding: const EdgeInsets.all(13),
                     splashRadius: 22,
                     shape: RoundedRectangleBorder(

@@ -94,7 +94,6 @@ class _RecentTrackCardState extends State<RecentTrackCard> {
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
                         onTap: widget.onToggleLike!,
-                        tooltip: widget.isLiked ? 'Unlike' : 'Like',
                       ),
                     ),
                   if (widget.onMore != null)
@@ -105,7 +104,6 @@ class _RecentTrackCardState extends State<RecentTrackCard> {
                         color: Colors.black.withValues(alpha: 0.45),
                         shape: const CircleBorder(),
                         child: PopupMenuButton<String>(
-                          tooltip: 'More options',
                           padding: EdgeInsets.zero,
                           splashRadius: 16,
                           shape: RoundedRectangleBorder(
@@ -210,9 +208,6 @@ class _RecentTrackCardState extends State<RecentTrackCard> {
                             ? Icons.download_done_rounded
                             : Icons.download_rounded,
                         onTap: widget.onToggleDownload!,
-                        tooltip: widget.isDownloaded
-                            ? 'Remove download'
-                            : 'Download',
                       ),
                     ),
                   AnimatedOpacity(

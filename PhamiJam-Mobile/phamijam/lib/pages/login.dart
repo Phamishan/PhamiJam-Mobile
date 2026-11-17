@@ -14,6 +14,7 @@ import 'package:phamijam/services/google_drive_auth_service.dart';
 import 'package:phamijam/services/presence_service.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 const Duration _authTimeout = Duration(seconds: 25);
 
@@ -88,6 +89,7 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _signInWithGoogle() async {
+    Log.i('auth', 'Sign in with Google pressed');
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -174,7 +176,9 @@ class _LoginState extends State<Login> {
               return;
             }
           }
-        } catch (_) {}
+        } catch (error) {
+          Log.w('auth', 'sign in with google failed', error);
+        }
       }
 
       debugPrint('Error signing in with Google: $error');
@@ -189,6 +193,7 @@ class _LoginState extends State<Login> {
             '$_authDebugContext',
       );
     } catch (error) {
+      Log.e('auth', 'sign in with google failed', error);
       debugPrint('Error signing in with Google: $error');
       if (!mounted) return;
       setState(() {
@@ -204,6 +209,7 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _signInWithApple() async {
+    Log.i('auth', 'Sign in with Apple pressed');
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -250,6 +256,7 @@ class _LoginState extends State<Login> {
             '$_authDebugContext',
       );
     } catch (error) {
+      Log.e('auth', 'sign in with apple failed', error);
       debugPrint('Error signing in with Apple: $error');
       if (!mounted) return;
       setState(() {
@@ -271,6 +278,7 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _signOut() async {
+    Log.i('auth', 'sign out from login page');
     await PresenceService.goOffline();
     await GoogleAuthService.signOut();
     await GoogleDriveAuthService.signOut();

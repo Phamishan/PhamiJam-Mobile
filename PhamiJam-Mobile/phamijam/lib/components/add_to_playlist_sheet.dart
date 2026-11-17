@@ -3,8 +3,10 @@ import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/providers/library_provider.dart';
+import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 Future<void> showAddToPlaylistSheet(BuildContext context, Track track) {
   return showAddTracksToPlaylistSheet(context, [track]);
@@ -63,7 +65,8 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
               await library.addTrackToPlaylist(playlist, track);
             }
           }
-        } catch (_) {
+        } catch (error) {
+          Log.w('library', 'submit failed', error);
           failures.add(playlist.title);
         }
       }),
@@ -93,11 +96,12 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final library = context.watch<LibraryProvider>();
+    final settings = context.watch<SettingsProvider>();
     final hasDriveTrack = widget.tracks.any((t) => t.isDriveSourced);
     final playlists = [
       if (!hasDriveTrack) ...library.userPlaylists,
       ...library.mixedPlaylists,
-    ];
+    ].where((p) => !settings.isPlaylistHidden(p.id)).toList();
 
     return ConstrainedBox(
       constraints: BoxConstraints(

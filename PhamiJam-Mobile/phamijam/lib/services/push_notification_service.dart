@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:phamijam/services/log_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {}
@@ -27,13 +28,17 @@ class PushNotificationService {
     required void Function(String friendUid) onActivityNotificationTapped,
   }) async {
     try {
-      await FirebaseMessaging.instance.requestPermission(
+      final settings = await FirebaseMessaging.instance.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
+      Log.i(
+        'push',
+        'notification permission: ${settings.authorizationStatus.name}',
+      );
     } catch (error) {
-      debugPrint('PushNotificationService: requestPermission failed: $error');
+      Log.e('push', 'requesting notification permission failed', error);
     }
 
     unawaited(registerToken());
@@ -41,12 +46,13 @@ class PushNotificationService {
     _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen(
       _saveToken,
       onError: (Object error) {
-        debugPrint('PushNotificationService: onTokenRefresh error: $error');
+        Log.e('push', 'token refresh error', error);
       },
     );
 
     void handleTap(RemoteMessage message) {
       final friendUid = message.data['friendUid'];
+      Log.i('push', 'notification opened (has friend: ${friendUid is String})');
       if (friendUid is String && friendUid.isNotEmpty) {
         onActivityNotificationTapped(friendUid);
       }
@@ -60,16 +66,20 @@ class PushNotificationService {
           .getInitialMessage();
       if (initialMessage != null) handleTap(initialMessage);
     } catch (error) {
-      debugPrint('PushNotificationService: getInitialMessage failed: $error');
+      Log.e('push', 'reading launch notification failed', error);
     }
   }
 
   static Future<void> registerToken() async {
     try {
       final token = await FirebaseMessaging.instance.getToken();
+      Log.i(
+        'push',
+        token == null ? 'no push token available' : 'got push token',
+      );
       if (token != null) await _saveToken(token);
     } catch (error) {
-      debugPrint('PushNotificationService: registerToken failed: $error');
+      Log.e('push', 'registering push token failed', error);
     }
   }
 
@@ -82,11 +92,12 @@ class PushNotificationService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (error) {
-      debugPrint('PushNotificationService: saveToken failed: $error');
+      Log.e('push', 'saving push token failed', error);
     }
   }
 
   static Future<void> clearToken() async {
+    Log.i('push', 'clearing push token');
     final tokens = _tokensCollection;
     try {
       final token = await FirebaseMessaging.instance.getToken();
@@ -95,7 +106,7 @@ class PushNotificationService {
       }
       await FirebaseMessaging.instance.deleteToken();
     } catch (error) {
-      debugPrint('PushNotificationService: clearToken failed: $error');
+      Log.e('push', 'clearing push token failed', error);
     }
   }
 }

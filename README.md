@@ -154,6 +154,13 @@
   - Fixed Jamstats loading slowly
   - Fixed crossfade pausing for a moment between songs
   - Fixed the video view showing nothing
+- 1.2.5 - 17/11/2026
+  - Added featured artists next to the artist name on songs
+  - Added sharing your Jamstats as an image
+  - Added a loading bar to Jamstats
+  - Hidden playlists no longer show when adding a song to a playlist
+  - Fixed synced lyrics
+  - Improved the log sent from Settings
 
 ## Screenshots:
 

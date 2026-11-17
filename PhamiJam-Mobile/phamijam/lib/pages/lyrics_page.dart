@@ -5,6 +5,7 @@ import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/services/lyrics_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class LyricsPage extends StatefulWidget {
   const LyricsPage({super.key});
@@ -106,7 +107,8 @@ class _LyricsPageState extends State<LyricsPage> {
             ? 'No lyrics found for this song.'
             : null;
       });
-    } catch (_) {
+    } catch (error) {
+      Log.w('lyrics', 'load failed', error);
       if (!mounted) return;
       setState(() {
         _loading = false;

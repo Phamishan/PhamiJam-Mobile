@@ -3,6 +3,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/wrapped_stats.dart';
+import 'package:phamijam/services/log_service.dart';
 
 const String _appGroupId = 'group.phamishan.phamijam.widget';
 
@@ -101,6 +102,7 @@ class JamstatsWidgetService {
         iOSName: _iOSTopSongWidgetName,
       );
     } catch (error) {
+      Log.e('widget', 'refresh failed', error);
       debugPrint('JamstatsWidgetService: refresh failed: $error');
     }
   }
@@ -128,6 +130,7 @@ class JamstatsWidgetService {
         iOSName: _iOSNowPlayingWidgetName,
       );
     } catch (error) {
+      Log.e('widget', 'push now playing failed', error);
       debugPrint('JamstatsWidgetService: pushNowPlaying failed: $error');
     }
   }

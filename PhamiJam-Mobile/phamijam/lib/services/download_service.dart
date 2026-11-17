@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/audio_stream_resolver.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 String formatDownloadSize(int bytes) {
@@ -148,9 +149,10 @@ class DownloadsProvider extends ChangeNotifier {
           }
         }
       } catch (error) {
-        debugPrint('DownloadsProvider: failed to parse manifest: $error');
+        Log.e('downloads', 'failed to read saved downloads list', error);
       }
     }
+    Log.i('downloads', 'loaded ${_downloaded.length} downloaded songs');
     _loaded = true;
     notifyListeners();
   }
@@ -180,6 +182,8 @@ class DownloadsProvider extends ChangeNotifier {
     _failed.remove(videoId);
     _cancelled.remove(videoId);
     _progress[videoId] = 0;
+    final downloadWatch = Stopwatch()..start();
+    Log.i('downloads', 'starting download of "${track.title}" [$videoId]');
     notifyListeners();
 
     final client = http.Client();
@@ -206,6 +210,7 @@ class DownloadsProvider extends ChangeNotifier {
         } catch (error) {
           lastError = error;
         }
+        Log.w('downloads', 'a download source failed for $videoId', lastError);
       }
       if (response == null) {
         throw lastError ?? Exception('No playable audio source for $videoId');
@@ -233,16 +238,22 @@ class DownloadsProvider extends ChangeNotifier {
         downloadedAt: DateTime.now(),
       );
       await _saveManifest();
-    } catch (error) {
+      Log.i(
+        'downloads',
+        'finished $videoId: ${_downloaded[videoId]?.fileSizeBytes} bytes in '
+            '${downloadWatch.elapsedMilliseconds} ms',
+      );
+    } catch (error, stackTrace) {
       final wasCancelled = _cancelled.remove(videoId);
       if (wasCancelled) {
+        Log.i('downloads', 'download of $videoId cancelled');
         try {
           if (partialFile != null && partialFile.existsSync()) {
             partialFile.deleteSync();
           }
         } catch (_) {}
       } else {
-        debugPrint('DownloadsProvider: download failed for $videoId: $error');
+        Log.e('downloads', 'download failed for $videoId', error, stackTrace);
         _failed.add(videoId);
       }
     } finally {
@@ -254,6 +265,7 @@ class DownloadsProvider extends ChangeNotifier {
   }
 
   Future<void> downloadPlaylist(List<Track> tracks) async {
+    Log.i('downloads', 'downloading ${tracks.length} songs');
     _stopBulkRequested = false;
     for (final track in tracks) {
       if (_stopBulkRequested) break;
@@ -265,13 +277,14 @@ class DownloadsProvider extends ChangeNotifier {
   }
 
   Future<void> remove(String videoId) async {
+    Log.i('downloads', 'removing download $videoId');
     final entry = _downloaded.remove(videoId);
     if (entry != null) {
       try {
         final file = File(entry.filePath);
         if (file.existsSync()) file.deleteSync();
       } catch (error) {
-        debugPrint('DownloadsProvider: failed to delete file: $error');
+        Log.e('downloads', 'failed to delete file', error);
       }
     }
     await _saveManifest();
@@ -279,6 +292,7 @@ class DownloadsProvider extends ChangeNotifier {
   }
 
   Future<void> clearAll() async {
+    Log.i('downloads', 'clearing all downloads');
     final entries = _downloaded.values.toList();
     _downloaded.clear();
     for (final entry in entries) {
@@ -286,7 +300,7 @@ class DownloadsProvider extends ChangeNotifier {
         final file = File(entry.filePath);
         if (file.existsSync()) file.deleteSync();
       } catch (error) {
-        debugPrint('DownloadsProvider: failed to delete file: $error');
+        Log.e('downloads', 'failed to delete file', error);
       }
     }
     await _saveManifest();

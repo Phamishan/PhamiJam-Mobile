@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/models/track.dart';
 
 class FriendNowPlaying {
@@ -101,7 +101,7 @@ class ListenAlongService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (error) {
-      debugPrint('ListenAlongService: push failed: $error');
+      Log.w('listenalong', 'publishing now-playing failed', error);
     }
   }
 
@@ -115,7 +115,7 @@ class ListenAlongService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (error) {
-      debugPrint('ListenAlongService: clear failed: $error');
+      Log.w('listenalong', 'clearing now-playing failed', error);
     }
   }
 
@@ -144,7 +144,9 @@ class ListenAlongService {
         position: Duration(milliseconds: data['positionMs'] as int? ?? 0),
         isPlaying: data['isPlaying'] as bool? ?? false,
         updatedAt: updatedAt.toDate(),
-        trimStart: trimStartMs != null ? Duration(milliseconds: trimStartMs) : null,
+        trimStart: trimStartMs != null
+            ? Duration(milliseconds: trimStartMs)
+            : null,
         trimEnd: trimEndMs != null ? Duration(milliseconds: trimEndMs) : null,
       );
     });

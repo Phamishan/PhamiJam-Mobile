@@ -41,9 +41,15 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  Log.i('startup', 'initializing Firebase');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseAuth.instance.authStateChanges().listen(
+    (user) => LogService.instance.setUser(user?.uid),
+    onError: (Object error) => Log.e('auth', 'auth state stream error', error),
+  );
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await dotenv.load(fileName: '.env');
+  Log.i('startup', 'config loaded, starting audio service');
 
   final sharedResolver = AudioStreamResolver();
   final audioHandler = await AudioService.init(
@@ -57,6 +63,7 @@ void main() async {
   );
   final downloadsProvider = DownloadsProvider(resolver: sharedResolver);
   audioHandler.resolveLocalPath = downloadsProvider.localPathFor;
+  Log.i('startup', 'audio service ready, launching UI');
 
   unawaited(JamstatsWidgetService.refresh());
 
@@ -97,6 +104,7 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'PhamiJam',
             debugShowCheckedModeBanner: false,
+            navigatorObservers: [LogNavigatorObserver()],
             themeMode: themeProvider.flutterThemeMode,
             theme: AppTheme.light(accentColor: themeProvider.accentColor),
             darkTheme: AppTheme.dark(accentColor: themeProvider.accentColor),
@@ -114,6 +122,9 @@ class MyApp extends StatelessWidget {
 
                 if (snapshot.hasData) {
                   return _YoutubeConnectionGate(user: snapshot.data!);
+                }
+                if (snapshot.hasError) {
+                  Log.e('auth', 'auth stream error', snapshot.error);
                 }
                 return const Login();
               },
@@ -147,6 +158,8 @@ class _YoutubeConnectionGateState extends State<_YoutubeConnectionGate> {
     final signedInWithGoogle = widget.user.providerData.any(
       (info) => info.providerId == 'google.com',
     );
+    final providers = widget.user.providerData.map((i) => i.providerId);
+    Log.i('auth', 'session restored, providers: ${providers.join(', ')}');
     if (signedInWithGoogle) {
       setState(() => _isConnected = true);
       return;
@@ -168,6 +181,7 @@ class _YoutubeConnectionGateState extends State<_YoutubeConnectionGate> {
 
   Future<void> _checkConnectionAsync() async {
     if (!await _hasNetworkConnectivity()) {
+      Log.w('network', 'offline at startup, skipping Google reconnect check');
       if (!mounted) return;
       setState(() => _isConnected = true);
       return;
@@ -180,6 +194,12 @@ class _YoutubeConnectionGateState extends State<_YoutubeConnectionGate> {
       debugPrint('_YoutubeConnectionGate: tryRestoreSilently threw: $error');
       connected = false;
     }
+    Log.i(
+      'auth',
+      connected
+          ? 'Google/YouTube connection restored silently'
+          : 'Google/YouTube not connected, asking user to connect',
+    );
     if (!mounted) return;
     setState(() => _isConnected = connected);
   }

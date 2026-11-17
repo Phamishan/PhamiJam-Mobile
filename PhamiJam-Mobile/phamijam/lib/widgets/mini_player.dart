@@ -114,7 +114,6 @@ class MiniPlayer extends StatelessWidget {
                           icon: Icons.skip_previous_rounded,
                           onPressed: player.previous,
                           color: colorScheme.onSurface,
-                          tooltip: 'Previous',
                         ),
                         if (player.isLoadingTrack)
                           const SizedBox(
@@ -135,13 +134,11 @@ class MiniPlayer extends StatelessWidget {
                             onPressed: player.togglePlayPause,
                             color: colorScheme.onSurface,
                             size: 26,
-                            tooltip: player.isPlaying ? 'Pause' : 'Play',
                           ),
                         _MiniPlayerIconButton(
                           icon: Icons.skip_next_rounded,
                           onPressed: player.next,
                           color: colorScheme.onSurface,
-                          tooltip: 'Next',
                         ),
                         _MiniPlayerIconButton(
                           icon: Icons.queue_music_rounded,
@@ -151,7 +148,6 @@ class MiniPlayer extends StatelessWidget {
                             ),
                           ),
                           color: colorScheme.onSurfaceVariant,
-                          tooltip: 'Queue',
                         ),
                       ],
                     ),
@@ -192,20 +188,17 @@ class _MiniPlayerIconButton extends StatelessWidget {
   final VoidCallback onPressed;
   final Color color;
   final double size;
-  final String tooltip;
 
   const _MiniPlayerIconButton({
     required this.icon,
     required this.onPressed,
     required this.color,
-    required this.tooltip,
     this.size = 22,
   });
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      tooltip: tooltip,
       onPressed: onPressed,
       splashRadius: 22,
       padding: EdgeInsets.zero,

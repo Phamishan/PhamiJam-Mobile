@@ -7,6 +7,7 @@ import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/services/friend_activity_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class FriendActivityPage extends StatefulWidget {
   const FriendActivityPage({super.key});
@@ -40,6 +41,7 @@ class _FriendActivityPageState extends State<FriendActivityPage> {
         _loading = false;
       });
     } catch (error) {
+      Log.e('friends', 'refresh failed', error);
       if (!mounted) return;
       setState(() {
         _error = "Couldn't load activity.";
@@ -52,6 +54,7 @@ class _FriendActivityPageState extends State<FriendActivityPage> {
     try {
       await context.read<PlayerProvider>().playQueue([item.toTrack()]);
     } catch (error) {
+      Log.e('friends', 'play failed', error);
       if (mounted) AppFlushbar.error(context, "Couldn't play this song.");
     }
   }

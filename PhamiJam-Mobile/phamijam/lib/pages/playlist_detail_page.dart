@@ -24,6 +24,7 @@ import 'package:phamijam/widgets/play_button.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 enum _PlaylistSort {
   custom,
@@ -121,7 +122,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       final ids = await ProfileService.fetchProfilePlaylistIds(user.uid);
       if (!mounted) return;
       setState(() => _isFeaturedOnProfile = ids.contains(_playlist.id));
-    } catch (_) {}
+    } catch (error) {
+      Log.w('library', 'load featured status failed', error);
+    }
   }
 
   Future<void> _handleToggleFeatured() async {
@@ -139,6 +142,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         wasFeatured ? 'Removed from your profile' : 'Featured on your profile',
       );
     } catch (error) {
+      Log.e('library', 'handle toggle featured failed', error);
       if (!mounted) return;
       setState(() => _isFeaturedOnProfile = wasFeatured);
       AppFlushbar.error(context, "Couldn't update your profile: $error");
@@ -199,6 +203,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       if (!mounted) return;
       widget.onBack();
     } catch (error) {
+      Log.e('library', 'handle delete failed', error);
       if (!mounted) return;
       AppFlushbar.error(context, "Couldn't delete playlist: $error");
     }
@@ -237,6 +242,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         newTitle,
       );
     } catch (error) {
+      Log.e('library', 'handle rename mixed failed', error);
       if (mounted) {
         AppFlushbar.error(context, "Couldn't rename playlist: $error");
       }
@@ -257,6 +263,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         File(picked.path),
       );
     } catch (error) {
+      Log.e('library', 'handle change mixed cover failed', error);
       if (mounted) {
         AppFlushbar.error(context, "Couldn't update cover image: $error");
       }
@@ -267,6 +274,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     try {
       await context.read<LibraryProvider>().removePlaylistCover(_playlist);
     } catch (error) {
+      Log.e('library', 'handle remove mixed cover failed', error);
       if (mounted) {
         AppFlushbar.error(context, "Couldn't remove cover image: $error");
       }
@@ -303,6 +311,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       if (!mounted) return;
       widget.onBack();
     } catch (error) {
+      Log.e('library', 'handle delete mixed failed', error);
       if (mounted) {
         AppFlushbar.error(context, "Couldn't delete playlist: $error");
       }
@@ -320,6 +329,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         AppFlushbar.success(context, 'Removed from playlist');
         return true;
       } catch (error) {
+        Log.e('library', 'handle remove track failed', error);
         if (!mounted) return false;
         AppFlushbar.error(context, "Couldn't remove track: $error");
         return false;
@@ -337,6 +347,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         AppFlushbar.success(context, 'Removed from Liked Songs');
         return true;
       } catch (error) {
+        Log.e('library', 'handle remove track failed', error);
         if (!mounted) return false;
         AppFlushbar.error(context, "Couldn't remove track: $error");
         return false;
@@ -352,6 +363,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       AppFlushbar.success(context, 'Removed from playlist');
       return true;
     } catch (error) {
+      Log.e('library', 'handle remove track failed', error);
       if (!mounted) return false;
       AppFlushbar.error(context, "Couldn't remove track: $error");
       return false;
@@ -408,6 +420,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         _loadingTracks = false;
       });
     } catch (error) {
+      Log.e('library', 'load tracks failed', error);
       if (!mounted) return;
       setState(() {
         _loadingTracks = false;

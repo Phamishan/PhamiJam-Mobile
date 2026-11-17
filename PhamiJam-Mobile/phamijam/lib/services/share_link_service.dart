@@ -4,6 +4,7 @@ import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:phamijam/services/log_service.dart';
 
 const String shareBaseHost = 'phamijam-share.phamishan.workers.dev';
 
@@ -62,7 +63,8 @@ class ShareLinkService {
       if (result.status == ShareResultStatus.unavailable && context.mounted) {
         await _copyToClipboard(context, url);
       }
-    } catch (_) {
+    } catch (error) {
+      Log.w('share', 'share failed', error);
       if (context.mounted) await _copyToClipboard(context, url);
     }
   }

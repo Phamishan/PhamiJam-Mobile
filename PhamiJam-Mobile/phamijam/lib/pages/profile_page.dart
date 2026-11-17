@@ -14,6 +14,7 @@ import 'package:phamijam/services/profile_service.dart';
 import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/profile_grid/profile_grid_view.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -71,6 +72,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _saving = false;
       });
     } catch (error) {
+      Log.e('profile', 'save edit failed', error);
       if (!mounted) return;
       setState(() => _saving = false);
       AppFlushbar.error(context, "Couldn't save your layout: $error");
@@ -114,7 +116,6 @@ class _ProfilePageState extends State<ProfilePage> {
             : [
                 _FriendsIconButton(),
                 IconButton(
-                  tooltip: 'Jamstats',
                   icon: const Icon(Icons.insights_rounded),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const JamstatsPage()),
@@ -321,6 +322,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
         });
         return;
       } catch (error) {
+        Log.e('profile', 'save failed', error);
         setState(() {
           _saving = false;
           _usernameError = "Couldn't save username: $error";
@@ -336,6 +338,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
+      Log.e('profile', 'save failed', error);
       if (mounted) {
         setState(() => _saving = false);
         AppFlushbar.error(context, "Couldn't save profile info: $error");

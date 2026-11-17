@@ -14,6 +14,7 @@ import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
 import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class AlbumDetailsPage extends StatefulWidget {
   final String albumId;
@@ -118,6 +119,7 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
         _loading = false;
       });
     } catch (error) {
+      Log.e('browse', 'load failed', error);
       if (!mounted) return;
       setState(() {
         _loading = false;

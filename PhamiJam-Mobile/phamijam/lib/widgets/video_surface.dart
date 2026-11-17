@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:video_player/video_player.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class VideoSurface extends StatefulWidget {
   const VideoSurface({super.key, required this.player});
@@ -87,6 +88,7 @@ class _VideoSurfaceState extends State<VideoSurface> {
           ready = controller;
           break;
         } catch (error) {
+          Log.e('video', 'load failed', error);
           debugPrint('VideoSurface: candidate failed for ${track.id}: $error');
           await controller.dispose();
           if (!mounted || widget.player.currentTrack?.id != track.id) return;
@@ -111,6 +113,7 @@ class _VideoSurfaceState extends State<VideoSurface> {
       _driftTimer = Timer.periodic(_driftCheckInterval, (_) => _correctDrift());
       if (mounted) setState(() {});
     } catch (error, stackTrace) {
+      Log.e('video', 'load failed', error, stackTrace);
       debugPrint('VideoSurface: failed to load video for ${track.id}: $error');
       debugPrintStack(stackTrace: stackTrace);
       await _teardown();

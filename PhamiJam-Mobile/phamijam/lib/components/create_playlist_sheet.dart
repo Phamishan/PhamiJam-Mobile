@@ -3,6 +3,7 @@ import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 Future<Playlist?> showCreatePlaylistSheet(BuildContext context) {
   return showModalBottomSheet<Playlist?>(
@@ -58,6 +59,7 @@ class _CreatePlaylistSheetState extends State<_CreatePlaylistSheet> {
         _mixed ? 'Created "$title"' : 'Created "$title" on YouTube',
       );
     } catch (error) {
+      Log.e('library', 'create failed', error);
       if (!mounted) return;
       setState(() => _creating = false);
       AppFlushbar.error(context, "Couldn't create playlist: $error");

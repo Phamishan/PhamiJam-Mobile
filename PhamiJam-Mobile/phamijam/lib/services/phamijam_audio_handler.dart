@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/audio_stream_resolver.dart';
 import 'package:phamijam/services/google_drive_service.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class PhamiJamAudioHandler extends BaseAudioHandler {
   PhamiJamAudioHandler({AudioStreamResolver? resolver})
@@ -43,7 +44,12 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       );
     });
 
-    _eventSub = player.playbackEventStream.listen((_) {}, onError: (_, _) {});
+    _eventSub = player.playbackEventStream.listen(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {
+        Log.e('audio', 'player reported an error', error, stackTrace);
+      },
+    );
   }
 
   void _pushPlaybackState({
@@ -116,6 +122,7 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
 
     if (videoId.startsWith(driveTrackIdPrefix)) {
       final fileId = videoId.substring(driveTrackIdPrefix.length);
+      Log.i('audio', 'loading Google Drive file for "${track.title}"');
       final headers = await GoogleDriveService.streamHeaders(fileId);
       if (requestId != _loadRequestId) return;
       await player.setAudioSource(
@@ -130,6 +137,7 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
 
     final localPath = resolveLocalPath?.call(videoId);
     if (localPath != null) {
+      Log.i('audio', 'playing downloaded file for $videoId');
       await player.setAudioSource(
         AudioSource.uri(Uri.file(localPath)),
         initialPosition: startAt,
@@ -139,8 +147,17 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       return;
     }
 
+    final resolveStopwatch = Stopwatch()..start();
     final resolved = await _resolver.resolve(videoId);
-    if (requestId != _loadRequestId) return;
+    Log.i(
+      'audio',
+      'resolved $videoId in ${resolveStopwatch.elapsedMilliseconds} ms '
+          '(${resolved.audioUrls.length} audio candidates)',
+    );
+    if (requestId != _loadRequestId) {
+      Log.i('audio', 'load for $videoId superseded by a newer request');
+      return;
+    }
     try {
       await _setYouTubeSource(
         resolved.audioUrls,
@@ -150,9 +167,10 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       );
     } catch (error) {
       if (requestId != _loadRequestId) return;
-      debugPrint(
-        'PhamiJamAudioHandler: cached stream URLs failed for $videoId, '
-        're-resolving: $error',
+      Log.w(
+        'audio',
+        'cached stream URLs failed for $videoId, re-resolving',
+        error,
       );
       _resolver.invalidate(videoId);
       final refreshed = await _resolver.resolve(videoId, forceRefresh: true);
@@ -235,6 +253,7 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
     if (videoId == null || videoId.isEmpty) return;
     final requestId = ++_loadRequestId;
     final resumeAt = player.position;
+    Log.i('audio', 'reloading $videoId at ${resumeAt.inSeconds}s after error');
     _resolver.invalidate(videoId);
     final resolved = await _resolver.resolve(videoId, forceRefresh: true);
     if (requestId != _loadRequestId) return;
@@ -253,8 +272,11 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
     required int requestId,
   }) async {
     Object? lastError;
+    var attempt = 0;
     for (final url in candidates) {
+      attempt++;
       if (requestId != _loadRequestId) return;
+      final attemptWatch = Stopwatch()..start();
       try {
         await player
             .setAudioSource(
@@ -264,12 +286,28 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
             )
             .timeout(const Duration(seconds: 8));
         if (requestId != _loadRequestId) return;
+        Log.i(
+          'audio',
+          'candidate $attempt/${candidates.length} worked in '
+              '${attemptWatch.elapsedMilliseconds} ms',
+        );
         if (autoPlay) unawaited(player.play());
         return;
       } catch (error) {
+        Log.w(
+          'audio',
+          'candidate $attempt/${candidates.length} failed after '
+              '${attemptWatch.elapsedMilliseconds} ms',
+          error,
+        );
         lastError = error;
       }
     }
+    Log.e(
+      'audio',
+      'all ${candidates.length} stream candidates failed',
+      lastError,
+    );
     throw lastError ?? StateError('No playable audio candidates');
   }
 
@@ -286,22 +324,35 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
       _resolver.videoOnlyUrlsFor(videoId);
 
   @override
-  Future<void> play() async => onPlayRequested?.call();
+  Future<void> play() async {
+    Log.i('audio', 'play requested from system controls');
+    await onPlayRequested?.call();
+  }
 
   @override
-  Future<void> pause() async => onPauseRequested?.call();
+  Future<void> pause() async {
+    Log.i('audio', 'pause requested from system controls');
+    await onPauseRequested?.call();
+  }
 
   @override
   Future<void> seek(Duration position) async => player.seek(position);
 
   @override
-  Future<void> skipToNext() async => onNextRequested?.call();
+  Future<void> skipToNext() async {
+    Log.i('audio', 'next requested from system controls');
+    await onNextRequested?.call();
+  }
 
   @override
-  Future<void> skipToPrevious() async => onPreviousRequested?.call();
+  Future<void> skipToPrevious() async {
+    Log.i('audio', 'previous requested from system controls');
+    await onPreviousRequested?.call();
+  }
 
   @override
   Future<void> stop() async {
+    Log.i('audio', 'stop requested');
     await onStopRequested?.call();
     await player.stop();
     await super.stop();
@@ -309,6 +360,7 @@ class PhamiJamAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> onTaskRemoved() async {
+    Log.i('audio', 'app task removed, stopping playback');
     await player.stop();
     await super.stop();
   }

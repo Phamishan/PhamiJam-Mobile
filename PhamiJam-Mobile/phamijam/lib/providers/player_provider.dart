@@ -11,6 +11,7 @@ import 'package:phamijam/services/google_drive_service.dart'
     show driveTrackIdPrefix;
 import 'package:phamijam/services/listen_along_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/playback_session_sync_service.dart';
 import 'package:phamijam/services/playback_state_service.dart';
@@ -151,7 +152,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       _ytmusic = created;
       return created;
     } catch (error) {
-      debugPrint('PlayerProvider: failed to init YTMusic: $error');
+      Log.e('player', 'failed to init YTMusic (autoplay)', error);
       return null;
     }
   }
@@ -171,6 +172,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       seedVideoId,
       excludeVideoIds: excludeIds,
     );
+    Log.i('autoplay', 'fetched ${continuation.length} songs after $seedVideoId');
     if (continuation.isEmpty) return false;
     _queue = List<Track>.from(_queue)..addAll(continuation);
     _originalQueue = List<Track>.from(_originalQueue)..addAll(continuation);
@@ -211,6 +213,12 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
     _pendingResumePosition = Duration.zero;
     _loaded = false;
+    Log.i(
+      'player',
+      'restored saved session: ${_queue.length} songs, index $_queueIndex, '
+          'current ${_desc(_currentTrack!)}, shuffle=$_shuffle, '
+          'repeat=${_repeatMode.name}',
+    );
     notifyListeners();
   }
 
@@ -275,11 +283,24 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     _lastStreamErrorAt = DateTime.now();
+    Log.w(
+      'player',
+      'stream error while playing ${_desc(track)} at '
+          '${position.inSeconds}s, trying to reload',
+      error,
+    );
     try {
       await _audioHandler.reloadAfterStreamError(track);
       _consecutiveStreamErrors = 0;
-    } catch (_) {
+      Log.i('player', 'reload after stream error succeeded');
+    } catch (reloadError) {
       _consecutiveStreamErrors++;
+      Log.e(
+        'player',
+        'reload after stream error failed '
+            '($_consecutiveStreamErrors/$_maxConsecutiveStreamErrors)',
+        reloadError,
+      );
       if (_consecutiveStreamErrors >= _maxConsecutiveStreamErrors) {
         _consecutiveStreamErrors = 0;
         playbackErrorMessage =
@@ -292,7 +313,20 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  ProcessingState? _lastLoggedProcessingState;
+  bool? _lastLoggedPlaying;
+
   void _handlePlayerStateChange(PlayerState state) {
+    if (state.processingState != _lastLoggedProcessingState ||
+        state.playing != _lastLoggedPlaying) {
+      _lastLoggedProcessingState = state.processingState;
+      _lastLoggedPlaying = state.playing;
+      Log.i(
+        'player',
+        'state: ${state.processingState.name}, playing=${state.playing}'
+            '${_currentTrack == null ? '' : ' (${_desc(_currentTrack!)})'}',
+      );
+    }
     notifyListeners();
 
     if (state.processingState == ProcessingState.completed) {
@@ -318,8 +352,13 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_endHandled) return;
     if (_crossfade.isActive) return;
     _endHandled = true;
+    Log.i(
+      'player',
+      'track ended: ${_currentTrack == null ? 'none' : _desc(_currentTrack!)}',
+    );
 
     if (_pauseAtTrackEndScheduled) {
+      Log.i('player', 'sleep timer (end of track) paused playback');
       _pauseAtTrackEndScheduled = false;
       _exitListenAlongIfActive();
       _audioHandler.player.pause();
@@ -337,6 +376,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (_autoAdvanceRateLimited()) return;
     if (_repeatMode == PlayerRepeatMode.one) {
+      Log.i('player', 'repeat one: replaying current track');
       _replayCurrentTrack();
     } else {
       _localNext();
@@ -408,6 +448,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     required Duration crossfadeDuration,
   }) async {
     final targetVolume = _volume;
+    Log.i(
+      'crossfade',
+      'starting to ${_desc(nextTrack)} (${crossfadeDuration.inMilliseconds} ms)',
+    );
     await _crossfade.begin(
       crossfadeDuration: crossfadeDuration,
       targetVolume: targetVolume,
@@ -439,11 +483,18 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
           fadePlayer,
           crossRamp,
         );
+        Log.i(
+          'crossfade',
+          handedOff
+              ? 'handed off to main player'
+              : 'handoff failed, falling back to a normal start',
+        );
         notifyListeners();
         _persistSession();
         return handedOff;
       },
       onFallback: (startAt) async {
+        Log.w('crossfade', 'fallback start at ${startAt.inSeconds}s');
         _queueIndex = nextIndex;
         _currentTrack = nextTrack;
         notifyListeners();
@@ -476,6 +527,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     final count = await SkipTrackingService.recordSkip(playlist.id, videoId);
+    Log.i(
+      'player',
+      'early skip of ${_desc(track)} in "${playlist.title}" (count $count)',
+    );
     if (count >= SkipTrackingService.skipThreshold) {
       suggestedRemovalTrack = track;
       suggestedRemovalPlaylist = playlist;
@@ -492,7 +547,9 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _sleepTimer?.cancel();
     _pauseAtTrackEndScheduled = false;
     _sleepTimerEndsAt = DateTime.now().add(duration);
+    Log.i('player', 'sleep timer set for ${duration.inMinutes} min');
     _sleepTimer = Timer(duration, () {
+      Log.i('player', 'sleep timer fired, pausing');
       _sleepTimer = null;
       _sleepTimerEndsAt = null;
       _exitListenAlongIfActive();
@@ -503,6 +560,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void setSleepTimerEndOfTrack() {
+    Log.i('player', 'sleep timer set to end of track');
     _sleepTimer?.cancel();
     _sleepTimer = null;
     _sleepTimerEndsAt = null;
@@ -511,6 +569,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void cancelSleepTimer() {
+    Log.i('player', 'sleep timer cancelled');
     _sleepTimer?.cancel();
     _sleepTimer = null;
     _sleepTimerEndsAt = null;
@@ -539,6 +598,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String friendDisplayName,
   }) async {
     if (friendUid.isEmpty) return;
+    Log.i('listenalong', 'start listening along with friend');
     _crossfade.cancel();
     _exitRemoteControl();
     await _listenAlongSub?.cancel();
@@ -556,6 +616,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void stopListenAlong() {
     if (_listenAlongFriendUid == null) return;
+    Log.i('listenalong', 'stop listening along');
     unawaited(_listenAlongSub?.cancel());
     _listenAlongSub = null;
     _listenAlongFriendUid = null;
@@ -595,6 +656,11 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final isNewTrack = videoId != _listenAlongLastAppliedVideoId;
     if (isNewTrack) {
+      Log.i(
+        'listenalong',
+        'friend changed track to ${_desc(currentTrack)}, '
+            'joining at ${target.inSeconds}s',
+      );
       _listenAlongLastAppliedVideoId = videoId;
       _currentTrack = currentTrack;
       notifyListeners();
@@ -613,6 +679,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       _prefetchUpcomingTracks();
       final drift = (target - position).abs();
       if (drift > const Duration(seconds: 3)) {
+        Log.i('listenalong', 'drifted ${drift.inSeconds}s, re-syncing');
         _audioHandler.player.seek(target);
       }
     }
@@ -658,6 +725,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> enterRemoteControl() async {
     if (_remoteSession == null) return;
+    Log.i('remote', 'now controlling another device');
     _crossfade.cancel();
     if (_currentTrack != null) {
       await _audioHandler.player.pause();
@@ -668,6 +736,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void _exitRemoteControl() {
     if (!_isRemoteControlling) return;
+    Log.i('remote', 'stopped controlling another device');
     _isRemoteControlling = false;
     notifyListeners();
   }
@@ -676,6 +745,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     final session = _remoteSession;
     final track = session?.currentTrack;
     if (session == null || track == null) return;
+    Log.i('remote', 'taking over session locally: ${_desc(track)}');
     _isRemoteControlling = false;
     _originalQueue = List<Track>.from(session.queue);
     _queue = List<Track>.from(session.queue);
@@ -710,6 +780,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _handleIncomingCommands(List<RemoteCommand> commands) async {
     if (commands.isNotEmpty) _crossfade.cancel();
     for (final command in commands) {
+      Log.i(
+        'remote',
+        'received command ${command.type.name} from other device',
+      );
       await PlaybackSessionSyncService.ackCommand(command.id);
       switch (command.type) {
         case RemoteCommandType.play:
@@ -849,12 +923,32 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
 
     notifyListeners();
+    final loadStopwatch = Stopwatch()..start();
+    Log.i(
+      'player',
+      'loading ${_desc(track)} start=${effectiveStartAt.inSeconds}s'
+          '${_trimStart != null ? ' trim=${_trimStart!.inSeconds}-${_trimEnd?.inSeconds}s' : ''}',
+    );
     try {
       await _audioHandler.loadTrack(track, startAt: effectiveStartAt);
       await _audioHandler.player.setVolume(_volume);
+      Log.i(
+        'player',
+        'loaded ${_desc(track)} in ${loadStopwatch.elapsedMilliseconds} ms '
+            '(duration ${duration.inSeconds}s)',
+      );
       _prefetchUpcomingTracks();
       _pushSessionIfHosting();
       _pushNowPlayingIfActive();
+    } catch (error, stackTrace) {
+      Log.e(
+        'player',
+        'load FAILED for ${_desc(track)} after '
+            '${loadStopwatch.elapsedMilliseconds} ms',
+        error,
+        stackTrace,
+      );
+      rethrow;
     } finally {
       _isLoadingTrack = false;
       notifyListeners();
@@ -948,7 +1042,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       );
       return true;
     } catch (error) {
-      debugPrint('PlayerProvider: failed to start "${track.title}": $error');
+      Log.w('player', 'start failed for ${_desc(track)}, retrying once', error);
     }
     await Future.delayed(const Duration(milliseconds: 700));
     try {
@@ -961,9 +1055,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       );
       return true;
     } catch (error) {
-      debugPrint(
-        'PlayerProvider: retry also failed to start "${track.title}": $error',
-      );
+      Log.e('player', 'retry also failed for ${_desc(track)}', error);
       return false;
     }
   }
@@ -989,6 +1081,12 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
+    Log.i(
+      'player',
+      'playQueue: ${tracks.length} songs from '
+          '${sourcePlaylist == null ? 'no playlist' : '"${sourcePlaylist.title}" (${sourcePlaylist.isMixed ? 'mixed' : (sourcePlaylist.isFromYoutube ? 'YouTube' : 'local')})'}, '
+          'start index $clampedStart, first ${_desc(startTrack)}, shuffle=$_shuffle',
+    );
     if (!_isRemoteControlling) unawaited(_recordPotentialSkip());
     _exitRemoteControl();
     _exitListenAlongIfActive();
@@ -1025,8 +1123,14 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     titles.add(track.title);
     _consecutiveStreamErrors++;
+    Log.w(
+      'player',
+      'could not start ${_desc(track)} '
+          '($_consecutiveStreamErrors/$_maxConsecutiveStreamErrors failures)',
+    );
     if (_consecutiveStreamErrors >= _maxConsecutiveStreamErrors ||
         _queueIndex >= _queue.length - 1) {
+      Log.e('player', 'giving up, showing error for: ${titles.join(' | ')}');
       _consecutiveStreamErrors = 0;
       playbackErrorMessage = _formatCouldNotPlayMessage(titles);
       notifyListeners();
@@ -1071,12 +1175,15 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _localTogglePlayPause() async {
     if (!_loaded) {
+      Log.i('player', 'play pressed with nothing loaded, resuming saved track');
       await _resumeRestoredTrack();
       return;
     }
     if (_audioHandler.player.playing) {
+      Log.i('player', 'pause');
       await _audioHandler.player.pause();
     } else {
+      Log.i('player', 'play');
       unawaited(_audioHandler.player.play());
     }
     _pushSessionIfHosting();
@@ -1100,6 +1207,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     if (skipAttempts == 0) unawaited(_recordPotentialSkip());
+    Log.i('player', 'next pressed');
     await _localNext();
   }
 
@@ -1109,11 +1217,13 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       _queueIndex++;
     } else {
       final appended = await _tryAppendAutoplayContinuation();
+      Log.i('player', 'end of queue, autoplay appended songs: $appended');
       if (appended && _queueIndex < _queue.length - 1) {
         _queueIndex++;
       } else if (_repeatMode == PlayerRepeatMode.all) {
         _queueIndex = 0;
       } else {
+        Log.i('player', 'end of queue, nothing more to play');
         return;
       }
     }
@@ -1139,6 +1249,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> playFromQueue(int index) async {
     if (index < 0 || index >= _queue.length) return;
+    Log.i('player', 'play from queue index $index: ${_desc(_queue[index])}');
     _crossfade.cancel();
     if (!_isRemoteControlling) unawaited(_recordPotentialSkip());
     _exitRemoteControl();
@@ -1152,6 +1263,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void playNext(Track track) {
+    Log.i('queue', 'play next: ${_desc(track)}');
     _exitRemoteControl();
     _exitListenAlongIfActive();
     if (_currentTrack == null || _queue.isEmpty) {
@@ -1165,6 +1277,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void addToQueue(Track track) {
+    Log.i('queue', 'add to queue: ${_desc(track)}');
     _exitRemoteControl();
     _exitListenAlongIfActive();
     if (_currentTrack == null || _queue.isEmpty) {
@@ -1178,6 +1291,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void removeFromQueue(int index) {
     if (index < 0 || index >= _queue.length) return;
+    Log.i('queue', 'remove from queue: ${_desc(_queue[index])}');
     _queue = List<Track>.from(_queue)..removeAt(index);
     if (index < _queueIndex) {
       _queueIndex--;
@@ -1190,6 +1304,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (oldIndex < 0 || oldIndex >= _queue.length) return;
     if (newIndex < 0 || newIndex >= _queue.length) return;
     if (oldIndex == newIndex) return;
+    Log.i('queue', 'reorder queue $oldIndex -> $newIndex');
     final updated = List<Track>.from(_queue);
     final track = updated.removeAt(oldIndex);
     updated.insert(newIndex, track);
@@ -1208,6 +1323,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   void clearQueue() {
     final current = _currentTrack;
     if (current == null) return;
+    Log.i('queue', 'clear queue (${_queue.length} songs)');
     _exitListenAlongIfActive();
     _queue = [current];
     _originalQueue = [current];
@@ -1231,6 +1347,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (!_pastPreviousRestartThreshold) {
       unawaited(_recordPotentialSkip());
     }
+    Log.i('player', 'previous pressed');
     await _localPrevious();
   }
 
@@ -1256,6 +1373,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> dismissPlayback() async {
+    Log.i('player', 'playback dismissed by user');
     _crossfade.cancel();
     _exitRemoteControl();
     _exitListenAlongIfActive();
@@ -1281,6 +1399,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_isRemoteControlling) return;
     _exitListenAlongIfActive();
     _shuffle = !_shuffle;
+    Log.i('player', 'shuffle ${_shuffle ? 'on' : 'off'}');
 
     if (_currentTrack != null && _originalQueue.isNotEmpty) {
       final current = _currentTrack!;
@@ -1306,6 +1425,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _exitListenAlongIfActive();
     _repeatMode = PlayerRepeatMode
         .values[(_repeatMode.index + 1) % PlayerRepeatMode.values.length];
+    Log.i('player', 'repeat ${_repeatMode.name}');
     notifyListeners();
     _pushSessionIfHosting();
   }
@@ -1348,6 +1468,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     _crossfade.cancel();
     _exitListenAlongIfActive();
     final clamped = _clampToTrim(position);
+    Log.i('player', 'seek to ${clamped.inSeconds}s');
     _audioHandler.player.seek(clamped);
     if (!_loaded) _pendingResumePosition = clamped;
   }
@@ -1372,3 +1493,5 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     super.dispose();
   }
 }
+
+String _desc(Track track) => '"${track.title}" [${track.videoId ?? track.id}]';

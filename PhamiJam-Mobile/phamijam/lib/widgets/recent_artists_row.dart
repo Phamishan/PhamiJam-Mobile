@@ -4,6 +4,7 @@ import 'package:phamijam/models/track.dart';
 import 'package:phamijam/pages/artist_page.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class _RecentArtist {
   final String channelId;
@@ -71,7 +72,9 @@ class _RecentArtistsRowState extends State<RecentArtistsRow> {
       );
       if (!mounted) return;
       setState(() => _channels = channels);
-    } catch (_) {}
+    } catch (error) {
+      Log.w('library', 'load channels failed', error);
+    }
   }
 
   @override

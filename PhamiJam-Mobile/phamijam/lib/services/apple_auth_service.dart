@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:phamijam/services/log_service.dart';
 
 const String _logTag = 'AppleAuthService';
 
@@ -75,6 +76,7 @@ class AppleAuthService {
       final decoded = utf8.decode(base64.decode(payload));
       return jsonDecode(decoded) as Map<String, dynamic>;
     } catch (error) {
+      Log.e('auth', 'sign in failed', error);
       debugPrint('$_logTag: failed to decode identityToken claims: $error');
       return null;
     }

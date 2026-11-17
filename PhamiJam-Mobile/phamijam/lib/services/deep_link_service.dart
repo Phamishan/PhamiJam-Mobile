@@ -1,5 +1,5 @@
 import 'package:app_links/app_links.dart';
-import 'package:flutter/foundation.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/share_link_service.dart';
 
 enum DeepLinkType { song, playlist, profile, listenAlong }
@@ -35,18 +35,30 @@ class DeepLinkService {
     try {
       final initial = await _appLinks.getInitialLink();
       final target = initial == null ? null : parse(initial);
+      if (initial != null) {
+        Log.i(
+          'deeplink',
+          'launched from link (${initial.host}/${initial.pathSegments.firstOrNull ?? ''}) -> '
+              '${target?.type.name ?? 'not recognised'}',
+        );
+      }
       if (target != null) onLink(target);
     } catch (error) {
-      debugPrint('DeepLinkService: getInitialLink failed: $error');
+      Log.e('deeplink', 'reading launch link failed', error);
     }
 
     _appLinks.uriLinkStream.listen(
       (uri) {
         final target = parse(uri);
+        Log.i(
+          'deeplink',
+          'link received (${uri.host}/${uri.pathSegments.firstOrNull ?? ''}) -> '
+              '${target?.type.name ?? 'not recognised'}',
+        );
         if (target != null) onLink(target);
       },
       onError: (Object error) {
-        debugPrint('DeepLinkService: uriLinkStream error: $error');
+        Log.e('deeplink', 'link stream error', error);
       },
     );
   }

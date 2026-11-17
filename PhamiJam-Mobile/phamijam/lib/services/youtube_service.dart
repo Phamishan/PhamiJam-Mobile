@@ -1,13 +1,12 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:phamijam/models/channel.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/google_auth_service.dart';
+import 'package:phamijam/services/log_service.dart';
 
-const String _logTag = 'YoutubeService';
 const String _baseUrl = 'https://www.googleapis.com/youtube/v3';
 
 class YoutubeApiException implements Exception {
@@ -17,6 +16,9 @@ class YoutubeApiException implements Exception {
   @override
   String toString() => message;
 }
+
+String _shortBody(String body) =>
+    body.length > 400 ? '${body.substring(0, 400)}…' : body;
 
 class YoutubeService {
   YoutubeService._();
@@ -31,11 +33,13 @@ class YoutubeService {
   ) async {
     final token = await GoogleAuthService.ensureAccessToken();
     if (token == null || token.isEmpty) {
+      Log.w('youtube', 'no Google access token available for request');
       throw YoutubeApiException('Not signed in to YouTube.');
     }
 
     var response = await send(token);
     if (response.statusCode == 401) {
+      Log.w('youtube', 'got 401, refreshing access token and retrying');
       final refreshedToken = await GoogleAuthService.ensureAccessToken(
         forceRefresh: true,
       );
@@ -56,8 +60,10 @@ class YoutubeService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      debugPrint(
-        '$_logTag: GET $path failed (${response.statusCode}): ${response.body}',
+      Log.e(
+        'youtube',
+        'GET $path failed (${response.statusCode})',
+        _shortBody(response.body),
       );
       throw YoutubeApiException(
         'YouTube request failed (${response.statusCode}).',
@@ -85,8 +91,10 @@ class YoutubeService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      debugPrint(
-        '$_logTag: POST $path failed (${response.statusCode}): ${response.body}',
+      Log.e(
+        'youtube',
+        'POST $path failed (${response.statusCode})',
+        _shortBody(response.body),
       );
       throw YoutubeApiException(
         'YouTube request failed (${response.statusCode}).',
@@ -114,8 +122,10 @@ class YoutubeService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      debugPrint(
-        '$_logTag: PUT $path failed (${response.statusCode}): ${response.body}',
+      Log.e(
+        'youtube',
+        'PUT $path failed (${response.statusCode})',
+        _shortBody(response.body),
       );
       throw YoutubeApiException(
         'YouTube request failed (${response.statusCode}).',
@@ -132,8 +142,10 @@ class YoutubeService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      debugPrint(
-        '$_logTag: DELETE $path failed (${response.statusCode}): ${response.body}',
+      Log.e(
+        'youtube',
+        'DELETE $path failed (${response.statusCode})',
+        _shortBody(response.body),
       );
       throw YoutubeApiException(
         'YouTube request failed (${response.statusCode}).',

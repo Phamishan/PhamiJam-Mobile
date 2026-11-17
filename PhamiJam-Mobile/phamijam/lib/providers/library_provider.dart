@@ -8,6 +8,7 @@ import 'package:phamijam/models/track.dart';
 import 'package:phamijam/services/google_auth_service.dart';
 import 'package:phamijam/services/google_drive_service.dart';
 import 'package:phamijam/services/liked_songs_service.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/mixed_playlist_service.dart';
 import 'package:phamijam/services/playlist_cover_service.dart';
@@ -58,6 +59,8 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<void> refresh({bool silentOnly = false}) async {
+    Log.i('library', 'refresh started (silentOnly=$silentOnly)');
+    final refreshWatch = Stopwatch()..start();
     isLoading = true;
     errorMessage = null;
     needsGoogleReconnect = false;
@@ -73,17 +76,26 @@ class LibraryProvider extends ChangeNotifier {
       refreshLocalFiles(),
     ]);
 
+    Log.i(
+      'library',
+      'refresh finished in ${refreshWatch.elapsedMilliseconds} ms: '
+          '${userPlaylists.length} playlists, ${likedSongs.length} liked, '
+          '${recentlyPlayed.length} recent, ${localFiles.length} Drive songs'
+          '${errorMessage == null ? '' : ', error: $errorMessage'}',
+    );
     isLoading = false;
     notifyListeners();
   }
 
   Future<void> connectGoogleAccount() async {
+    Log.i('library', 'connecting Google account from library');
     isLoading = true;
     errorMessage = null;
     notifyListeners();
 
     final token = await GoogleAuthService.ensureAccessToken(forceOnline: true);
     if (token == null || token.isEmpty) {
+      Log.w('library', 'Google connect returned no access token');
       isLoading = false;
       errorMessage = 'Could not connect your Google account. Please try again.';
       notifyListeners();
@@ -107,8 +119,7 @@ class LibraryProvider extends ChangeNotifier {
     try {
       _pinnedOrder = await PlaylistPinService.fetchAll();
     } catch (error, stackTrace) {
-      debugPrint('LibraryProvider: pinned playlists refresh failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      Log.e('library', 'pinned playlists refresh failed', error, stackTrace);
     }
   }
 
@@ -142,11 +153,12 @@ class LibraryProvider extends ChangeNotifier {
     _mixedPlaylistsUid = uid;
     _mixedPlaylistsSub = MixedPlaylistService.watchAll().listen(
       (playlists) {
+        Log.i('library', 'mixed playlists updated: ${playlists.length}');
         mixedPlaylists = playlists.map(_withCover).toList();
         notifyListeners();
       },
       onError: (Object error) {
-        debugPrint('LibraryProvider: mixed playlists watch failed: $error');
+        Log.e('library', 'mixed playlists watch failed', error);
       },
     );
   }
@@ -160,6 +172,7 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<Playlist> createMixedPlaylist(String title) async {
+    Log.i('library', 'creating PhamiJam playlist "$title"');
     final id = await MixedPlaylistService.create(title);
     return Playlist(
       id: id,
@@ -173,10 +186,13 @@ class LibraryProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> renameMixedPlaylist(Playlist playlist, String title) =>
-      MixedPlaylistService.rename(playlist.id, title);
+  Future<void> renameMixedPlaylist(Playlist playlist, String title) {
+    Log.i('library', 'renaming PhamiJam playlist ${playlist.id}');
+    return MixedPlaylistService.rename(playlist.id, title);
+  }
 
   Future<void> deleteMixedPlaylist(Playlist playlist) async {
+    Log.i('library', 'deleting PhamiJam playlist ${playlist.id}');
     await MixedPlaylistService.delete(playlist.id);
     if (_coverOverrides.containsKey(playlist.id)) {
       try {
@@ -185,8 +201,17 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
-  Future<int> addTracksToMixedPlaylist(Playlist playlist, List<Track> tracks) =>
-      MixedPlaylistService.addTracks(playlist.id, tracks);
+  Future<int> addTracksToMixedPlaylist(
+    Playlist playlist,
+    List<Track> tracks,
+  ) async {
+    final added = await MixedPlaylistService.addTracks(playlist.id, tracks);
+    Log.i(
+      'library',
+      'added $added of ${tracks.length} songs to PhamiJam playlist ${playlist.id}',
+    );
+    return added;
+  }
 
   Future<void> removeTrackFromMixedPlaylist(Playlist playlist, Track track) {
     final videoId = track.videoId;
@@ -200,8 +225,7 @@ class LibraryProvider extends ChangeNotifier {
     try {
       _coverOverrides = await PlaylistCoverService.fetchAll();
     } catch (error, stackTrace) {
-      debugPrint('LibraryProvider: cover overrides refresh failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      Log.e('library', 'cover overrides refresh failed', error, stackTrace);
     }
     _watchCoverOverrides();
   }
@@ -264,6 +288,7 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<Playlist> setPlaylistCover(Playlist playlist, File imageFile) async {
+    Log.i('library', 'uploading cover for playlist ${playlist.id}');
     final url = await PlaylistCoverService.upload(playlist.id, imageFile);
     _coverOverrides = {..._coverOverrides, playlist.id: url};
     final updated = playlist.copyWith(customCoverUrl: url);
@@ -276,6 +301,7 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<Playlist> removePlaylistCover(Playlist playlist) async {
+    Log.i('library', 'removing cover for playlist ${playlist.id}');
     await PlaylistCoverService.remove(playlist.id);
     _coverOverrides = {..._coverOverrides}..remove(playlist.id);
     final updated = playlist.copyWith(clearCustomCover: true);
@@ -291,6 +317,10 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> togglePin(Playlist playlist) async {
     final pinning = !isPinned(playlist.id);
+    Log.i(
+      'library',
+      '${pinning ? 'pinning' : 'unpinning'} playlist ${playlist.id}',
+    );
     if (pinning) {
       _pinnedOrder = [playlist.id, ..._pinnedOrder];
     } else {
@@ -307,6 +337,7 @@ class LibraryProvider extends ChangeNotifier {
         await PlaylistPinService.unpin(playlist.id);
       }
     } catch (error) {
+      Log.e('library', 'pin change failed, reverting', error);
       if (pinning) {
         _pinnedOrder = _pinnedOrder.where((id) => id != playlist.id).toList();
       } else {
@@ -321,6 +352,7 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> _refreshYoutubePlaylists({bool silentOnly = false}) async {
     if (silentOnly && !await YoutubeService.hasSilentAccess()) {
+      Log.w('library', 'no silent Google access, library needs reconnect');
       needsGoogleReconnect = true;
       errorMessage = 'Connect your Google account to view your Library.';
       userPlaylists = [];
@@ -333,8 +365,7 @@ class LibraryProvider extends ChangeNotifier {
       userPlaylists = _applyPinState(await YoutubeService.fetchMyPlaylists());
       _splitPlaylists();
     } catch (error, stackTrace) {
-      debugPrint('LibraryProvider: playlist refresh failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      Log.e('library', 'YouTube playlists refresh failed', error, stackTrace);
       errorMessage =
           "Couldn't load your YouTube playlists. Pull to refresh to try again.";
       userPlaylists = [];
@@ -351,24 +382,29 @@ class LibraryProvider extends ChangeNotifier {
         ..clear()
         ..addAll(liked.map((t) => t.videoId).whereType<String>());
     } catch (error, stackTrace) {
-      debugPrint('LibraryProvider: liked songs refresh failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      Log.e('library', 'liked songs refresh failed', error, stackTrace);
     }
   }
 
   Future<void> refreshLocalFiles() async {
     try {
       final files = await GoogleDriveService.listAudioFiles();
+      Log.i(
+        'drive',
+        files == null
+            ? 'no Drive folder connected'
+            : 'Drive folder has ${files.length} audio files',
+      );
       hasConnectedDriveFolder = files != null;
       localFiles = files ?? [];
       notifyListeners();
     } catch (error, stackTrace) {
-      debugPrint('LibraryProvider: local files refresh failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      Log.e('drive', 'Drive files refresh failed', error, stackTrace);
     }
   }
 
   void clearDriveConnection() {
+    Log.i('drive', 'Drive connection cleared in library');
     hasConnectedDriveFolder = false;
     localFiles = [];
     notifyListeners();
@@ -395,8 +431,7 @@ class LibraryProvider extends ChangeNotifier {
       }
       recentlyPlayed = tracks;
     } catch (error, stackTrace) {
-      debugPrint('LibraryProvider: recently played refresh failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      Log.e('library', 'recently played refresh failed', error, stackTrace);
     }
   }
 
@@ -410,6 +445,7 @@ class LibraryProvider extends ChangeNotifier {
     final videoId = track.videoId;
     if (videoId == null || videoId.isEmpty) return;
     final alreadyLiked = _likedVideoIds.contains(videoId);
+    Log.i('library', '${alreadyLiked ? 'unliking' : 'liking'} $videoId');
 
     _applyLikeState(videoId: videoId, track: track, liked: !alreadyLiked);
     notifyListeners();
@@ -421,6 +457,7 @@ class LibraryProvider extends ChangeNotifier {
         await LikedSongsService.like(track);
       }
     } catch (error) {
+      Log.e('library', 'like change failed for $videoId, reverting', error);
       _applyLikeState(videoId: videoId, track: track, liked: alreadyLiked);
       notifyListeners();
       rethrow;
@@ -447,6 +484,7 @@ class LibraryProvider extends ChangeNotifier {
     String description = '',
     String privacyStatus = 'private',
   }) async {
+    Log.i('library', 'creating YouTube playlist "$title" ($privacyStatus)');
     final playlist = await YoutubeService.createPlaylist(
       title,
       description: description,
@@ -460,7 +498,9 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<Playlist> loadTracks(Playlist playlist) async {
     if (playlist.tracks.isNotEmpty) return playlist;
+    Log.i('library', 'loading tracks for playlist ${playlist.id}');
     final tracks = await YoutubeService.fetchPlaylistTracks(playlist.id);
+    Log.i('library', 'loaded ${tracks.length} tracks for ${playlist.id}');
     final hydrated = playlist.copyWith(tracks: tracks);
     _replacePlaylist(hydrated);
     return hydrated;
@@ -472,6 +512,7 @@ class LibraryProvider extends ChangeNotifier {
       throw YoutubeApiException('This track cannot be added to a playlist.');
     }
 
+    Log.i('library', 'adding $videoId to playlist ${playlist.id}');
     await YoutubeService.addVideoToPlaylist(playlist.id, videoId);
 
     final current = userPlaylists.firstWhere(
@@ -493,6 +534,10 @@ class LibraryProvider extends ChangeNotifier {
     required String description,
     String? privacyStatus,
   }) async {
+    Log.i(
+      'library',
+      'updating playlist ${playlist.id} (privacy $privacyStatus)',
+    );
     await YoutubeService.updatePlaylist(
       playlist.id,
       title: title,
@@ -522,6 +567,7 @@ class LibraryProvider extends ChangeNotifier {
       );
     }
 
+    Log.i('library', 'removing item from playlist ${playlist.id}');
     await YoutubeService.removeVideoFromPlaylist(itemId);
 
     final current = userPlaylists.firstWhere(
@@ -537,6 +583,7 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<void> deletePlaylist(Playlist playlist) async {
+    Log.i('library', 'deleting playlist ${playlist.id}');
     await YoutubeService.deletePlaylist(playlist.id);
     userPlaylists = userPlaylists.where((p) => p.id != playlist.id).toList();
     _splitPlaylists();
@@ -546,7 +593,7 @@ class LibraryProvider extends ChangeNotifier {
       try {
         await PlaylistPinService.unpin(playlist.id);
       } catch (error) {
-        debugPrint('LibraryProvider: unpin on delete failed: $error');
+        Log.e('library', 'unpin on delete failed', error);
       }
     }
   }

@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/models/friend.dart';
 import 'package:phamijam/models/friend_activity_item.dart';
 import 'package:phamijam/services/listening_history_service.dart';
@@ -23,6 +23,10 @@ class FriendActivityService {
 
     final items = perFriendResults.expand((list) => list).toList()
       ..sort((a, b) => b.event.startedAt.compareTo(a.event.startedAt));
+    Log.i(
+      'friends',
+      'activity feed: ${items.length} items from ${friends.length} friends',
+    );
 
     return items.length > _feedLimit ? items.sublist(0, _feedLimit) : items;
   }
@@ -44,9 +48,7 @@ class FriendActivityService {
           .map((event) => FriendActivityItem(friend: friend, event: event))
           .toList();
     } catch (error) {
-      debugPrint(
-        'FriendActivityService: failed to fetch ${friend.uid}: $error',
-      );
+      Log.w('friends', 'activity fetch failed for a friend', error);
       return const [];
     }
   }

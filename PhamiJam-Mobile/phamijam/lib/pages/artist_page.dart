@@ -15,6 +15,7 @@ import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
 import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
+import 'package:phamijam/services/log_service.dart';
 
 VoidCallback? openArtistPageCallback(
   BuildContext context, {
@@ -180,7 +181,8 @@ class _ArtistPageState extends State<ArtistPage> {
             await ytmusic.getPlaylist(songsBrowseId, limit: playableSongsLimit),
           );
           songResults = _asMapList(playlist['tracks']);
-        } catch (_) {
+        } catch (error) {
+          Log.w('browse', 'load failed', error);
           songResults = _asMapList(
             songsSection is Map ? songsSection['results'] : null,
           );
@@ -256,6 +258,7 @@ class _ArtistPageState extends State<ArtistPage> {
         _loading = false;
       });
     } catch (error) {
+      Log.e('browse', 'load failed', error);
       if (!mounted) return;
       setState(() {
         _loading = false;

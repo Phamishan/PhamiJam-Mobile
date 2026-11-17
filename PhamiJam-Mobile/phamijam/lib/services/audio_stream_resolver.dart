@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:phamijam/services/log_service.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 class ResolvedStreams {
@@ -68,6 +69,7 @@ class AudioStreamResolver {
   Future<ResolvedStreams> _resolveUncached(String videoId) async {
     Object? lastError;
     for (var attempt = 0; attempt < 2; attempt++) {
+      final watch = Stopwatch()..start();
       try {
         final manifest = await _getMergedManifest(
           videoId,
@@ -75,14 +77,27 @@ class AudioStreamResolver {
         );
         final resolved = _pickStreams(manifest);
         _cache[videoId] = resolved;
+        Log.i(
+          'resolver',
+          'resolved $videoId in ${watch.elapsedMilliseconds} ms '
+              '(attempt ${attempt + 1}: ${resolved.audioUrls.length} audio, '
+              '${resolved.videoOnlyUrls.length} video-only)',
+        );
         return resolved;
       } catch (error) {
         lastError = error;
+        Log.w(
+          'resolver',
+          'attempt ${attempt + 1} failed for $videoId after '
+              '${watch.elapsedMilliseconds} ms',
+          error,
+        );
         if (attempt == 0) {
           await Future.delayed(const Duration(milliseconds: 400));
         }
       }
     }
+    Log.e('resolver', 'could not resolve $videoId', lastError);
     throw StreamResolutionException(videoId, lastError);
   }
 
@@ -125,7 +140,12 @@ class AudioStreamResolver {
         ytClients: [client],
         requireWatchPage: requireWatchPage,
       );
-    } catch (_) {
+    } catch (error) {
+      Log.w(
+        'resolver',
+        'client ${client.runtimeType} failed for $videoId',
+        error,
+      );
       return null;
     }
   }

@@ -1,11 +1,18 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/services/listening_history_service.dart';
 import 'package:phamijam/services/wrapped_stats.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class JamstatsPage extends StatefulWidget {
   const JamstatsPage({super.key});
@@ -21,6 +28,7 @@ class _JamstatsPageState extends State<JamstatsPage> {
   int _year = DateTime.now().year;
   int _earliestYear = DateTime.now().year;
   Timer? _slowLoadTimer;
+  bool _sharing = false;
   bool _showSlowLoadHint = false;
   static const Duration _slowLoadHintDelay = Duration(seconds: 5);
 
@@ -61,11 +69,60 @@ class _JamstatsPageState extends State<JamstatsPage> {
       if (!mounted) return;
       setState(() => _stats = WrappedStats.fromEvents(events));
     } catch (error, stackTrace) {
+      Log.e('jamstats', 'load stats failed', error, stackTrace);
       debugPrint('JamstatsPage: failed to load stats: $error\n$stackTrace');
       if (!mounted) return;
       setState(() => _loadError = "Couldn't load Jamstats.");
     } finally {
       _slowLoadTimer?.cancel();
+    }
+  }
+
+  Future<void> _shareCard(WrappedStats stats) async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+    final key = GlobalKey();
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (_) => Positioned(
+        left: -4000,
+        top: 0,
+        width: _ShareCard.width,
+        height: _ShareCard.height,
+        child: Material(
+          type: MaterialType.transparency,
+          child: RepaintBoundary(
+            key: key,
+            child: _ShareCard(stats: stats, year: _year),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      final boundary =
+          key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) throw StateError('share card not rendered');
+      final image = await boundary.toImage(pixelRatio: 3);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (bytes == null) throw StateError('could not encode image');
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/jamstats_$_year.png');
+      await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'image/png')],
+          text: 'My Jamstats ✨ $_year on PhamiJam',
+        ),
+      );
+    } catch (error) {
+      Log.e('jamstats', 'share card failed', error);
+      debugPrint('JamstatsPage: share failed: $error');
+      if (mounted) AppFlushbar.error(context, "Couldn't share your Jamstats");
+    } finally {
+      entry.remove();
+      if (mounted) setState(() => _sharing = false);
     }
   }
 
@@ -148,15 +205,23 @@ class _JamstatsPageState extends State<JamstatsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(color: kBrandGold),
-            if (_showSlowLoadHint) ...[
-              const SizedBox(height: 20),
-              const Text(
-                'Still loading',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70),
+            SizedBox(
+              width: 220,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  minHeight: 6,
+                  color: kBrandGold,
+                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                ),
               ),
-            ],
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _showSlowLoadHint ? 'Still loading' : 'Loading your Jamstats',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70),
+            ),
           ],
         ),
       );
@@ -237,6 +302,18 @@ class _JamstatsPageState extends State<JamstatsPage> {
                     year: _year,
                     years: _availableYears,
                     onSelected: _selectYear,
+                  ),
+                ),
+              if (stats != null && !stats.isEmpty)
+                Positioned(
+                  top: 24,
+                  right: 52,
+                  child: IconButton(
+                    onPressed: _sharing ? null : () => _shareCard(stats),
+                    icon: const Icon(
+                      Icons.ios_share_rounded,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               Positioned(
@@ -620,8 +697,13 @@ class _HabitRow extends StatelessWidget {
 class _SummarySlide extends StatelessWidget {
   final WrappedStats stats;
   final int year;
+  final bool forShare;
 
-  const _SummarySlide({required this.stats, required this.year});
+  const _SummarySlide({
+    required this.stats,
+    required this.year,
+    this.forShare = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -681,8 +763,39 @@ class _SummarySlide extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Text('Screenshot it. Share it. Jam on. ✨', style: _kicker(context)),
+        Text(
+          forShare ? 'phamijam ✨' : 'Share it with the button up top ✨',
+          style: _kicker(context),
+        ),
       ],
+    );
+  }
+}
+
+class _ShareCard extends StatelessWidget {
+  static const double width = 360;
+  static const double height = 640;
+
+  final WrappedStats stats;
+  final int year;
+
+  const _ShareCard({required this.stats, required this.year});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: height,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.6),
+            radius: 1.4,
+            colors: [Color(0xFF3A2E12), Color(0xFF16130D)],
+          ),
+        ),
+        child: _SummarySlide(stats: stats, year: year, forShare: true),
+      ),
     );
   }
 }

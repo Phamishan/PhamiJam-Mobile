@@ -4,6 +4,7 @@ import 'package:phamijam/pages/playlist_detail_page.dart';
 import 'package:phamijam/services/profile_service.dart';
 import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class FeaturedPlaylistsTile extends StatelessWidget {
   const FeaturedPlaylistsTile({super.key, required this.profileUid});
@@ -16,7 +17,8 @@ class FeaturedPlaylistsTile extends StatelessWidget {
       ids.map((id) async {
         try {
           return await YoutubeService.fetchPlaylistById(id);
-        } catch (_) {
+        } catch (error) {
+          Log.w('profile', 'operation failed', error);
           return null;
         }
       }),

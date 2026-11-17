@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/services/hidden_playlists_service.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/profile_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -87,6 +88,7 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setMiniPlayerSwipeToDismiss(bool value) async {
     if (value == _miniPlayerSwipeToDismiss) return;
+    Log.i('settings', 'mini player swipe to dismiss -> $value');
     _miniPlayerSwipeToDismiss = value;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -95,6 +97,7 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setSuggestRemovingSkippedSongs(bool value) async {
     if (value == _suggestRemovingSkippedSongs) return;
+    Log.i('settings', 'suggest removing skipped songs -> $value');
     _suggestRemovingSkippedSongs = value;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -103,6 +106,7 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setSearchEngine(SearchEngine value) async {
     if (value == _searchEngine) return;
+    Log.i('settings', 'search engine -> ${value.name}');
     _searchEngine = value;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -111,6 +115,7 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setAutoplayEnabled(bool value) async {
     if (value == _autoplayEnabled) return;
+    Log.i('settings', 'autoplay -> $value');
     _autoplayEnabled = value;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -119,6 +124,7 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setCrossfadeEnabled(bool value) async {
     if (value == _crossfadeEnabled) return;
+    Log.i('settings', 'crossfade -> $value');
     _crossfadeEnabled = value;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -128,6 +134,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setCrossfadeDurationMs(int value) async {
     final clamped = value.clamp(1000, 12000);
     if (clamped == _crossfadeDurationMs) return;
+    Log.i('settings', 'crossfade duration -> $clamped ms');
     _crossfadeDurationMs = clamped;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
@@ -144,12 +151,13 @@ class SettingsProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_showActivityEnabledKey, _showActivityEnabled);
     } catch (error) {
-      debugPrint('SettingsProvider: refreshShowActivityEnabled failed: $error');
+      Log.e('settings', 'could not read show-activity setting', error);
     }
   }
 
   Future<void> setShowActivityEnabled(bool value) async {
     if (value == _showActivityEnabled) return;
+    Log.i('settings', 'show activity -> $value');
     final previous = _showActivityEnabled;
     _showActivityEnabled = value;
     notifyListeners();
@@ -158,6 +166,7 @@ class SettingsProvider extends ChangeNotifier {
     try {
       await ProfileService.setShowActivity(value);
     } catch (error) {
+      Log.e('settings', 'saving show-activity failed, reverting', error);
       _showActivityEnabled = previous;
       notifyListeners();
       await prefs.setBool(_showActivityEnabledKey, previous);
@@ -176,13 +185,14 @@ class SettingsProvider extends ChangeNotifier {
         _hiddenPlaylistIds.toList(),
       );
     } catch (error) {
-      debugPrint('SettingsProvider: refreshHiddenPlaylists failed: $error');
+      Log.e('settings', 'refreshing hidden playlists failed', error);
     }
   }
 
   Future<void> setPlaylistHidden(String playlistId, bool hidden) async {
     final isHidden = _hiddenPlaylistIds.contains(playlistId);
     if (hidden == isHidden) return;
+    Log.i('settings', '${hidden ? 'hiding' : 'showing'} playlist $playlistId');
     _hiddenPlaylistIds = {..._hiddenPlaylistIds};
     if (hidden) {
       _hiddenPlaylistIds.add(playlistId);
@@ -203,6 +213,7 @@ class SettingsProvider extends ChangeNotifier {
         await HiddenPlaylistsService.unhide(playlistId);
       }
     } catch (error) {
+      Log.e('settings', 'saving playlist visibility failed, reverting', error);
       _hiddenPlaylistIds = {..._hiddenPlaylistIds};
       if (hidden) {
         _hiddenPlaylistIds.remove(playlistId);

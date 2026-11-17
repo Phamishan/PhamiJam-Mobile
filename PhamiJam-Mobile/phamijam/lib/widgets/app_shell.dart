@@ -21,7 +21,9 @@ import 'package:phamijam/providers/saved_playlists_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/providers/theme_provider.dart';
 import 'package:phamijam/services/deep_link_service.dart';
+import 'package:phamijam/services/download_service.dart';
 import 'package:phamijam/services/jamstats_widget_service.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/presence_service.dart';
 import 'package:phamijam/services/profile_service.dart';
 import 'package:phamijam/services/push_notification_service.dart';
@@ -77,6 +79,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
     _friends = context.read<FriendsProvider>();
     _friends.start();
+    _registerLogSnapshots();
     PresenceService.startHeartbeat();
     _player.addListener(_handlePlayerChanged);
     WidgetsBinding.instance.addObserver(this);
@@ -89,7 +92,59 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
   }
 
+  void _registerLogSnapshots() {
+    final log = LogService.instance;
+    final library = context.read<LibraryProvider>();
+    final settings = context.read<SettingsProvider>();
+    final downloads = context.read<DownloadsProvider>();
+    log.registerSnapshot('Player', () {
+      final track = _player.currentTrack;
+      final queue = _player.queue;
+      return [
+        'track: ${track == null ? 'none' : '"${track.title}" by ${track.artist} '
+                  '[${track.videoId ?? track.id}]'}',
+        'playing: ${_player.isPlaying}, loading: ${_player.isLoadingTrack}',
+        'position: ${_player.position.inSeconds}s / ${_player.duration.inSeconds}s',
+        'queue: ${queue.length} songs, index ${_player.queueIndex}',
+        'shuffle: ${_player.shuffle}, repeat: ${_player.repeatMode.name}, '
+            'volume: ${_player.volume.toStringAsFixed(2)}',
+        'sleep timer: ${_player.hasSleepTimer ? 'on' : 'off'}',
+        'listen along: ${_player.isListeningAlong}, '
+            'remote controlling: ${_player.isRemoteControlling}',
+      ].join('\n');
+    });
+    log.registerSnapshot(
+      'Library',
+      () => [
+        'loading: ${library.isLoading}, error: ${library.errorMessage ?? 'none'}',
+        'needs Google reconnect: ${library.needsGoogleReconnect}',
+        'playlists: ${library.userPlaylists.length} YouTube, '
+            '${library.mixedPlaylists.length} PhamiJam',
+        'liked songs: ${library.likedSongs.length}, '
+            'Drive songs: ${library.localFiles.length}, '
+            'recently played: ${library.recentlyPlayed.length}',
+        'Drive folder connected: ${library.hasConnectedDriveFolder}',
+      ].join('\n'),
+    );
+    log.registerSnapshot(
+      'Settings',
+      () => [
+        'search engine: ${settings.searchEngine.name}',
+        'autoplay: ${settings.autoplayEnabled}',
+        'crossfade: ${settings.crossfadeEnabled} (${settings.crossfadeDurationMs} ms)',
+        'show activity: ${settings.showActivityEnabled}',
+        'suggest removing skipped: ${settings.suggestRemovingSkippedSongs}',
+        'mini player swipe to dismiss: ${settings.miniPlayerSwipeToDismiss}',
+      ].join('\n'),
+    );
+    log.registerSnapshot(
+      'Downloads',
+      () => '${downloads.totalTracks} songs, ${downloads.totalSizeBytes} bytes',
+    );
+  }
+
   void _handleActivityNotificationTapped(String friendUid) {
+    Log.i('push', 'activity notification tapped');
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => FriendProfilePage(uid: friendUid)),
@@ -97,6 +152,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleDeepLink(DeepLinkTarget target) async {
+    Log.i('deeplink', 'open ${target.type.name} link');
     if (!mounted) return;
     if (target.type == DeepLinkType.song) {
       try {
@@ -108,6 +164,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           context,
         ).push(MaterialPageRoute(builder: (_) => const NowPlayingPage()));
       } catch (error) {
+        Log.e('deeplink', 'opening shared song failed', error);
         if (mounted) {
           AppFlushbar.error(context, "Couldn't open shared song.");
         }
@@ -140,7 +197,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             builder: (_) => FriendProfilePage(uid: resolvedUid),
           ),
         );
-        AppFlushbar.error(context, 'Add them as a friend first to listen along.');
+        AppFlushbar.error(
+          context,
+          'Add them as a friend first to listen along.',
+        );
         return;
       }
       final profile = await ProfileService.fetchProfile(resolvedUid);
@@ -149,7 +209,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           (profile.displayNameOverride?.trim().isNotEmpty ?? false)
           ? profile.displayNameOverride!.trim()
           : 'PhamiJam User';
-      await _player.startListenAlong(resolvedUid, friendDisplayName: displayName);
+      await _player.startListenAlong(
+        resolvedUid,
+        friendDisplayName: displayName,
+      );
       if (!mounted) return;
       AppFlushbar.success(context, 'Listening along with $displayName');
       return;
@@ -160,6 +223,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (playlist == null || !mounted) return;
       _openPlaylist(context, playlist);
     } catch (error) {
+      Log.e('deeplink', 'opening shared playlist failed', error);
       if (mounted) {
         AppFlushbar.error(context, "Couldn't open shared playlist.");
       }
@@ -200,6 +264,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     final playbackError = _player.playbackErrorMessage;
     if (playbackError != null) {
+      Log.w('player', 'showing playback error to user: $playbackError');
       _player.consumePlaybackError();
       AppFlushbar.error(context, playbackError);
     }
@@ -212,6 +277,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
     _showingSkipSuggestion = true;
+    Log.i('player', 'suggesting removal of skipped "${track.title}"');
     _showSkipSuggestionDialog(track, playlist).whenComplete(() {
       _showingSkipSuggestion = false;
     });
@@ -269,6 +335,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       }
       if (mounted) AppFlushbar.success(context, 'Removed "${track.title}"');
     } catch (error) {
+      Log.e('library', 'removing skipped track failed', error);
       if (mounted) {
         AppFlushbar.error(context, "Couldn't remove track: $error");
       }
@@ -300,6 +367,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _handleNavTap(int index) {
+    const tabs = ['home', 'search', 'library', 'profile'];
+    Log.i('nav', 'tab ${index < tabs.length ? tabs[index] : index}');
     if (index == 1) {
       _enterSearch();
       return;

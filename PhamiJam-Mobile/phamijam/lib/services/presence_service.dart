@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class FriendPresence {
   final bool online;
@@ -40,11 +40,12 @@ class PresenceService {
         'lastSeenAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (error) {
-      debugPrint('PresenceService: goOnline failed: $error');
+      Log.w('presence', 'going online failed', error);
     }
   }
 
   static Future<void> goOffline() async {
+    Log.i('presence', 'going offline');
     stopHeartbeat();
     final doc = _ownDoc;
     if (doc == null) return;
@@ -54,11 +55,12 @@ class PresenceService {
         'lastSeenAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (error) {
-      debugPrint('PresenceService: goOffline failed: $error');
+      Log.w('presence', 'going offline failed', error);
     }
   }
 
   static void startHeartbeat() {
+    Log.i('presence', 'starting online heartbeat');
     _heartbeat?.cancel();
     unawaited(goOnline());
     _heartbeat = Timer.periodic(_heartbeatInterval, (_) => goOnline());
@@ -100,10 +102,15 @@ class PresenceService {
             .collection('status')
             .doc('presence')
             .snapshots()
-            .listen((snapshot) {
-              latestData = snapshot.data();
-              emit();
-            }, onError: (_) {});
+            .listen(
+              (snapshot) {
+                latestData = snapshot.data();
+                emit();
+              },
+              onError: (Object error) {
+                Log.w('presence', 'watching friend presence failed', error);
+              },
+            );
         ticker = Timer.periodic(const Duration(seconds: 20), (_) => emit());
       },
       onCancel: () {

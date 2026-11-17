@@ -16,6 +16,7 @@ import 'package:phamijam/widgets/section_header.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/track_tile.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 String _formatCount(String raw) {
   final value = int.tryParse(raw);
@@ -73,7 +74,8 @@ class _YoutubeChannelPageState extends State<YoutubeChannelPage> {
         _videos = results[1] as List<Track>;
         _loading = false;
       });
-    } catch (_) {
+    } catch (error) {
+      Log.w('browse', 'load failed', error);
       if (!mounted) return;
       setState(() {
         _loading = false;

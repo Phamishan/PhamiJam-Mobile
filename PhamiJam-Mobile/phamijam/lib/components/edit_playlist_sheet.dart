@@ -7,6 +7,7 @@ import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/log_service.dart';
 
 Future<Playlist?> showEditPlaylistSheet(
   BuildContext context,
@@ -82,6 +83,7 @@ class _EditPlaylistSheetState extends State<_EditPlaylistSheet> {
         _uploadingCover = false;
       });
     } catch (error) {
+      Log.e('library', 'pick cover failed', error);
       if (!mounted) return;
       setState(() => _uploadingCover = false);
       AppFlushbar.error(context, "Couldn't update cover image: $error");
@@ -99,6 +101,7 @@ class _EditPlaylistSheetState extends State<_EditPlaylistSheet> {
         _uploadingCover = false;
       });
     } catch (error) {
+      Log.e('library', 'remove cover failed', error);
       if (!mounted) return;
       setState(() => _uploadingCover = false);
       AppFlushbar.error(context, "Couldn't remove cover image: $error");
@@ -124,6 +127,7 @@ class _EditPlaylistSheetState extends State<_EditPlaylistSheet> {
       Navigator.of(context).pop(updated);
       AppFlushbar.success(context, 'Playlist updated');
     } catch (error) {
+      Log.e('library', 'save failed', error);
       if (!mounted) return;
       setState(() => _saving = false);
       AppFlushbar.error(context, "Couldn't update playlist: $error");

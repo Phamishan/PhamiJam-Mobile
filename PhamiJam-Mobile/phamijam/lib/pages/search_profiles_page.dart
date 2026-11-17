@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:phamijam/pages/friend_profile_page.dart';
 import 'package:phamijam/services/profile_service.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class SearchProfilesPage extends StatefulWidget {
   const SearchProfilesPage({super.key});
@@ -55,6 +56,7 @@ class _SearchProfilesPageState extends State<SearchProfilesPage> {
         _loading = false;
       });
     } catch (error) {
+      Log.e('friends', 'search failed', error);
       debugPrint('SearchProfilesPage: search failed: $error');
       if (!mounted) return;
       setState(() {

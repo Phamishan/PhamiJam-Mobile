@@ -3,19 +3,12 @@ import 'package:flutter/material.dart';
 class ScrimIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  final String tooltip;
 
-  const ScrimIconButton({
-    super.key,
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-  });
+  const ScrimIconButton({super.key, required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: tooltip,
       child: Material(
         color: Colors.black.withValues(alpha: 0.45),
         shape: const CircleBorder(),

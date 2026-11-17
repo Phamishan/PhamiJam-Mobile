@@ -129,7 +129,6 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
                               ScrimIconButton(
                                 icon: Icons.fullscreen_exit_rounded,
                                 onTap: () => Navigator.of(context).maybePop(),
-                                tooltip: 'Exit fullscreen',
                               ),
                               const SizedBox(width: 12),
                               if (track != null)
@@ -151,7 +150,6 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
                                   _keepAlive();
                                   showVolumeSheet(context);
                                 },
-                                tooltip: 'Volume',
                               ),
                             ],
                           ),
@@ -170,9 +168,7 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
                                 color: Colors.white,
                               ),
                               progressBarColor: Colors.white,
-                              baseBarColor: Colors.white.withValues(
-                                alpha: 0.3,
-                              ),
+                              baseBarColor: Colors.white.withValues(alpha: 0.3),
                               bufferedBarColor: Colors.white.withValues(
                                 alpha: 0.45,
                               ),
@@ -262,8 +258,8 @@ class _FullscreenVideoPageState extends State<FullscreenVideoPage> {
                                   player.repeatMode == PlayerRepeatMode.one
                                       ? Icons.repeat_one_rounded
                                       : Icons.repeat_rounded,
-                                  color: player.repeatMode ==
-                                          PlayerRepeatMode.off
+                                  color:
+                                      player.repeatMode == PlayerRepeatMode.off
                                       ? Colors.white54
                                       : Colors.white,
                                 ),

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:phamijam/models/track.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class SavedPlaybackState {
   final List<Track> queue;
@@ -129,6 +130,7 @@ class PlaybackStateService {
         repeatMode: decoded['repeatMode'] as String? ?? 'off',
       );
     } catch (error) {
+      Log.e('player', 'load failed', error);
       debugPrint('PlaybackStateService: failed to parse saved state: $error');
       return null;
     }

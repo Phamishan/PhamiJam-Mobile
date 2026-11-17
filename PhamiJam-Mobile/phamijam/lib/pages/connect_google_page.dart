@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:phamijam/components/app_flushbar.dart';
 import 'package:phamijam/services/google_auth_service.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class ConnectGooglePage extends StatefulWidget {
   const ConnectGooglePage({super.key, required this.onConnected});
@@ -29,6 +30,7 @@ class _ConnectGooglePageState extends State<ConnectGooglePage> {
       if (!mounted) return;
       widget.onConnected();
     } catch (error) {
+      Log.e('auth', 'connect failed', error);
       if (!mounted) return;
       setState(() => _isLoading = false);
       AppFlushbar.error(context, "Couldn't connect Google: $error");

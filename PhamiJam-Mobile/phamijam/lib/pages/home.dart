@@ -69,7 +69,6 @@ class HomePage extends StatelessWidget {
                 _RoundIconButton(
                   icon: Icons.search_rounded,
                   onTap: onOpenSearch,
-                  tooltip: 'Search',
                 ),
               ],
             ),
@@ -169,19 +168,13 @@ class _PlaylistRow extends StatelessWidget {
 class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  final String tooltip;
 
-  const _RoundIconButton({
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-  });
+  const _RoundIconButton({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Tooltip(
-      message: tooltip,
       child: Material(
         color: colorScheme.surfaceContainerHigh,
         shape: const CircleBorder(),

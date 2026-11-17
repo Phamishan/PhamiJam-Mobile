@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/models/track.dart';
 
 enum RemoteCommandType { play, pause, next, previous, setVolume, playTrack }
@@ -141,7 +141,7 @@ class PlaybackSessionSyncService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (error) {
-      debugPrint('PlaybackSessionSyncService: push failed: $error');
+      Log.w('remote', 'publishing session failed', error);
     }
   }
 
@@ -184,6 +184,7 @@ class PlaybackSessionSyncService {
   }) async {
     final commands = _otherDoc?.collection('commands');
     if (commands == null) return;
+    Log.i('remote', 'sending command ${type.name} to other device');
     try {
       await commands.add({
         'type': type.name,
@@ -192,7 +193,7 @@ class PlaybackSessionSyncService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (error) {
-      debugPrint('PlaybackSessionSyncService: sendCommand failed: $error');
+      Log.e('remote', 'sending command ${type.name} failed', error);
     }
   }
 
@@ -222,9 +223,10 @@ class PlaybackSessionSyncService {
         await commands.doc(commandDocId).delete();
         return;
       } catch (error) {
-        debugPrint(
-          'PlaybackSessionSyncService: ackCommand failed (attempt '
-          '${attempt + 1}/3): $error',
+        Log.w(
+          'remote',
+          'acknowledging command failed (attempt ${attempt + 1}/3)',
+          error,
         );
         if (attempt < 2) {
           await Future<void>.delayed(
