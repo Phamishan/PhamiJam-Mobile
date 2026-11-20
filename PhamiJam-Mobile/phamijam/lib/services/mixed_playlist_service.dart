@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:phamijam/models/playlist.dart';
 import 'package:phamijam/models/track.dart';
+import 'package:phamijam/services/log_service.dart';
+import 'package:phamijam/services/youtube_service.dart';
 
 const String kMixedPlaylistIdPrefix = 'mixed-';
 
@@ -59,6 +61,12 @@ class MixedPlaylistService {
       }
       final track = _trackFromMap(map);
       if (track != null) tracks.add(track);
+      final source = (map['source'] as String?) ?? 'youtube';
+      if (source == 'youtube' &&
+          (((map['artist'] as String?) ?? '').isEmpty ||
+              ((map['thumbnailUrl'] as String?) ?? '').isEmpty)) {
+        _needsRepair.add(doc.id);
+      }
     }
 
     final cover = tracks
@@ -82,6 +90,94 @@ class MixedPlaylistService {
     );
   }
 
+  static String _thumbnailFor(
+    Map<String, dynamic> map,
+    String videoId,
+    bool isDrive,
+  ) {
+    final saved = (map['thumbnailUrl'] as String?) ?? '';
+    if (saved.isNotEmpty || isDrive) return saved;
+    return 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+  }
+
+  static final Set<String> _needsRepair = {};
+  static final Set<String> _repairAttempted = {};
+
+  static List<String> takePlaylistsNeedingRepair() {
+    final ids = _needsRepair.toList();
+    _needsRepair.clear();
+    return ids;
+  }
+
+  static Future<void> repairMissingMetadata(String playlistId) async {
+    final collection = _collection;
+    if (collection == null) return;
+    final doc = collection.doc(_docId(playlistId));
+    final snapshot = await doc.get();
+    final data = snapshot.data();
+    if (data == null || data['tracks'] is! List) return;
+    final tracks = (data['tracks'] as List)
+        .whereType<Map>()
+        .map((t) => Map<String, dynamic>.from(t))
+        .toList();
+
+    final details = <String, Track>{};
+    for (final track in tracks) {
+      final videoId = (track['videoId'] as String?) ?? '';
+      final source = (track['source'] as String?) ?? 'youtube';
+      if (videoId.isEmpty ||
+          source != 'youtube' ||
+          videoId.startsWith('drive:') ||
+          _repairAttempted.contains(videoId)) {
+        continue;
+      }
+      final artist = (track['artist'] as String?) ?? '';
+      final thumb = (track['thumbnailUrl'] as String?) ?? '';
+      if (artist.isNotEmpty && thumb.isNotEmpty) continue;
+      if (details.length >= 25) break;
+      _repairAttempted.add(videoId);
+      try {
+        final info = await YoutubeService.fetchVideoById(videoId);
+        if (info != null) details[videoId] = info;
+      } catch (error) {
+        Log.w('library', 'looking up song details failed', error);
+      }
+    }
+    if (details.isEmpty) return;
+
+    var fixed = 0;
+    for (final track in tracks) {
+      final info = details[(track['videoId'] as String?) ?? ''];
+      if (info == null) continue;
+      var changed = false;
+      if (((track['artist'] as String?) ?? '').isEmpty &&
+          info.artist.isNotEmpty) {
+        track['artist'] = info.artist;
+        changed = true;
+      }
+      if (((track['thumbnailUrl'] as String?) ?? '').isEmpty &&
+          info.thumbnailUrl.isNotEmpty) {
+        track['thumbnailUrl'] = info.thumbnailUrl;
+        changed = true;
+      }
+      if (((track['artistId'] as String?) ?? '').isEmpty &&
+          (info.channelId ?? '').isNotEmpty) {
+        track['artistId'] = info.channelId;
+        changed = true;
+      }
+      if (changed) fixed++;
+    }
+    if (fixed == 0) return;
+    await doc.update({
+      'tracks': tracks,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    Log.i(
+      'library',
+      'repaired details for $fixed songs in a PhamiJam playlist',
+    );
+  }
+
   static Track? _trackFromMap(Map<String, dynamic> map) {
     final videoId = map['videoId'];
     if (videoId is! String || videoId.isEmpty) return null;
@@ -95,7 +191,7 @@ class MixedPlaylistService {
       id: id,
       title: (map['title'] as String?) ?? '',
       artist: (map['artist'] as String?) ?? '',
-      thumbnailUrl: (map['thumbnailUrl'] as String?) ?? '',
+      thumbnailUrl: _thumbnailFor(map, videoId, isDrive),
       duration: Duration(milliseconds: durationMs is int ? durationMs : 0),
       videoId: videoId,
       channelId: artistId is String && artistId.isNotEmpty ? artistId : null,

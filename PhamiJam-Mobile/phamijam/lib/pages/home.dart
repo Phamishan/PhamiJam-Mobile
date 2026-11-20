@@ -174,8 +174,7 @@ class _RoundIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      child: Material(
+    return Material(
         color: colorScheme.surfaceContainerHigh,
         shape: const CircleBorder(),
         child: InkWell(
@@ -186,7 +185,6 @@ class _RoundIconButton extends StatelessWidget {
             child: Icon(icon, size: 20, color: colorScheme.onSurface),
           ),
         ),
-      ),
-    );
+      );
   }
 }

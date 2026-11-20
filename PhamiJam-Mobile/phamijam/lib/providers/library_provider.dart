@@ -156,6 +156,15 @@ class LibraryProvider extends ChangeNotifier {
         Log.i('library', 'mixed playlists updated: ${playlists.length}');
         mixedPlaylists = playlists.map(_withCover).toList();
         notifyListeners();
+        for (final id in MixedPlaylistService.takePlaylistsNeedingRepair()) {
+          unawaited(
+            MixedPlaylistService.repairMissingMetadata(id).catchError((
+              Object error,
+            ) {
+              Log.w('library', 'repairing a PhamiJam playlist failed', error);
+            }),
+          );
+        }
       },
       onError: (Object error) {
         Log.e('library', 'mixed playlists watch failed', error);
