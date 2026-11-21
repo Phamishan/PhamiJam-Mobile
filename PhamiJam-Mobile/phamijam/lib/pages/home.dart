@@ -17,6 +17,7 @@ import 'package:phamijam/widgets/recent_artists_row.dart';
 import 'package:phamijam/widgets/recent_track_card.dart';
 import 'package:phamijam/widgets/section_header.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/widgets/quick_access_row.dart';
 
 class HomePage extends StatelessWidget {
   final ValueChanged<Playlist> onOpenPlaylist;
@@ -36,9 +37,11 @@ class HomePage extends StatelessWidget {
     final downloads = context.watch<DownloadsProvider>();
     final player = context.read<PlayerProvider>();
     final settings = context.watch<SettingsProvider>();
-    final visiblePlaylists = library.madeForYou
-        .where((p) => !settings.isPlaylistHidden(p.id))
-        .toList();
+    final visiblePlaylists =
+        [...library.userPlaylists, ...library.mixedPlaylists]
+            .where((p) => !settings.isPlaylistHidden(p.id))
+            .where((p) => !library.isPinned(p.id))
+            .toList();
     final user = FirebaseAuth.instance.currentUser;
     final firstName = (user?.displayName ?? 'there').split(' ').first;
     final colorScheme = Theme.of(context).colorScheme;
@@ -73,6 +76,7 @@ class HomePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
+            QuickAccessRow(onOpenPlaylist: onOpenPlaylist),
             if (library.recentlyPlayed.isNotEmpty) ...[
               SectionHeader(title: 'Recently Played Artists'),
               RecentArtistsRow(tracks: library.recentlyPlayed),
@@ -175,16 +179,16 @@ class _RoundIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Material(
-        color: colorScheme.surfaceContainerHigh,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Icon(icon, size: 20, color: colorScheme.onSurface),
-          ),
+      color: colorScheme.surfaceContainerHigh,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Icon(icon, size: 20, color: colorScheme.onSurface),
         ),
-      );
+      ),
+    );
   }
 }

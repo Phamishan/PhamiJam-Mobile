@@ -30,7 +30,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const String _logSubmissionEmail = 'phamishan@phamishan.dk';
-const int _maxLogEmailBodyChars = 6000;
+const int _maxLogEmailBodyChars = 1800;
 
 class _AccentPreset {
   final Color color;

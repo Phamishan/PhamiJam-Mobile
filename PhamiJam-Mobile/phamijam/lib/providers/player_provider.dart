@@ -19,6 +19,7 @@ import 'package:phamijam/services/autoplay_service.dart';
 import 'package:phamijam/services/crossfade_controller.dart';
 import 'package:phamijam/services/skip_tracking_service.dart';
 import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
+import 'package:phamijam/services/unavailable_songs_service.dart';
 
 enum PlayerRepeatMode { off, all, one }
 
@@ -172,7 +173,10 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       seedVideoId,
       excludeVideoIds: excludeIds,
     );
-    Log.i('autoplay', 'fetched ${continuation.length} songs after $seedVideoId');
+    Log.i(
+      'autoplay',
+      'fetched ${continuation.length} songs after $seedVideoId',
+    );
     if (continuation.isEmpty) return false;
     _queue = List<Track>.from(_queue)..addAll(continuation);
     _originalQueue = List<Track>.from(_originalQueue)..addAll(continuation);
@@ -1025,6 +1029,16 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  void _noteIfUnavailable(Track track, Object error) {
+    final text = error.toString();
+    final id = track.videoId;
+    if (id != null &&
+        (text.contains('VideoUnplayableException') ||
+            text.contains('is unplayable'))) {
+      UnavailableSongs.instance.add(id);
+    }
+  }
+
   Future<bool> _tryStartTrack(
     Track track, {
     Duration startAt = Duration.zero,
@@ -1043,6 +1057,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       return true;
     } catch (error) {
       Log.w('player', 'start failed for ${_desc(track)}, retrying once', error);
+      _noteIfUnavailable(track, error);
     }
     await Future.delayed(const Duration(milliseconds: 700));
     try {
@@ -1056,6 +1071,7 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
       return true;
     } catch (error) {
       Log.e('player', 'retry also failed for ${_desc(track)}', error);
+      _noteIfUnavailable(track, error);
       return false;
     }
   }
@@ -1119,6 +1135,11 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     final started = await _tryStartTrack(track);
     if (started) {
       _consecutiveStreamErrors = 0;
+      if (titles.isNotEmpty) {
+        playbackErrorMessage =
+            '${_formatCouldNotPlayMessage(titles)} Skipped to the next song.';
+        notifyListeners();
+      }
       return;
     }
     titles.add(track.title);
@@ -1229,12 +1250,15 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     _currentTrack = _queue[_queueIndex];
     notifyListeners();
+    final failedTitle = _currentTrack!.title;
     final started = await _tryStartTrack(_currentTrack!);
     notifyListeners();
     _persistSession();
     if (!started) {
       _consecutiveStreamErrors++;
       if (_consecutiveStreamErrors < _maxConsecutiveStreamErrors) {
+        playbackErrorMessage = 'Couldn\'t play "$failedTitle" - skipped.';
+        notifyListeners();
         await _localNext();
       } else {
         _consecutiveStreamErrors = 0;

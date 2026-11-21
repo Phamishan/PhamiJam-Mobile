@@ -11,6 +11,8 @@ import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/section_header.dart';
 import 'package:provider/provider.dart';
+import 'package:phamijam/services/playlist_filter_prefs.dart';
+import 'package:phamijam/services/log_service.dart';
 
 class LibraryPage extends StatefulWidget {
   final ValueChanged<Playlist> onOpenPlaylist;
@@ -21,7 +23,60 @@ class LibraryPage extends StatefulWidget {
   State<LibraryPage> createState() => _LibraryPageState();
 }
 
+enum _PlaylistFilter { all, youtube, phamijam, saved }
+
 class _LibraryPageState extends State<LibraryPage> {
+  _PlaylistFilter _filter = _PlaylistFilter.all;
+
+  Future<void> _restoreFilter() async {
+    final saved = await PlaylistFilterPrefs.load();
+    if (saved == null || !mounted) return;
+    final match = _PlaylistFilter.values.where((f) => f.name == saved);
+    if (match.isNotEmpty) setState(() => _filter = match.first);
+  }
+
+  void _selectFilter(_PlaylistFilter value) {
+    if (value == _filter) return;
+    setState(() => _filter = value);
+    Log.i('library', 'playlist filter -> ${value.name}');
+    PlaylistFilterPrefs.save(
+      value.name,
+      isDefault: value == _PlaylistFilter.all,
+    );
+  }
+
+  Widget _buildFilterChips({
+    required int youtube,
+    required int phamijam,
+    required int saved,
+  }) {
+    Widget chip(_PlaylistFilter filter, String label, int count) => Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text('$label · $count'),
+        selected: _filter == filter,
+        onSelected: (_) => _selectFilter(filter),
+      ),
+    );
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          chip(_PlaylistFilter.all, 'All', youtube + phamijam + saved),
+          chip(_PlaylistFilter.youtube, 'YouTube', youtube),
+          chip(_PlaylistFilter.phamijam, 'PhamiJam', phamijam),
+          chip(_PlaylistFilter.saved, 'Saved', saved),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreFilter();
+  }
+
   void _openLocalFiles(BuildContext context, LibraryProvider library) {
     if (!library.hasConnectedDriveFolder) {
       AppFlushbar.info(
@@ -115,6 +170,12 @@ class _LibraryPageState extends State<LibraryPage> {
         .where((p) => !settings.isPlaylistHidden(p.id))
         .toList();
     final saved = savedPlaylists.playlists;
+    final showMain =
+        _filter == _PlaylistFilter.all || _filter == _PlaylistFilter.youtube;
+    final showMixed =
+        _filter == _PlaylistFilter.all || _filter == _PlaylistFilter.phamijam;
+    final showSaved =
+        _filter == _PlaylistFilter.all || _filter == _PlaylistFilter.saved;
 
     return RefreshIndicator(
       onRefresh: () =>
@@ -123,37 +184,55 @@ class _LibraryPageState extends State<LibraryPage> {
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: CustomScrollView(
         slivers: [
-          SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 14,
-              crossAxisSpacing: 14,
-              childAspectRatio: 0.82,
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildFilterChips(
+                youtube: playlists.length,
+                phamijam: library.mixedPlaylists.length,
+                saved: saved.length,
+              ),
             ),
-            delegate: SliverChildBuilderDelegate((context, index) {
-              if (index == 0) {
-                return _LikedSongsCard(
-                  count: library.likedSongs.length,
-                  onTap: () =>
-                      widget.onOpenPlaylist(library.likedSongsPlaylist),
-                );
-              }
-              if (index == 1) {
-                return _LocalFilesCard(
-                  count: library.localFiles.length,
-                  onTap: () => _openLocalFiles(context, library),
-                );
-              }
-              final playlist = playlists[index - 2];
-              return _LibraryPlaylistTile(
-                playlist: playlist,
-                onTap: () => widget.onOpenPlaylist(playlist),
-                onLongPress: () => togglePlaylistPin(context, playlist),
-                onTogglePin: () => togglePlaylistPin(context, playlist),
-              );
-            }, childCount: playlists.length + 2),
           ),
-          if (library.mixedPlaylists.isNotEmpty) ...[
+          if (showMain)
+            SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 0.82,
+              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                if (index == 0) {
+                  return _LikedSongsCard(
+                    count: library.likedSongs.length,
+                    onTap: () =>
+                        widget.onOpenPlaylist(library.likedSongsPlaylist),
+                  );
+                }
+                if (index == 1) {
+                  return _LocalFilesCard(
+                    count: library.localFiles.length,
+                    onTap: () => _openLocalFiles(context, library),
+                  );
+                }
+                final playlist = playlists[index - 2];
+                return _LibraryPlaylistTile(
+                  playlist: playlist,
+                  onTap: () => widget.onOpenPlaylist(playlist),
+                  onLongPress: () => togglePlaylistPin(context, playlist),
+                  onTogglePin: () => togglePlaylistPin(context, playlist),
+                );
+              }, childCount: playlists.length + 2),
+            ),
+          if (_filter == _PlaylistFilter.phamijam &&
+              library.mixedPlaylists.isEmpty)
+            const _FilterEmptyMessage(
+              'No PhamiJam playlists yet. Add songs to one from the song menu.',
+            ),
+          if (_filter == _PlaylistFilter.saved && saved.isEmpty)
+            const _FilterEmptyMessage('No saved playlists yet.'),
+          if (showMixed && library.mixedPlaylists.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.only(top: 24),
@@ -172,11 +251,13 @@ class _LibraryPageState extends State<LibraryPage> {
                 return _LibraryPlaylistTile(
                   playlist: playlist,
                   onTap: () => widget.onOpenPlaylist(playlist),
+                  onLongPress: () => togglePlaylistPin(context, playlist),
+                  onTogglePin: () => togglePlaylistPin(context, playlist),
                 );
               }, childCount: library.mixedPlaylists.length),
             ),
           ],
-          if (saved.isNotEmpty) ...[
+          if (showSaved && saved.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.only(top: 24),
@@ -206,6 +287,26 @@ class _LibraryPageState extends State<LibraryPage> {
           ],
           const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
         ],
+      ),
+    );
+  }
+}
+
+class _FilterEmptyMessage extends StatelessWidget {
+  final String message;
+
+  const _FilterEmptyMessage(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
       ),
     );
   }
@@ -290,6 +391,7 @@ class _LibraryPlaylistTile extends StatelessWidget {
                           color: Colors.black.withValues(alpha: 0.45),
                           shape: const CircleBorder(),
                           child: PopupMenuButton<String>(
+                            tooltip: '',
                             splashRadius: 16,
                             borderRadius: BorderRadius.circular(16),
                             shape: RoundedRectangleBorder(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,8 +24,12 @@ import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/play_button.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:phamijam/widgets/track_tile.dart';
+import 'package:phamijam/services/playlist_sort_prefs.dart';
 import 'package:provider/provider.dart';
 import 'package:phamijam/services/log_service.dart';
+import 'package:phamijam/services/mixed_playlist_service.dart';
+import 'package:phamijam/services/unavailable_songs_service.dart';
+import 'package:phamijam/services/youtube_service.dart';
 
 enum _PlaylistSort {
   custom,
@@ -103,9 +108,29 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     return sorted;
   }
 
+  Future<void> _restoreSort() async {
+    final saved = await PlaylistSortPrefs.load(widget.playlist.id);
+    if (saved == null || !mounted) return;
+    final match = _PlaylistSort.values.where((option) => option.name == saved);
+    if (match.isNotEmpty) setState(() => _sort = match.first);
+  }
+
+  void _selectSort(_PlaylistSort value) {
+    setState(() => _sort = value);
+    Log.i('library', 'playlist sort -> ${value.name}');
+    PlaylistSortPrefs.save(
+      widget.playlist.id,
+      value.name,
+      isDefault: value == _PlaylistSort.custom,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _restoreSort();
+    UnavailableSongs.instance.ensureLoaded();
+    UnavailableSongs.instance.addListener(_onUnavailableChanged);
     _playlist = widget.playlist;
     if (_playlist.tracks.isEmpty && _playlist.itemCount > 0) {
       _loadTracks();
@@ -151,9 +176,46 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
 
   @override
   void dispose() {
+    UnavailableSongs.instance.removeListener(_onUnavailableChanged);
     _searchController.dispose();
     super.dispose();
   }
+
+  void _onUnavailableChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool _availabilityChecked = false;
+
+  Future<void> _checkAvailability() async {
+    if (_availabilityChecked) return;
+    final ids = _playlist.tracks
+        .where((t) => !t.isDriveSourced)
+        .map((t) => t.videoId)
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return;
+    _availabilityChecked = true;
+    try {
+      final missing = await YoutubeService.findUnavailableVideos(ids);
+      UnavailableSongs.instance.addAll(missing);
+      UnavailableSongs.instance.removeAll(
+        ids.where((id) => !missing.contains(id)),
+      );
+      Log.i(
+        'library',
+        'availability check: ${missing.length} of ${ids.length} songs unavailable',
+      );
+    } catch (error) {
+      Log.w('library', 'availability check failed', error);
+    }
+  }
+
+  List<Track> _unavailableTracks() => _playlist.tracks
+      .where((t) => UnavailableSongs.instance.contains(t.videoId))
+      .toList();
 
   Future<void> _handleEdit() async {
     final updated = await showEditPlaylistSheet(context, _playlist);
@@ -307,9 +369,27 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     );
     if (confirmed != true || !mounted) return;
     try {
+      final export = await MixedPlaylistService.exportPlaylist(_playlist.id);
+      final title = _playlist.title;
+      if (!mounted) return;
+      final toastContext = Navigator.of(context, rootNavigator: true).context;
       await context.read<LibraryProvider>().deleteMixedPlaylist(_playlist);
       if (!mounted) return;
       widget.onBack();
+      if (export != null && toastContext.mounted) {
+        AppFlushbar.undo(
+          toastContext,
+          'Deleted "$title"',
+          onUndo: () {
+            MixedPlaylistService.restorePlaylist(export).catchError((
+              Object error,
+            ) {
+              Log.w('library', 'undo delete failed', error);
+              return '';
+            });
+          },
+        );
+      }
     } catch (error) {
       Log.e('library', 'handle delete mixed failed', error);
       if (mounted) {
@@ -319,14 +399,33 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   }
 
   Future<bool> _handleRemoveTrack(Track track) async {
-    if (_playlist.isMixed) {
+    final tracks = _playlist.tracks;
+    final position = tracks.indexWhere((t) => t.id == track.id);
+    final beforeId = position >= 0 && position + 1 < tracks.length
+        ? tracks[position + 1].videoId
+        : null;
+    final playlist = _playlist;
+
+    if (playlist.isMixed) {
       try {
         await context.read<LibraryProvider>().removeTrackFromMixedPlaylist(
-          _playlist,
+          playlist,
           track,
         );
         if (!mounted) return false;
-        AppFlushbar.success(context, 'Removed from playlist');
+        AppFlushbar.undo(
+          context,
+          'Removed "${track.title}"',
+          onUndo: () {
+            MixedPlaylistService.insertTrackBefore(
+              playlist.id,
+              track,
+              beforeVideoId: beforeId,
+            ).catchError((Object error) {
+              Log.w('library', 'undo remove failed', error);
+            });
+          },
+        );
         return true;
       } catch (error) {
         Log.e('library', 'handle remove track failed', error);
@@ -335,7 +434,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         return false;
       }
     }
-    if (!_playlist.isFromYoutube) {
+    if (!playlist.isFromYoutube) {
       try {
         await context.read<LibraryProvider>().toggleLike(track);
         if (!mounted) return false;
@@ -344,7 +443,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
             tracks: _playlist.tracks.where((t) => t.id != track.id).toList(),
           ),
         );
-        AppFlushbar.success(context, 'Removed from Liked Songs');
+        AppFlushbar.undo(
+          context,
+          'Removed "${track.title}" from Liked Songs',
+          onUndo: () => _restoreTracks(playlist, [track]),
+        );
         return true;
       } catch (error) {
         Log.e('library', 'handle remove track failed', error);
@@ -357,10 +460,14 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     try {
       final updated = await context
           .read<LibraryProvider>()
-          .removeTrackFromPlaylist(_playlist, track);
+          .removeTrackFromPlaylist(playlist, track);
       if (!mounted) return false;
       setState(() => _playlist = updated);
-      AppFlushbar.success(context, 'Removed from playlist');
+      AppFlushbar.undo(
+        context,
+        'Removed "${track.title}"',
+        onUndo: () => _restoreTracks(playlist, [track]),
+      );
       return true;
     } catch (error) {
       Log.e('library', 'handle remove track failed', error);
@@ -368,6 +475,148 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       AppFlushbar.error(context, "Couldn't remove track: $error");
       return false;
     }
+  }
+
+  Future<void> _restoreTracks(Playlist playlist, List<Track> tracks) async {
+    final library = context.read<LibraryProvider>();
+    try {
+      if (playlist.isMixed) {
+        await library.addTracksToMixedPlaylist(playlist, tracks);
+      } else if (playlist.isFromYoutube) {
+        for (final track in tracks) {
+          await library.addTrackToPlaylist(playlist, track);
+        }
+        if (!mounted) return;
+        final fresh = library.userPlaylists.where((p) => p.id == playlist.id);
+        if (fresh.isNotEmpty) setState(() => _playlist = fresh.first);
+      } else {
+        for (final track in tracks) {
+          await library.toggleLike(track);
+        }
+        if (!mounted) return;
+        setState(
+          () => _playlist = _playlist.copyWith(
+            tracks: [..._playlist.tracks, ...tracks],
+          ),
+        );
+      }
+    } catch (error) {
+      Log.e('library', 'undo remove failed', error);
+      if (mounted) AppFlushbar.error(context, "Couldn't undo: $error");
+    }
+  }
+
+  Future<void> _removeTracksWithUndo(List<Track> tracks) async {
+    if (tracks.isEmpty) return;
+    final library = context.read<LibraryProvider>();
+    final playlist = _playlist;
+    try {
+      if (playlist.isMixed) {
+        await MixedPlaylistService.removeVideoIds(
+          playlist.id,
+          tracks.map((t) => t.videoId).whereType<String>().toSet(),
+        );
+      } else if (playlist.isFromYoutube) {
+        var current = playlist;
+        for (final track in tracks) {
+          current = await library.removeTrackFromPlaylist(current, track);
+        }
+        if (!mounted) return;
+        setState(() => _playlist = current);
+      } else {
+        for (final track in tracks) {
+          await library.toggleLike(track);
+        }
+        if (!mounted) return;
+        final removedIds = tracks.map((t) => t.id).toSet();
+        setState(
+          () => _playlist = _playlist.copyWith(
+            tracks: _playlist.tracks
+                .where((t) => !removedIds.contains(t.id))
+                .toList(),
+          ),
+        );
+      }
+    } catch (error) {
+      Log.e('library', 'removing several songs failed', error);
+      if (mounted) AppFlushbar.error(context, "Couldn't remove songs: $error");
+      return;
+    }
+    if (!mounted) return;
+    _exitSelectionMode();
+    AppFlushbar.undo(
+      context,
+      tracks.length == 1
+          ? 'Removed "${tracks.first.title}"'
+          : 'Removed ${tracks.length} songs',
+      onUndo: () => _restoreTracks(playlist, tracks),
+    );
+  }
+
+  Future<void> _removeSelected() => _removeTracksWithUndo(
+    _playlist.tracks.where((t) => _selectedTrackIds.contains(t.id)).toList(),
+  );
+
+  Future<void> _removeUnavailable() async {
+    final broken = _unavailableTracks();
+    if (broken.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove unavailable songs?'),
+        content: Text(
+          '${broken.length} song${broken.length == 1 ? '' : 's'} can no '
+          'longer be played on YouTube and '
+          '${broken.length == 1 ? 'will be' : 'will be'} removed from '
+          '"${_playlist.title}". You can undo this right after.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _removeTracksWithUndo(broken);
+  }
+
+  Future<void> _moveSelected() async {
+    final selected = _playlist.tracks
+        .where((t) => _selectedTrackIds.contains(t.id))
+        .toList();
+    if (selected.isEmpty) return;
+    final added = await showAddTracksToPlaylistSheet(
+      context,
+      selected,
+      excludePlaylistId: _playlist.id,
+    );
+    if (added != true || !mounted) return;
+    await _removeTracksWithUndo(selected);
+  }
+
+  void _reorder(int oldIndex, int newIndex) {
+    final tracks = _playlist.tracks;
+    if (oldIndex < 0 || oldIndex >= tracks.length) return;
+    final moved = tracks[oldIndex];
+    final videoId = moved.videoId;
+    if (videoId == null || newIndex == oldIndex) return;
+    final remaining = [...tracks]..removeAt(oldIndex);
+    final before = newIndex < remaining.length
+        ? remaining[newIndex].videoId
+        : null;
+    MixedPlaylistService.moveVideo(
+      _playlist.id,
+      videoId,
+      beforeVideoId: before,
+    ).catchError((Object error) {
+      Log.w('library', 'reordering failed', error);
+    });
   }
 
   void _enterSelectionMode(Track track) {
@@ -488,6 +737,72 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         currentTrackId != null &&
         playlist.tracks.any((t) => t.id == currentTrackId);
 
+    if (!_availabilityChecked &&
+        !_loadingTracks &&
+        playlist.tracks.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkAvailability());
+    }
+    final unavailableCount = UnavailableSongs.instance.countIn(
+      playlist.tracks.map((t) => t.videoId),
+    );
+    final canReorder =
+        playlist.isMixed &&
+        playlist.isOwnedByUser &&
+        _sort == _PlaylistSort.custom &&
+        query.isEmpty &&
+        !_selectionMode;
+
+    Widget tileFor(BuildContext context, int i, {bool reorder = false}) {
+      final track = filteredTracks[i];
+      final originalIndex = playlist.tracks.indexOf(track);
+      return TrackTile(
+        index: i + 1,
+        track: track,
+        isActive: currentTrackId == track.id,
+        selectionMode: _selectionMode,
+        selected: _selectedTrackIds.contains(track.id),
+        onTap: _selectionMode
+            ? () => _toggleTrackSelection(track)
+            : () => player.playQueue(
+                playlist.tracks,
+                startIndex: originalIndex,
+                sourcePlaylist: playlist,
+              ),
+        onLongPress: _selectionMode
+            ? () => _toggleTrackSelection(track)
+            : () => _enterSelectionMode(track),
+        onPlayNext: () => player.playNext(track),
+        onAddToQueue: () => player.addToQueue(track),
+        onRemove: playlist.isOwnedByUser
+            ? () => _handleRemoveTrack(track)
+            : null,
+        onMore: () => _selectionMode && _selectedTrackIds.isNotEmpty
+            ? _addSelectedToPlaylist()
+            : showAddToPlaylistSheet(context, track),
+        isLiked: library.isLiked(track),
+        onToggleLike: () => toggleTrackLike(context, track),
+        isDownloaded: downloads.isDownloaded(track.videoId),
+        downloadProgress: track.isDriveSourced
+            ? null
+            : downloads.progressFor(track.videoId),
+        onToggleDownload: track.isDriveSourced
+            ? null
+            : () => toggleTrackDownload(context, track),
+        onCancelDownload: track.isDriveSourced || track.videoId == null
+            ? null
+            : () => downloads.cancelDownload(track.videoId!),
+        onArtistTap: openArtistPageCallback(
+          context,
+          channelId: track.channelId,
+          artistName: track.artist,
+        ),
+        playlistId: playlist.id,
+        playlistName: playlist.title,
+        unavailable: UnavailableSongs.instance.contains(track.videoId),
+        reorderIndex: reorder ? i : null,
+      );
+    }
+
     return SwipeBack(
       child: Scaffold(
         backgroundColor: colorScheme.surface,
@@ -531,14 +846,42 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                   '${_selectedTrackIds.length} selected',
                                   style: Theme.of(context).textTheme.bodyLarge,
                                 ),
-                                IconButton(
-                                  onPressed: _selectedTrackIds.isEmpty
-                                      ? null
-                                      : _addSelectedToPlaylist,
-                                  icon: Icon(
-                                    Icons.playlist_add_rounded,
-                                    color: colorScheme.onSurface,
-                                  ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      onPressed: _selectedTrackIds.isEmpty
+                                          ? null
+                                          : _addSelectedToPlaylist,
+                                      icon: Icon(
+                                        Icons.playlist_add_rounded,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                    if (playlist.isOwnedByUser &&
+                                        (playlist.isMixed ||
+                                            playlist.isFromYoutube)) ...[
+                                      IconButton(
+                                        onPressed: _selectedTrackIds.isEmpty
+                                            ? null
+                                            : _moveSelected,
+                                        icon: Icon(
+                                          Icons.drive_file_move_outlined,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    ],
+                                    if (playlist.isOwnedByUser)
+                                      IconButton(
+                                        onPressed: _selectedTrackIds.isEmpty
+                                            ? null
+                                            : _removeSelected,
+                                        icon: Icon(
+                                          Icons.delete_outline_rounded,
+                                          color: colorScheme.error,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ]
                             : [
@@ -568,6 +911,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                   ),
                                 ] else if (playlist.isMixed)
                                   PopupMenuButton<String>(
+                                    tooltip: '',
                                     icon: Icon(
                                       Icons.more_horiz_rounded,
                                       color: colorScheme.onSurface,
@@ -644,6 +988,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                                             ),
                                           );
                                       return PopupMenuButton<String>(
+                                        tooltip: '',
                                         icon: Icon(
                                           Icons.more_horiz_rounded,
                                           color: colorScheme.onSurface,
@@ -921,8 +1266,9 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                       ),
                       const SizedBox(width: 8),
                       PopupMenuButton<_PlaylistSort>(
+                        tooltip: '',
                         initialValue: _sort,
-                        onSelected: (value) => setState(() => _sort = value),
+                        onSelected: _selectSort,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -1050,63 +1396,65 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                       : const SizedBox.shrink(),
                 ),
               ),
+            if (unavailableCount > 0 &&
+                playlist.isOwnedByUser &&
+                !_selectionMode &&
+                !_loadingTracks)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Material(
+                    color: colorScheme.errorContainer.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: colorScheme.error,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '$unavailableCount song'
+                              '${unavailableCount == 1 ? ' is' : 's are'} '
+                              'no longer available',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _removeUnavailable,
+                            child: const Text('Remove'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (!_loadingTracks &&
                 _loadError == null &&
                 filteredTracks.isNotEmpty)
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, i) {
-                    final track = filteredTracks[i];
-                    final originalIndex = playlist.tracks.indexOf(track);
-                    return TrackTile(
-                      index: i + 1,
-                      track: track,
-                      isActive: currentTrackId == track.id,
-                      selectionMode: _selectionMode,
-                      selected: _selectedTrackIds.contains(track.id),
-                      onTap: _selectionMode
-                          ? () => _toggleTrackSelection(track)
-                          : () => player.playQueue(
-                              playlist.tracks,
-                              startIndex: originalIndex,
-                              sourcePlaylist: playlist,
-                            ),
-                      onLongPress: _selectionMode
-                          ? () => _toggleTrackSelection(track)
-                          : () => _enterSelectionMode(track),
-                      onPlayNext: () => player.playNext(track),
-                      onAddToQueue: () => player.addToQueue(track),
-                      onRemove: playlist.isOwnedByUser
-                          ? () => _handleRemoveTrack(track)
-                          : null,
-                      onMore: () =>
-                          _selectionMode && _selectedTrackIds.isNotEmpty
-                          ? _addSelectedToPlaylist()
-                          : showAddToPlaylistSheet(context, track),
-                      isLiked: library.isLiked(track),
-                      onToggleLike: () => toggleTrackLike(context, track),
-                      isDownloaded: downloads.isDownloaded(track.videoId),
-                      downloadProgress: track.isDriveSourced
-                          ? null
-                          : downloads.progressFor(track.videoId),
-                      onToggleDownload: track.isDriveSourced
-                          ? null
-                          : () => toggleTrackDownload(context, track),
-                      onCancelDownload:
-                          track.isDriveSourced || track.videoId == null
-                          ? null
-                          : () => downloads.cancelDownload(track.videoId!),
-                      onArtistTap: openArtistPageCallback(
-                        context,
-                        channelId: track.channelId,
-                        artistName: track.artist,
+                sliver: canReorder
+                    ? SliverReorderableList(
+                        itemCount: filteredTracks.length,
+                        onReorderItem: _reorder,
+                        proxyDecorator: (child, index, animation) =>
+                            Material(color: Colors.transparent, child: child),
+                        itemBuilder: (context, i) => KeyedSubtree(
+                          key: ValueKey('reorder-${filteredTracks[i].id}'),
+                          child: tileFor(context, i, reorder: true),
+                        ),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => tileFor(context, i),
+                          childCount: filteredTracks.length,
+                        ),
                       ),
-                      playlistId: playlist.id,
-                      playlistName: playlist.title,
-                    );
-                  }, childCount: filteredTracks.length),
-                ),
               ),
           ],
         ),

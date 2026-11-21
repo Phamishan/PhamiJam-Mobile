@@ -64,7 +64,8 @@ class MixedPlaylistService {
       final source = (map['source'] as String?) ?? 'youtube';
       if (source == 'youtube' &&
           (((map['artist'] as String?) ?? '').isEmpty ||
-              ((map['thumbnailUrl'] as String?) ?? '').isEmpty)) {
+              ((map['thumbnailUrl'] as String?) ?? '').isEmpty ||
+              ((map['durationMs'] as int?) ?? 0) <= 0)) {
         _needsRepair.add(doc.id);
       }
     }
@@ -133,7 +134,8 @@ class MixedPlaylistService {
       }
       final artist = (track['artist'] as String?) ?? '';
       final thumb = (track['thumbnailUrl'] as String?) ?? '';
-      if (artist.isNotEmpty && thumb.isNotEmpty) continue;
+      final durationMs = (track['durationMs'] as int?) ?? 0;
+      if (artist.isNotEmpty && thumb.isNotEmpty && durationMs > 0) continue;
       if (details.length >= 25) break;
       _repairAttempted.add(videoId);
       try {
@@ -150,6 +152,11 @@ class MixedPlaylistService {
       final info = details[(track['videoId'] as String?) ?? ''];
       if (info == null) continue;
       var changed = false;
+      if (((track['durationMs'] as int?) ?? 0) <= 0 &&
+          info.duration > Duration.zero) {
+        track['durationMs'] = info.duration.inMilliseconds;
+        changed = true;
+      }
       if (((track['artist'] as String?) ?? '').isEmpty &&
           info.artist.isNotEmpty) {
         track['artist'] = info.artist;
@@ -237,7 +244,11 @@ class MixedPlaylistService {
     await collection.doc(_docId(playlistId)).delete();
   }
 
-  static Future<int> addTracks(String playlistId, List<Track> tracks) async {
+  static Future<int> addTracks(
+    String playlistId,
+    List<Track> tracks, {
+    bool allowDuplicates = false,
+  }) async {
     final collection = _collection;
     if (collection == null) throw StateError('Not signed in.');
     final ref = collection.doc(_docId(playlistId));
@@ -256,7 +267,7 @@ class MixedPlaylistService {
       for (final track in tracks) {
         final videoId = track.videoId;
         if (videoId == null || videoId.isEmpty) continue;
-        if (!knownIds.add(videoId)) continue;
+        if (!knownIds.add(videoId) && !allowDuplicates) continue;
         existing.add(_trackToMap(track));
         added++;
       }
@@ -288,5 +299,117 @@ class MixedPlaylistService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
+  }
+
+  static Future<int> removeVideoIds(
+    String playlistId,
+    Set<String> videoIds,
+  ) async {
+    final collection = _collection;
+    if (collection == null || videoIds.isEmpty) return 0;
+    final ref = collection.doc(_docId(playlistId));
+    return FirebaseFirestore.instance.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+      final existing = snapshot.data()?['tracks'] is List
+          ? List<dynamic>.from(snapshot.data()!['tracks'] as List)
+          : <dynamic>[];
+      final filtered = existing
+          .where((m) => !(m is Map && videoIds.contains(m['videoId'])))
+          .toList();
+      final removed = existing.length - filtered.length;
+      if (removed == 0) return 0;
+      transaction.update(ref, {
+        'tracks': filtered,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return removed;
+    });
+  }
+
+  static Future<void> insertTrackBefore(
+    String playlistId,
+    Track track, {
+    String? beforeVideoId,
+  }) async {
+    final collection = _collection;
+    if (collection == null) return;
+    final ref = collection.doc(_docId(playlistId));
+    await FirebaseFirestore.instance.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+      final existing = snapshot.data()?['tracks'] is List
+          ? List<dynamic>.from(snapshot.data()!['tracks'] as List)
+          : <dynamic>[];
+      var index = beforeVideoId == null
+          ? -1
+          : existing.indexWhere(
+              (m) => m is Map && m['videoId'] == beforeVideoId,
+            );
+      if (index < 0) index = existing.length;
+      existing.insert(index, _trackToMap(track));
+      transaction.update(ref, {
+        'tracks': existing,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  static Future<void> moveVideo(
+    String playlistId,
+    String videoId, {
+    String? beforeVideoId,
+  }) async {
+    final collection = _collection;
+    if (collection == null) return;
+    final ref = collection.doc(_docId(playlistId));
+    await FirebaseFirestore.instance.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+      final existing = snapshot.data()?['tracks'] is List
+          ? List<dynamic>.from(snapshot.data()!['tracks'] as List)
+          : <dynamic>[];
+      final from = existing.indexWhere(
+        (m) => m is Map && m['videoId'] == videoId,
+      );
+      if (from < 0) return;
+      final entry = existing.removeAt(from);
+      var to = beforeVideoId == null
+          ? -1
+          : existing.indexWhere(
+              (m) => m is Map && m['videoId'] == beforeVideoId,
+            );
+      if (to < 0) to = existing.length;
+      existing.insert(to, entry);
+      transaction.update(ref, {
+        'tracks': existing,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  static Future<Map<String, dynamic>?> exportPlaylist(String playlistId) async {
+    final collection = _collection;
+    if (collection == null) return null;
+    final snapshot = await collection.doc(_docId(playlistId)).get();
+    final data = snapshot.data();
+    if (data == null) return null;
+    return {
+      'title': data['title'] ?? 'Untitled playlist',
+      'description': data['description'] ?? '',
+      'tracks': data['tracks'] is List
+          ? List<dynamic>.from(data['tracks'])
+          : [],
+    };
+  }
+
+  static Future<String> restorePlaylist(Map<String, dynamic> export) async {
+    final collection = _collection;
+    if (collection == null) throw StateError('Not signed in.');
+    final ref = await collection.add({
+      'title': export['title'] ?? 'Untitled playlist',
+      'description': export['description'] ?? '',
+      'tracks': export['tracks'] ?? <dynamic>[],
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    return '$kMixedPlaylistIdPrefix${ref.id}';
   }
 }

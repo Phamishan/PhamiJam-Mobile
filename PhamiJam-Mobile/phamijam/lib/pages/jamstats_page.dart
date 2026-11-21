@@ -13,6 +13,25 @@ import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:phamijam/services/log_service.dart';
+import 'package:phamijam/models/play_event.dart';
+
+enum _JamstatsRange { week, month, year, allTime }
+
+class _Period {
+  const _Period({
+    required this.key,
+    required this.label,
+    required this.phrase,
+    required this.intro,
+    required this.empty,
+  });
+
+  final String key;
+  final String label;
+  final String phrase;
+  final String intro;
+  final String empty;
+}
 
 class JamstatsPage extends StatefulWidget {
   const JamstatsPage({super.key});
@@ -27,6 +46,88 @@ class _JamstatsPageState extends State<JamstatsPage> {
   int _slideIndex = 0;
   int _year = DateTime.now().year;
   int _earliestYear = DateTime.now().year;
+  _JamstatsRange _range = _JamstatsRange.year;
+  int _loadToken = 0;
+  bool _triedLastYear = false;
+
+  _Period get _period {
+    final now = DateTime.now();
+    switch (_range) {
+      case _JamstatsRange.week:
+        return const _Period(
+          key: 'week',
+          label: 'Last 7 days',
+          phrase: 'this week',
+          intro: 'Your week in PhamiJam.',
+          empty: 'No listening in the last 7 days.',
+        );
+      case _JamstatsRange.month:
+        return const _Period(
+          key: 'month',
+          label: 'Last 30 days',
+          phrase: 'this month',
+          intro: 'Your month in PhamiJam.',
+          empty: 'No listening in the last 30 days.',
+        );
+      case _JamstatsRange.allTime:
+        return const _Period(
+          key: 'all-time',
+          label: 'All time',
+          phrase: 'overall',
+          intro: 'Everything you have played on PhamiJam.',
+          empty: 'No listening logged yet.',
+        );
+      case _JamstatsRange.year:
+        final isCurrent = _year == now.year;
+        return _Period(
+          key: '$_year',
+          label: '$_year',
+          phrase: isCurrent ? 'this year' : 'in $_year',
+          intro: 'Your year in PhamiJam.',
+          empty: isCurrent
+              ? 'Nothing to wrap yet — PhamiJam starts counting your plays '
+                    'from now on. Go jam for a bit and check back!'
+              : 'No listening logged for $_year.',
+        );
+    }
+  }
+
+  Future<List<PlayEvent>> _eventsForRange() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    switch (_range) {
+      case _JamstatsRange.year:
+        return ListeningHistoryService.eventsSince(
+          DateTime(_year),
+          until: DateTime(_year + 1),
+        );
+      case _JamstatsRange.week:
+        return ListeningHistoryService.eventsInRange(
+          today.subtract(const Duration(days: 6)),
+          tomorrow,
+        );
+      case _JamstatsRange.month:
+        return ListeningHistoryService.eventsInRange(
+          today.subtract(const Duration(days: 29)),
+          tomorrow,
+        );
+      case _JamstatsRange.allTime:
+        final first = await ListeningHistoryService.earliestEventYear();
+        return ListeningHistoryService.eventsInRange(DateTime(first), tomorrow);
+    }
+  }
+
+  void _selectRange(_JamstatsRange value) {
+    if (value == _range) return;
+    Log.i('jamstats', 'range -> ${value.name}');
+    setState(() {
+      _range = value;
+      _slideIndex = 0;
+    });
+    _loadStats();
+  }
+
   Timer? _slowLoadTimer;
   bool _sharing = false;
   bool _showSlowLoadHint = false;
@@ -56,25 +157,54 @@ class _JamstatsPageState extends State<JamstatsPage> {
     _slowLoadTimer = Timer(_slowLoadHintDelay, () {
       if (mounted) setState(() => _showSlowLoadHint = true);
     });
+    final token = ++_loadToken;
     setState(() {
       _stats = null;
       _loadError = null;
       _showSlowLoadHint = false;
     });
+    final watch = Stopwatch()..start();
+    Log.i(
+      'jamstats',
+      'load #$token started (range ${_range.name}, year $_year)',
+    );
     try {
-      final events = await ListeningHistoryService.eventsSince(
-        DateTime(_year),
-        until: DateTime(_year + 1),
+      final events = await _eventsForRange();
+      Log.i(
+        'jamstats',
+        'load #$token got ${events.length} events in ${watch.elapsedMilliseconds} ms '
+            '(mounted=$mounted, current=${token == _loadToken})',
       );
-      if (!mounted) return;
-      setState(() => _stats = WrappedStats.fromEvents(events));
+      if (!mounted || token != _loadToken) return;
+
+      final now = DateTime.now();
+      if (_range == _JamstatsRange.year &&
+          _year == now.year &&
+          now.month == 1 &&
+          events.isEmpty &&
+          !_triedLastYear) {
+        _triedLastYear = true;
+        final earliest = await ListeningHistoryService.earliestEventYear();
+        if (!mounted || token != _loadToken) return;
+        if (earliest < _year) {
+          setState(() => _year = _year - 1);
+          unawaited(_loadStats());
+          return;
+        }
+      }
+
+      final stats = WrappedStats.fromEvents(events);
+      Log.i(
+        'jamstats',
+        'load #$token stats ready in ${watch.elapsedMilliseconds} ms',
+      );
+      setState(() => _stats = stats);
     } catch (error, stackTrace) {
-      Log.e('jamstats', 'load stats failed', error, stackTrace);
-      debugPrint('JamstatsPage: failed to load stats: $error\n$stackTrace');
-      if (!mounted) return;
+      Log.e('jamstats', 'failed to load stats', error, stackTrace);
+      if (!mounted || token != _loadToken) return;
       setState(() => _loadError = "Couldn't load Jamstats.");
     } finally {
-      _slowLoadTimer?.cancel();
+      if (token == _loadToken) _slowLoadTimer?.cancel();
     }
   }
 
@@ -93,7 +223,7 @@ class _JamstatsPageState extends State<JamstatsPage> {
           type: MaterialType.transparency,
           child: RepaintBoundary(
             key: key,
-            child: _ShareCard(stats: stats, year: _year),
+            child: _ShareCard(stats: stats, period: _period),
           ),
         ),
       ),
@@ -108,12 +238,12 @@ class _JamstatsPageState extends State<JamstatsPage> {
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
       if (bytes == null) throw StateError('could not encode image');
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/jamstats_$_year.png');
+      final file = File('${dir.path}/jamstats_${_period.key}.png');
       await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path, mimeType: 'image/png')],
-          text: 'My Jamstats ✨ $_year on PhamiJam',
+          text: 'My Jamstats ✨ ${_period.label} on PhamiJam',
         ),
       );
     } catch (error) {
@@ -137,7 +267,7 @@ class _JamstatsPageState extends State<JamstatsPage> {
 
   List<Widget> _buildSlides(WrappedStats stats) {
     return [
-      _IntroSlide(year: _year),
+      _IntroSlide(period: _period),
       _MinutesSlide(stats: stats),
       if (stats.topTracks.isNotEmpty) _TopTrackSlide(stats: stats),
       if (stats.topTracks.length > 1)
@@ -146,7 +276,8 @@ class _JamstatsPageState extends State<JamstatsPage> {
           entries: stats.topTracks,
           square: true,
         ),
-      if (stats.topArtists.isNotEmpty) _TopArtistSlide(stats: stats),
+      if (stats.topArtists.isNotEmpty)
+        _TopArtistSlide(stats: stats, period: _period),
       if (stats.topArtists.length > 1)
         _TopListSlide(
           title: 'Your top artists',
@@ -154,7 +285,7 @@ class _JamstatsPageState extends State<JamstatsPage> {
           square: false,
         ),
       _HabitsSlide(stats: stats),
-      _SummarySlide(stats: stats, year: _year),
+      _SummarySlide(stats: stats, period: _period),
     ];
   }
 
@@ -226,7 +357,7 @@ class _JamstatsPageState extends State<JamstatsPage> {
         ),
       );
     } else if (stats.isEmpty) {
-      body = _EmptyState(year: _year);
+      body = _EmptyState(period: _period);
     } else {
       final slides = _buildSlides(stats);
       body = GestureDetector(
@@ -294,7 +425,15 @@ class _JamstatsPageState extends State<JamstatsPage> {
                 ),
               ),
               body,
-              if (_availableYears.length > 1)
+              Positioned(
+                bottom: 10,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _RangeChips(range: _range, onSelected: _selectRange),
+                ),
+              ),
+              if (_range == _JamstatsRange.year && _availableYears.length > 1)
                 Positioned(
                   top: 20,
                   left: 8,
@@ -350,6 +489,7 @@ class _YearPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<int>(
+      tooltip: '',
       initialValue: year,
       onSelected: onSelected,
       color: const Color(0xFF2A2210),
@@ -443,20 +583,20 @@ TextStyle _body(BuildContext context) => Theme.of(context).textTheme.titleLarge!
     .copyWith(color: Colors.white, fontWeight: FontWeight.w500);
 
 class _IntroSlide extends StatelessWidget {
-  final int year;
+  final _Period period;
 
-  const _IntroSlide({required this.year});
+  const _IntroSlide({required this.period});
 
   @override
   Widget build(BuildContext context) {
     return _SlideScaffold(
       children: [
-        Text('$year', style: _kicker(context)),
+        Text(period.label, style: _kicker(context)),
         const SizedBox(height: 8),
         Text('Jamstats ✨', style: _hero(context)),
         const SizedBox(height: 16),
         Text(
-          'Your year in PhamiJam.\nTap to see the sound through your eyes ✨',
+          '${period.intro}\nTap to see the sound through your eyes ✨',
           style: _body(context),
         ),
       ],
@@ -534,8 +674,9 @@ class _TopTrackSlide extends StatelessWidget {
 
 class _TopArtistSlide extends StatelessWidget {
   final WrappedStats stats;
+  final _Period period;
 
-  const _TopArtistSlide({required this.stats});
+  const _TopArtistSlide({required this.stats, required this.period});
 
   @override
   Widget build(BuildContext context) {
@@ -553,7 +694,7 @@ class _TopArtistSlide extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           'They soundtracked ${stats.topArtistPercent}% of your '
-          'listening this year.',
+          'listening ${period.phrase}.',
           style: _body(context),
         ),
       ],
@@ -696,12 +837,12 @@ class _HabitRow extends StatelessWidget {
 
 class _SummarySlide extends StatelessWidget {
   final WrappedStats stats;
-  final int year;
+  final _Period period;
   final bool forShare;
 
   const _SummarySlide({
     required this.stats,
-    required this.year,
+    required this.period,
     this.forShare = false,
   });
 
@@ -731,7 +872,10 @@ class _SummarySlide extends StatelessWidget {
 
     return _SlideScaffold(
       children: [
-        Text('Jamstats ✨ $year', style: _hero(context).copyWith(fontSize: 30)),
+        Text(
+          'Jamstats ✨ ${period.label}',
+          style: _hero(context).copyWith(fontSize: 30),
+        ),
         const SizedBox(height: 24),
         Container(
           padding: const EdgeInsets.all(20),
@@ -777,9 +921,9 @@ class _ShareCard extends StatelessWidget {
   static const double height = 640;
 
   final WrappedStats stats;
-  final int year;
+  final _Period period;
 
-  const _ShareCard({required this.stats, required this.year});
+  const _ShareCard({required this.stats, required this.period});
 
   @override
   Widget build(BuildContext context) {
@@ -794,31 +938,66 @@ class _ShareCard extends StatelessWidget {
             colors: [Color(0xFF3A2E12), Color(0xFF16130D)],
           ),
         ),
-        child: _SummarySlide(stats: stats, year: year, forShare: true),
+        child: _SummarySlide(stats: stats, period: period, forShare: true),
       ),
     );
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  final int year;
+  final _Period period;
 
-  const _EmptyState({required this.year});
+  const _EmptyState({required this.period});
 
   @override
   Widget build(BuildContext context) {
-    final isCurrentYear = year == DateTime.now().year;
     return _SlideScaffold(
       children: [
-        Text('Jamstats ✨ $year', style: _hero(context).copyWith(fontSize: 32)),
-        const SizedBox(height: 16),
         Text(
-          isCurrentYear
-              ? "Nothing to wrap yet — PhamiJam starts counting your plays "
-                    "from now on. Go jam for a bit and check back!"
-              : "No listening logged for $year.",
-          style: _body(context),
+          'Jamstats ✨ ${period.label}',
+          style: _hero(context).copyWith(fontSize: 32),
         ),
+        const SizedBox(height: 16),
+        Text(period.empty, style: _body(context)),
+      ],
+    );
+  }
+}
+
+class _RangeChips extends StatelessWidget {
+  final _JamstatsRange range;
+  final ValueChanged<_JamstatsRange> onSelected;
+
+  const _RangeChips({required this.range, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip(_JamstatsRange value, String label) {
+      final selected = range == value;
+      return ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onSelected(value),
+        showCheckmark: false,
+        selectedColor: kBrandGold,
+        backgroundColor: Colors.white.withValues(alpha: 0.10),
+        side: BorderSide.none,
+        labelStyle: TextStyle(
+          color: selected ? Colors.black : Colors.white70,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      alignment: WrapAlignment.center,
+      children: [
+        chip(_JamstatsRange.week, 'Week'),
+        chip(_JamstatsRange.month, 'Month'),
+        chip(_JamstatsRange.year, 'Year'),
+        chip(_JamstatsRange.allTime, 'All time'),
       ],
     );
   }

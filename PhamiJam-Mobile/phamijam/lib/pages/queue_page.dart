@@ -60,8 +60,17 @@ class QueuePage extends StatelessWidget {
                         if (upNext.isNotEmpty)
                           TextButton.icon(
                             onPressed: () {
+                              final cleared = List<Track>.from(upNext);
                               player.clearQueue();
-                              AppFlushbar.success(context, 'Queue cleared');
+                              AppFlushbar.undo(
+                                context,
+                                'Queue cleared',
+                                onUndo: () {
+                                  for (final track in cleared) {
+                                    player.addToQueue(track);
+                                  }
+                                },
+                              );
                             },
                             icon: const Icon(
                               Icons.playlist_remove_rounded,
@@ -133,10 +142,9 @@ class QueuePage extends StatelessWidget {
                                           child: TrackTile(
                                             index: i + 1,
                                             track: track,
-                                            onTap: () =>
-                                                player.playFromQueue(
-                                                  queueIndex,
-                                                ),
+                                            onTap: () => player.playFromQueue(
+                                              queueIndex,
+                                            ),
                                             onPlayNext: () =>
                                                 player.playNext(track),
                                             onRemove: () async {
@@ -144,23 +152,25 @@ class QueuePage extends StatelessWidget {
                                                 queueIndex,
                                               );
                                               if (context.mounted) {
-                                                AppFlushbar.success(
+                                                AppFlushbar.undo(
                                                   context,
                                                   'Removed from queue',
+                                                  onUndo: () =>
+                                                      player.playNext(track),
                                                 );
                                               }
                                               return true;
                                             },
-                                            onMore: () => showAddToPlaylistSheet(
-                                              context,
-                                              track,
-                                            ),
+                                            onMore: () =>
+                                                showAddToPlaylistSheet(
+                                                  context,
+                                                  track,
+                                                ),
                                             isLiked: library.isLiked(track),
                                             onToggleLike: () =>
                                                 toggleTrackLike(context, track),
-                                            isDownloaded: downloads.isDownloaded(
-                                              track.videoId,
-                                            ),
+                                            isDownloaded: downloads
+                                                .isDownloaded(track.videoId),
                                             downloadProgress: downloads
                                                 .progressFor(track.videoId),
                                             onToggleDownload: () =>
@@ -171,16 +181,15 @@ class QueuePage extends StatelessWidget {
                                             onCancelDownload:
                                                 track.videoId == null
                                                 ? null
-                                                : () => downloads
-                                                      .cancelDownload(
+                                                : () =>
+                                                      downloads.cancelDownload(
                                                         track.videoId!,
                                                       ),
-                                            onArtistTap:
-                                                openArtistPageCallback(
-                                                  context,
-                                                  channelId: track.channelId,
-                                                  artistName: track.artist,
-                                                ),
+                                            onArtistTap: openArtistPageCallback(
+                                              context,
+                                              channelId: track.channelId,
+                                              artistName: track.artist,
+                                            ),
                                           ),
                                         ),
                                         ReorderableDragStartListener(

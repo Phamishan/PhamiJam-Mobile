@@ -9,6 +9,7 @@ import 'package:phamijam/providers/library_provider.dart';
 import 'package:phamijam/providers/player_provider.dart';
 import 'package:phamijam/providers/settings_provider.dart';
 import 'package:phamijam/services/download_service.dart';
+import 'package:phamijam/services/youtube_service.dart';
 import 'package:phamijam/widgets/mini_player.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 import 'package:phamijam/widgets/swipe_back.dart';
@@ -117,6 +118,33 @@ Track ytSongToTrack(
     videoId: videoId.isEmpty ? null : videoId,
     channelId: artistId ?? fallbackArtistId,
   );
+}
+
+Future<List<Track>> withPlayCounts(
+  List<Track> tracks, {
+  bool sort = true,
+}) async {
+  try {
+    final ids = tracks.map((t) => t.videoId).whereType<String>().toSet();
+    if (ids.isEmpty) return tracks;
+    final counts = await YoutubeService.fetchViewCounts(
+      ids.toList(),
+    ).timeout(const Duration(seconds: 8));
+    final enriched = [
+      for (final t in tracks) t.withViewCount(counts[t.videoId]),
+    ];
+    if (sort) {
+      final order = {for (var i = 0; i < enriched.length; i++) enriched[i]: i};
+      enriched.sort((a, b) {
+        final byPlays = (b.viewCount ?? -1).compareTo(a.viewCount ?? -1);
+        return byPlays != 0 ? byPlays : order[a]!.compareTo(order[b]!);
+      });
+    }
+    return enriched;
+  } catch (error) {
+    Log.w('browse', 'loading play counts failed', error);
+    return tracks;
+  }
 }
 
 class ArtistPage extends StatefulWidget {
@@ -249,10 +277,12 @@ class _ArtistPageState extends State<ArtistPage> {
           )
           .toList();
 
+      final withPlays = await withPlayCounts(songs);
+
       if (!mounted) return;
       setState(() {
         _artist = artist;
-        _songs = songs;
+        _songs = withPlays;
         _albums = albums;
         _singles = singles;
         _loading = false;
@@ -621,6 +651,7 @@ class _ArtistPageState extends State<ArtistPage> {
                                 return TrackTile(
                                   index: i + 1,
                                   track: track,
+                                  showPlays: true,
                                   isActive: currentTrackId == track.id,
                                   onTap: () =>
                                       player.playQueue(_songs, startIndex: i),

@@ -33,6 +33,8 @@ class LibraryProvider extends ChangeNotifier {
   List<String> _pinnedOrder = [];
   Set<String> get _pinnedIds => _pinnedOrder.toSet();
   bool isPinned(String playlistId) => _pinnedIds.contains(playlistId);
+
+  List<String> get pinnedPlaylistIds => List.unmodifiable(_pinnedOrder);
   Map<String, String> _coverOverrides = {};
 
   Playlist get likedSongsPlaylist => Playlist(
@@ -129,9 +131,10 @@ class LibraryProvider extends ChangeNotifier {
 
   Playlist _withCover(Playlist playlist) {
     final override = _coverOverrides[playlist.id];
-    return override == null
+    final withCover = override == null
         ? playlist.copyWith(clearCustomCover: true)
         : playlist.copyWith(customCoverUrl: override);
+    return withCover.copyWith(isPinned: isPinned(playlist.id));
   }
 
   void _reapplyCoversToMixed() {
@@ -212,9 +215,14 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<int> addTracksToMixedPlaylist(
     Playlist playlist,
-    List<Track> tracks,
-  ) async {
-    final added = await MixedPlaylistService.addTracks(playlist.id, tracks);
+    List<Track> tracks, {
+    bool allowDuplicates = false,
+  }) async {
+    final added = await MixedPlaylistService.addTracks(
+      playlist.id,
+      tracks,
+      allowDuplicates: allowDuplicates,
+    );
     Log.i(
       'library',
       'added $added of ${tracks.length} songs to PhamiJam playlist ${playlist.id}',
@@ -337,6 +345,7 @@ class LibraryProvider extends ChangeNotifier {
     }
     userPlaylists = _applyPinState(userPlaylists);
     _splitPlaylists();
+    _reapplyCoversToMixed();
     notifyListeners();
 
     try {

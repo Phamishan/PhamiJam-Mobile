@@ -23,5 +23,18 @@ class Track {
     this.addedAt,
   });
 
+  Track withViewCount(int? views) => Track(
+    id: id,
+    title: title,
+    artist: artist,
+    thumbnailUrl: thumbnailUrl,
+    duration: duration,
+    videoId: videoId,
+    channelId: channelId,
+    playlistItemId: playlistItemId,
+    viewCount: views,
+    addedAt: addedAt,
+  );
+
   bool get isDriveSourced => (videoId ?? '').startsWith('drive:');
 }

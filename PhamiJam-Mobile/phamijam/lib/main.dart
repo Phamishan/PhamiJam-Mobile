@@ -26,6 +26,7 @@ import 'package:phamijam/services/phamijam_audio_handler.dart';
 import 'package:phamijam/services/jamstats_widget_service.dart';
 import 'package:phamijam/services/log_service.dart';
 import 'package:phamijam/services/push_notification_service.dart';
+import 'package:phamijam/services/unavailable_songs_service.dart';
 import 'package:phamijam/theme/app_theme.dart';
 import 'package:phamijam/widgets/app_shell.dart';
 import 'package:provider/provider.dart';
@@ -66,6 +67,7 @@ void main() async {
   Log.i('startup', 'audio service ready, launching UI');
 
   unawaited(JamstatsWidgetService.refresh());
+  unawaited(UnavailableSongs.instance.ensureLoaded());
 
   runApp(
     MyApp(audioHandler: audioHandler, downloadsProvider: downloadsProvider),

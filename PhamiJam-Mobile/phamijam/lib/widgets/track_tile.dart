@@ -6,6 +6,18 @@ import 'package:phamijam/services/share_link_service.dart';
 import 'package:phamijam/widgets/artist_line.dart';
 import 'package:phamijam/widgets/network_thumbnail.dart';
 
+String formatPlayCount(int value) {
+  String trim(double v) {
+    final text = v.toStringAsFixed(v >= 100 ? 0 : 1);
+    return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
+  }
+
+  if (value >= 1000000000) return '${trim(value / 1000000000)}B';
+  if (value >= 1000000) return '${trim(value / 1000000)}M';
+  if (value >= 1000) return '${trim(value / 1000)}K';
+  return '$value';
+}
+
 class TrackTile extends StatefulWidget {
   final Track track;
   final int? index;
@@ -27,6 +39,9 @@ class TrackTile extends StatefulWidget {
   final VoidCallback? onCancelDownload;
   final String? playlistId;
   final String? playlistName;
+  final bool unavailable;
+  final bool showPlays;
+  final int? reorderIndex;
 
   const TrackTile({
     super.key,
@@ -50,6 +65,9 @@ class TrackTile extends StatefulWidget {
     this.onCancelDownload,
     this.playlistId,
     this.playlistName,
+    this.unavailable = false,
+    this.showPlays = false,
+    this.reorderIndex,
   });
 
   @override
@@ -152,11 +170,21 @@ class _TrackTileState extends State<TrackTile> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: activeColor,
+                        color: widget.unavailable
+                            ? activeColor.withValues(alpha: 0.45)
+                            : activeColor,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    widget.onArtistTap == null
+                    widget.unavailable
+                        ? Text(
+                            'Not available on YouTube',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: colorScheme.error),
+                          )
+                        : widget.onArtistTap == null
                         ? ArtistLine(
                             artist: widget.track.artist,
                             title: widget.track.title,
@@ -177,10 +205,29 @@ class _TrackTileState extends State<TrackTile> {
                 ),
               ),
               const SizedBox(width: 4),
-              Text(
-                _formatDuration(widget.track.duration),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              widget.showPlays && (widget.track.viewCount ?? 0) > 0
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          _formatDuration(widget.track.duration),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        Text(
+                          '${formatPlayCount(widget.track.viewCount!)} plays',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontSize: 11,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    )
+                  : Text(
+                      _formatDuration(widget.track.duration),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
               if (widget.onToggleLike != null)
                 IconButton(
                   onPressed: widget.onToggleLike,
@@ -245,6 +292,7 @@ class _TrackTileState extends State<TrackTile> {
                   )
                 else
                   PopupMenuButton<String>(
+                    tooltip: '',
                     padding: const EdgeInsets.all(13),
                     splashRadius: 22,
                     shape: RoundedRectangleBorder(
@@ -360,6 +408,18 @@ class _TrackTileState extends State<TrackTile> {
                     ),
                   ),
               ],
+              if (widget.reorderIndex != null)
+                ReorderableDragStartListener(
+                  index: widget.reorderIndex!,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4, right: 2),
+                    child: Icon(
+                      Icons.drag_handle_rounded,
+                      size: 22,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

@@ -326,6 +326,23 @@ class YoutubeService {
     return tracks;
   }
 
+  static Future<Set<String>> findUnavailableVideos(
+    List<String> videoIds,
+  ) async {
+    final missing = <String>{};
+    for (var i = 0; i < videoIds.length; i += 50) {
+      final end = i + 50 > videoIds.length ? videoIds.length : i + 50;
+      final chunk = videoIds.sublist(i, end);
+      final data = await _get('videos', {'part': 'id', 'id': chunk.join(',')});
+      final found = (data['items'] as List? ?? [])
+          .map((item) => (item as Map)['id'])
+          .whereType<String>()
+          .toSet();
+      missing.addAll(chunk.where((id) => !found.contains(id)));
+    }
+    return missing;
+  }
+
   static Future<Track?> fetchVideoById(String videoId) async {
     if (videoId.isEmpty) return null;
     final data = await _get('videos', {
@@ -646,6 +663,14 @@ class YoutubeService {
   ) async {
     final stats = await _fetchVideoStats(videoIds);
     return {for (final entry in stats.entries) entry.key: entry.value.duration};
+  }
+
+  static Future<Map<String, int>> fetchViewCounts(List<String> videoIds) async {
+    final stats = await _fetchVideoStats(videoIds);
+    return {
+      for (final entry in stats.entries)
+        if (entry.value.viewCount > 0) entry.key: entry.value.viewCount,
+    };
   }
 
   static Future<Map<String, ({Duration duration, int viewCount})>>

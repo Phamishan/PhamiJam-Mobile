@@ -230,6 +230,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                     ),
                                   ),
                                   PopupMenuButton<String>(
+                                    tooltip: '',
                                     icon: Icon(
                                       Icons.more_vert_rounded,
                                       color: colorScheme.onSurface,

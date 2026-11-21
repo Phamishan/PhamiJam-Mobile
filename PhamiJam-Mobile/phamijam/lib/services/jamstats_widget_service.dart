@@ -54,6 +54,14 @@ class JamstatsWidgetService {
         until: DateTime(year + 1),
       );
       final yearStats = WrappedStats.fromEvents(yearEvents);
+      final previousYearEvents = await ListeningHistoryService.eventsSince(
+        DateTime(year - 1),
+        until: DateTime(year),
+      );
+      final streakStats = WrappedStats.fromEvents([
+        ...previousYearEvents,
+        ...yearEvents,
+      ]);
 
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
@@ -74,7 +82,7 @@ class JamstatsWidgetService {
       }
       await HomeWidget.saveWidgetData<int>(
         _streakDaysKey,
-        yearStats.currentStreakDays,
+        streakStats.currentStreakDays,
       );
       await HomeWidget.saveWidgetData<String>(
         _topSongTitleKey,

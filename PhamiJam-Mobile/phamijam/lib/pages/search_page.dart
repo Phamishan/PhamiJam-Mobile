@@ -23,6 +23,7 @@ import 'package:ytmusicapi_dart/enums.dart';
 import 'package:ytmusicapi_dart/navigation.dart';
 import 'package:ytmusicapi_dart/parsers/browsing.dart';
 import 'package:ytmusicapi_dart/ytmusicapi_dart.dart';
+import 'package:phamijam/services/recent_searches_prefs.dart';
 
 class SearchPage extends StatefulWidget {
   final String query;
@@ -47,6 +48,34 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
+  List<String> _recent = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    RecentSearchesPrefs.load().then((items) {
+      if (mounted) setState(() => _recent = items);
+    });
+  }
+
+  Future<void> _noteSearch(String query) async {
+    final updated = await RecentSearchesPrefs.record(query);
+    if (mounted && updated.isNotEmpty) setState(() => _recent = updated);
+  }
+
+  void _useRecent(String query) {
+    widget.controller.value = TextEditingValue(
+      text: query,
+      selection: TextSelection.collapsed(offset: query.length),
+    );
+    widget.onQueryChanged(query);
+  }
+
+  Future<void> _clearRecent() async {
+    await RecentSearchesPrefs.clear();
+    if (mounted) setState(() => _recent = const []);
+  }
+
   Timer? _debounce;
   String _searchedQuery = '';
   List<Track> _results = [];
@@ -113,6 +142,7 @@ class _SearchPageState extends State<SearchPage> {
           'YouTube returned ${results.length} results in '
               '${searchWatch.elapsedMilliseconds} ms',
         );
+        if (results.isNotEmpty) unawaited(_noteSearch(query));
         if (!mounted || query != widget.query) return;
         setState(() {
           _results = results;
@@ -135,6 +165,9 @@ class _SearchPageState extends State<SearchPage> {
               '${lists[1].length} artists, ${lists[2].length} albums in '
               '${searchWatch.elapsedMilliseconds} ms',
         );
+        if (lists[0].isNotEmpty || lists[1].isNotEmpty) {
+          unawaited(_noteSearch(query));
+        }
         if (!mounted || query != widget.query) return;
         final songs = lists[0]
             .whereType<Map>()
@@ -181,7 +214,52 @@ class _SearchPageState extends State<SearchPage> {
 
     Widget child;
     if (widget.query.isEmpty) {
-      child = _BrowseView(key: const ValueKey('browse'), player: player);
+      child = Column(
+        key: const ValueKey('browse'),
+        children: [
+          if (_recent.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Recent searches',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _clearRecent,
+                        child: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final item in _recent)
+                        ActionChip(
+                          avatar: const Icon(Icons.history_rounded, size: 18),
+                          label: Text(item),
+                          onPressed: () => _useRecent(item),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _BrowseView(
+              key: const ValueKey('browse-view'),
+              player: player,
+            ),
+          ),
+        ],
+      );
     } else if (_loading) {
       child = const Center(
         key: ValueKey('loading'),
@@ -983,7 +1061,7 @@ class _ResultsView extends StatelessWidget {
   }
 }
 
-class _YTMusicResultsView extends StatelessWidget {
+class _YTMusicResultsView extends StatefulWidget {
   final String query;
   final List<Track> songs;
   final List<Map<String, dynamic>> artists;
@@ -998,6 +1076,66 @@ class _YTMusicResultsView extends StatelessWidget {
     required this.albums,
     required this.player,
   });
+
+  @override
+  State<_YTMusicResultsView> createState() => _YTMusicResultsViewState();
+}
+
+enum _ResultFilter { all, songs, artists, albums }
+
+class _YTMusicResultsViewState extends State<_YTMusicResultsView> {
+  _ResultFilter _filter = _ResultFilter.all;
+
+  @override
+  void didUpdateWidget(covariant _YTMusicResultsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.query != widget.query) _filter = _ResultFilter.all;
+  }
+
+  String get query => widget.query;
+  List<Track> get songs => widget.songs;
+  List<Map<String, dynamic>> get artists => widget.artists;
+  List<Map<String, dynamic>> get albums => widget.albums;
+  PlayerProvider get player => widget.player;
+
+  bool _show(_ResultFilter filter) =>
+      _filter == _ResultFilter.all || _filter == filter;
+
+  Widget _buildFilterChips() {
+    final kinds = <(_ResultFilter, String, int)>[
+      (_ResultFilter.songs, 'Songs', songs.length),
+      (_ResultFilter.artists, 'Artists', artists.length),
+      (_ResultFilter.albums, 'Albums', albums.length),
+    ].where((k) => k.$3 > 0).toList();
+    if (kinds.length < 2) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: const Text('All'),
+                selected: _filter == _ResultFilter.all,
+                onSelected: (_) => setState(() => _filter = _ResultFilter.all),
+              ),
+            ),
+            for (final kind in kinds)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text('${kind.$2} · ${kind.$3}'),
+                  selected: _filter == kind.$1,
+                  onSelected: (_) => setState(() => _filter = kind.$1),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   void _openAlbum(BuildContext context, Map<String, dynamic> album) {
     final browseId = readYtString(album['browseId']);
@@ -1039,7 +1177,8 @@ class _YTMusicResultsView extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 16),
-          if (artists.isNotEmpty) ...[
+          _buildFilterChips(),
+          if (_show(_ResultFilter.artists) && artists.isNotEmpty) ...[
             SectionHeader(title: 'Artists'),
             SizedBox(
               height: 118,
@@ -1053,7 +1192,7 @@ class _YTMusicResultsView extends StatelessWidget {
             ),
             const SizedBox(height: 24),
           ],
-          if (albums.isNotEmpty) ...[
+          if (_show(_ResultFilter.albums) && albums.isNotEmpty) ...[
             SectionHeader(title: 'Albums'),
             SizedBox(
               height: 210,
@@ -1072,7 +1211,7 @@ class _YTMusicResultsView extends StatelessWidget {
             ),
             const SizedBox(height: 24),
           ],
-          if (songs.isNotEmpty) ...[
+          if (_show(_ResultFilter.songs) && songs.isNotEmpty) ...[
             SectionHeader(title: 'Songs'),
             const SizedBox(height: 8),
             ...List.generate(songs.length, (index) {

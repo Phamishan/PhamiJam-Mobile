@@ -104,6 +104,7 @@ class _RecentTrackCardState extends State<RecentTrackCard> {
                         color: Colors.black.withValues(alpha: 0.45),
                         shape: const CircleBorder(),
                         child: PopupMenuButton<String>(
+                          tooltip: '',
                           padding: EdgeInsets.zero,
                           splashRadius: 16,
                           shape: RoundedRectangleBorder(

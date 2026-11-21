@@ -37,6 +37,7 @@ class AlbumDetailsPage extends StatefulWidget {
 class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
   Map<String, dynamic>? _album;
   List<Track> _tracks = const [];
+  int _totalPlays = 0;
   bool _loading = true;
   String? _error;
   bool _selectionMode = false;
@@ -112,10 +113,17 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
           )
           .toList();
 
+      final withPlays = await withPlayCounts(tracks, sort: false);
+      final totalPlays = withPlays.fold<int>(
+        0,
+        (sum, t) => sum + (t.viewCount ?? 0),
+      );
+
       if (!mounted) return;
       setState(() {
         _album = album;
-        _tracks = tracks;
+        _tracks = withPlays;
+        _totalPlays = totalPlays;
         _loading = false;
       });
     } catch (error) {
@@ -286,6 +294,11 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                                   year,
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
+                              if (_totalPlays > 0)
+                                Text(
+                                  '${formatPlayCount(_totalPlays)} plays',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
                             ],
                           ),
                           if (description.isNotEmpty) ...[
@@ -390,6 +403,7 @@ class _AlbumDetailsPageState extends State<AlbumDetailsPage> {
                     return TrackTile(
                       index: i + 1,
                       track: track,
+                      showPlays: true,
                       isActive: currentTrackId == track.id,
                       selectionMode: _selectionMode,
                       selected: _selectedTrackIds.contains(track.id),
